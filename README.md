@@ -48,10 +48,52 @@ This repository is organized into three git branches to provide both a unified m
 
 ---
 
-## 2. Environment Setup (One-Step Script)
+## 2. Operating System & Tool Requirements
 
-The repository provides an automated environment setup script that installs all host dependencies (`build-essential`, `gawk`, `zlib1g-dev`, `python3-pip`, `prompt_toolkit`, etc.) and verifies the MIPS cross-toolchain:
+### Supported Host OS
+- **Recommended**: **Ubuntu 18.04 LTS (Bionic Beaver)** 64-bit (Native Linux or WSL / WSL2)
+- **Compatible**: **Ubuntu 20.04 LTS (Focal Fossa)** 64-bit
+- *Note:* Ubuntu 18.04/20.04 is recommended because OpenWrt 18.06.9 ImageBuilder uses host-compiled utilities (`mksquashfs4`, `opkg`, `mkimage`) linked against glibc 2.27/2.31.
 
+### Required Host Tools & Packages
+Run the following command to install all necessary packages via `apt`:
+```bash
+sudo apt-get update && sudo apt-get install -y \
+    build-essential \
+    gawk \
+    git \
+    subversion \
+    libncurses5-dev \
+    zlib1g-dev \
+    libssl-dev \
+    xsltproc \
+    rsync \
+    wget \
+    unzip \
+    file \
+    sshpass \
+    tree \
+    python3 \
+    python3-pip \
+    python3-distutils
+```
+
+### Python Dependencies (for PC Test Console `run.py`)
+```bash
+pip3 install prompt_toolkit
+```
+
+### Cross-Compilation Toolchain
+The applications are built for the Atheros AR9331 SoC (**MIPS 24Kc**, musl libc):
+- **Toolchain**: `mips-openwrt-linux-musl-gcc` (GCC 7.5.0 / musl)
+- **Default Path**: `/home/hor/openwrt/openwrt/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin`
+- Or specify via environment variable:
+  ```bash
+  export TOOLCHAIN=/path/to/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin
+  ```
+
+### Automated One-Step Setup Script
+The repository includes an automated setup script that verifies the OS, installs missing apt packages, sets up Python dependencies, and confirms toolchain availability:
 ```bash
 chmod +x scripts/setup_env.sh
 ./scripts/setup_env.sh
