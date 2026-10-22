@@ -1,5 +1,0 @@
-# LG02: Radio1 (RX) NSS=15 → spidev1.0, Radio2 (TX) NSS=24 → spidev2.0
-# LG01: only Radio2 (TX/RX) NSS=24 → spidev2.0 (remove/comment bus0 line)
-# SX1302-based: uses hardware SPI → spidev1.0 only (remove bus1 line, adjust bus0 NSS)
-spi-gpio-custom bus0=1,15,18,20,0,8000000
-spi-gpio-custom bus1=2,24,18,20,0,8000000

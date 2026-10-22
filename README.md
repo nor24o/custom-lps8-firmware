@@ -31,10 +31,10 @@ This branch/target contains the complete custom firmware, rootfs overlay, and ap
 └── files/                 # Target Rootfs Overlay (injected into SquashFS)
     ├── etc/
     │   ├── config/        # network, system, uhttpd, dropbear
-    │   ├── init.d/        # raw_lora_app, spi_init, lg02_pkt_fwd
-    │   ├── lora/          # config.json (radio channel plan), gateway.json
-    │   └── modules.d/     # 30-spi-gpio-custom
-    ├── usr/bin/           # raw_lora_app, net_watchdog.sh, simple_spi_rw
+    │   ├── init.d/        # raw_lora_app (procd service daemon)
+    │   ├── lora/          # config.json (SX1302 8-channel plan + RF frontend)
+    │   └── modules.d/     # 30-spi-gpio-custom (SX1302 SPI bus)
+    ├── usr/bin/           # raw_lora_app, reset_lgw.sh, net_watchdog.sh
     └── www/               # Custom Dark Web GUI & CGI scripts (config, status, logs)
 ```
 

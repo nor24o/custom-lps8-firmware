@@ -5,50 +5,62 @@ echo ""
 
 jstr() { printf '%s' "$1" | grep -o "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed 's/.*":[[:space:]]*"//' | tr -d '"'; }
 
-# Determine running binary and mode
-hw_mode="none"
+hw_mode="SX1302"
 running=false
-if pidof lg02_pkt_fwd >/dev/null 2>&1; then
-    running=true; hw_mode="LG02"
-elif pidof lg01_pkt_fwd >/dev/null 2>&1; then
-    running=true; hw_mode="LG01"
-elif pidof raw_lora_app >/dev/null 2>&1; then
-    running=true; hw_mode="SX1302"
+if pidof raw_lora_app >/dev/null 2>&1; then
+    running=true
 fi
 
 enabled=false
-ls /etc/rc.d/ 2>/dev/null | grep -q '^S[0-9]*lg02_pkt_fwd' && enabled=true
+ls /etc/rc.d/ 2>/dev/null | grep -q '^S[0-9]*raw_lora_app' && enabled=true
 
 if [ "$REQUEST_METHOD" = "POST" ]; then
     CL=${CONTENT_LENGTH:-0}
     body=$(head -c "$CL")
     action=$(jstr "$body" action)
     case "$action" in
-        start)   /etc/init.d/lg02_pkt_fwd start   >/dev/null 2>&1; sleep 3 ;;
-        stop)    /etc/init.d/lg02_pkt_fwd stop    >/dev/null 2>&1; sleep 1 ;;
-        restart) /etc/init.d/lg02_pkt_fwd restart >/dev/null 2>&1; sleep 3 ;;
-        enable)  /etc/init.d/lg02_pkt_fwd enable  >/dev/null 2>&1 ;;
-        disable) /etc/init.d/lg02_pkt_fwd disable >/dev/null 2>&1 ;;
-        *) printf '{"error":"unknown action"}\n'; exit 0 ;;
+        start)   /etc/init.d/raw_lora_app start   >/dev/null 2>&1; sleep 2 ;;
+        stop)    /etc/init.d/raw_lora_app stop    >/dev/null 2>&1; sleep 1 ;;
+        restart) /etc/init.d/raw_lora_app restart >/dev/null 2>&1; sleep 2 ;;
+        enable)  /etc/init.d/raw_lora_app enable  >/dev/null 2>&1 ;;
+        disable) /etc/init.d/raw_lora_app disable >/dev/null 2>&1 ;;
     esac
-    # Re-check state
-    running=false; hw_mode="none"
-    if pidof lg02_pkt_fwd >/dev/null 2>&1; then
-        running=true; hw_mode="LG02"
-    elif pidof lg01_pkt_fwd >/dev/null 2>&1; then
-        running=true; hw_mode="LG01"
-    elif pidof raw_lora_app >/dev/null 2>&1; then
-        running=true; hw_mode="SX1302"
-    fi
-    enabled=false
-    ls /etc/rc.d/ 2>/dev/null | grep -q '^S[0-9]*lg02_pkt_fwd' && enabled=true
-    printf '{"status":"ok","running":%s,"enabled":%s,"hw_mode":"%s"}\n' \
-        "$running" "$enabled" "$hw_mode"
+    if pidof raw_lora_app >/dev/null 2>&1; then running=true; else running=false; fi
+    ls /etc/rc.d/ 2>/dev/null | grep -q '^S[0-9]*raw_lora_app' && enabled=true || enabled=false
+    printf '{"status":"ok","running":%s,"enabled":%s,"mode":"%s"}\n' "$running" "$enabled" "$hw_mode"
     exit 0
 fi
 
-conn=$(cat /var/iot/status 2>/dev/null | tr -d '[:space:]')
-[ "$conn" = "online" ] && online=true || online=false
+uptime_str=$(cat /proc/uptime 2>/dev/null | awk '{print int($1)}')
+[ -z "$uptime_str" ] && uptime_str=0
+load_str=$(cat /proc/loadavg 2>/dev/null | awk '{print $1", "$2", "$3}')
+mem_total=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+mem_free=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}')
+[ -z "$mem_free" ] && mem_free=$(grep MemFree /proc/meminfo 2>/dev/null | awk '{print $2}')
+[ -z "$mem_total" ] && mem_total=1; [ -z "$mem_free" ] && mem_free=0
+mem_pct=$(( 100 - (mem_free * 100 / mem_total) ))
 
-printf '{"running":%s,"online":%s,"enabled":%s,"hw_mode":"%s"}\n' \
-    "$running" "$online" "$enabled" "$hw_mode"
+eth_ip=$(ip -4 addr show eth0 2>/dev/null | grep -o 'inet [0-9.]*' | awk '{print $2}')
+wlan_ip=$(ip -4 addr show wlan0 2>/dev/null | grep -o 'inet [0-9.]*' | awk '{print $2}')
+
+gw_status="offline"
+[ -f /var/iot/status ] && gw_status=$(cat /var/iot/status 2>/dev/null)
+[ "$running" = "false" ] && gw_status="offline"
+
+rx_pkts=0; tx_pkts=0
+[ -f /var/iot/rx_count ] && rx_pkts=$(cat /var/iot/rx_count 2>/dev/null)
+[ -f /var/iot/tx_count ] && tx_pkts=$(cat /var/iot/tx_count 2>/dev/null)
+
+printf '{\n'
+printf '  "running": %s,\n' "$running"
+printf '  "enabled": %s,\n' "$enabled"
+printf '  "mode": "%s",\n' "$hw_mode"
+printf '  "gw_status": "%s",\n' "$gw_status"
+printf '  "uptime_sec": %s,\n' "$uptime_str"
+printf '  "load": "%s",\n' "$load_str"
+printf '  "mem_pct": %d,\n' "$mem_pct"
+printf '  "eth_ip": "%s",\n' "$eth_ip"
+printf '  "wlan_ip": "%s",\n' "$wlan_ip"
+printf '  "rx_pkts": %s,\n' "${rx_pkts:-0}"
+printf '  "tx_pkts": %s\n' "${tx_pkts:-0}"
+printf '}\n'

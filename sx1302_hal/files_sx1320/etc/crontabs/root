@@ -1,2 +1,0 @@
-*/5 * * * * /usr/bin/net_watchdog.sh
-
