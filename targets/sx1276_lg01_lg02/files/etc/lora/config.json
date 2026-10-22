@@ -1,0 +1,45 @@
+{
+    "target_ip":            "192.168.1.8",
+    "port_up":              5555,
+    "port_down":            5556,
+    "status_port":          5557,
+    "heartbeat_interval_s": 10,
+
+    "pa_gpio":  "",
+    "led_rx":   "dragino2:green:lan4",
+    "led_tx":   "dragino2:red:wan",
+
+    "radio_0": {
+        "enabled":     true,
+        "spi_path":    "/dev/spidev1.0",
+        "dio0_gpio":   "7",
+        "reset_gpio":  "23",
+        "freq":        868100000,
+        "sf":          7,
+        "bw":          125,
+        "coderate":    "4/5",
+        "rssi_offset": 0.0,
+        "tx_enable":   true,
+        "pa_boost":    true,
+        "tx_power":    14,
+        "preamble":    8,
+        "sync_word":   "private"
+    },
+
+    "radio_1": {
+        "enabled":     false,
+        "spi_path":    "/dev/spidev2.0",
+        "dio0_gpio":   "",
+        "reset_gpio":  "23",
+        "freq":        868300000,
+        "sf":          7,
+        "bw":          125,
+        "coderate":    "4/5",
+        "rssi_offset": 0.0,
+        "tx_enable":   false,
+        "pa_boost":    true,
+        "tx_power":    14,
+        "preamble":    8,
+        "sync_word":   "private"
+    }
+}

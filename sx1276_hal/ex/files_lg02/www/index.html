@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LG02 Gateway</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0f12;--bg1:#17171c;--bg2:#1e1e25;--bg3:#25252e;
+  --border:#2a2a35;--accent:#3b9eff;--accent2:#2272cc;
+  --fg:#d0d0dc;--fg2:#8888a0;--fg3:#505065;
+  --ok:#3dba6e;--warn:#f0a030;--err:#e04040;
+  --r:6px;--font:14px/1.4 'Segoe UI',system-ui,sans-serif
+}
+body{background:var(--bg);color:var(--fg);font:var(--font);min-height:100vh}
+header{background:var(--bg1);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:16px;font-weight:600;letter-spacing:.03em;color:#fff}
+header h1 span{color:var(--accent)}
+#eui-lbl{font-size:12px;font-family:monospace;color:var(--fg3);letter-spacing:.04em}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pill{font-size:11px;padding:3px 10px;border-radius:99px;border:1px solid var(--border);background:var(--bg2);color:var(--fg2);font-weight:500}
+.pill.online{border-color:var(--ok);color:var(--ok);background:#0d2218}
+.pill.offline{border-color:var(--err);color:var(--err);background:#200d0d}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg1);padding:0 24px;position:sticky;top:0;z-index:10}
+.tab{padding:11px 18px;font-size:13px;font-weight:500;color:var(--fg3);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;margin-bottom:-1px}
+.tab:hover{color:var(--fg2)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+main{padding:24px;max-width:860px;margin:0 auto}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.stat-card .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--fg3);margin-bottom:6px}
+.stat-card .val{font-size:20px;font-weight:700;color:var(--fg);line-height:1.1;word-break:break-all}
+.stat-card .unit{font-size:10px;color:var(--fg3);margin-left:2px}
+.c-ok{color:var(--ok)}.c-warn{color:var(--warn)}.c-err{color:var(--err)}.c-dim{color:var(--fg3)}
+.svc-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.refresh-bar{margin-left:auto;font-size:11px;color:var(--fg3)}
+.spin{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:none;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.section{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
+.section-hdr{padding:12px 18px;display:flex;align-items:center;gap:10px;background:var(--bg2);cursor:pointer;user-select:none}
+.section-hdr h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);flex:1}
+.section-hdr .caret{font-size:14px;color:var(--fg3);transition:transform .2s;line-height:1}
+.section-hdr.collapsed .caret{transform:rotate(-90deg)}
+.section-body{padding:16px 18px}
+.section-body.hidden{display:none}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+@media(max-width:600px){.two-col{grid-template-columns:1fr}}
+.field{margin-bottom:14px}
+.field:last-child{margin-bottom:0}
+.field>label{display:block;font-size:11px;font-weight:600;color:var(--fg2);margin-bottom:5px;letter-spacing:.02em}
+.hint{font-size:10px;color:var(--fg3);margin-top:3px}
+input[type=text],input[type=number],select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--fg);padding:7px 10px;font-size:13px;font-family:inherit;transition:border-color .15s;-webkit-appearance:none;appearance:none}
+input:focus,select:focus{outline:none;border-color:var(--accent)}
+select option{background:var(--bg3)}
+.sw-row{display:flex;align-items:center;gap:10px;height:32px}
+.sw-row .sw-lbl{font-size:11px;font-weight:600;color:var(--fg2);letter-spacing:.02em}
+.sw{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
+.sw input{opacity:0;width:0;height:0}
+.sw-track{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);border-radius:99px;transition:background .2s,border-color .2s;cursor:pointer}
+.sw input:checked+.sw-track{background:var(--accent2);border-color:var(--accent)}
+.sw-track::after{content:'';position:absolute;left:2px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:var(--fg3);transition:left .2s,background .2s}
+.sw input:checked+.sw-track::after{left:18px;background:#fff}
+.action-bar{position:sticky;bottom:0;background:var(--bg1);border-top:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;z-index:10}
+.btn{padding:8px 22px;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;border:1px solid;transition:background .15s,color .15s}
+.btn-primary{background:var(--accent2);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent)}
+.btn-ghost{background:none;border-color:var(--border);color:var(--fg2)}
+.btn-ghost:hover{border-color:var(--fg2);color:var(--fg)}
+.btn-sm{padding:5px 14px;font-size:12px}
+.save-msg{font-size:12px}
+.save-msg.ok{color:var(--ok)}.save-msg.err{color:var(--err)}.save-msg.info{color:var(--fg2)}
+.hidden{display:none!important}
+.radio-hdr{font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LG02 <span>Gateway</span></h1>
+  <span id="eui-lbl">—</span>
+  <div class="hdr-right">
+    <span class="pill" id="svc-pill">connecting…</span>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" data-tab="status">Status</button>
+  <button class="tab"        data-tab="config">Configuration</button>
+</div>
+
+<!-- ═══════ STATUS TAB ═══════ -->
+<main id="tab-status">
+  <div class="stat-grid" id="stat-grid">
+    <div class="stat-card"><div class="lbl">Loading…</div><div class="val c-dim">—</div></div>
+  </div>
+  <div class="svc-bar">
+    <div class="spin" id="spin"></div>
+    <button class="btn btn-ghost btn-sm" onclick="svcAction('start')">Start</button>
+    <button class="btn btn-ghost btn-sm" onclick="svcAction('stop')">Stop</button>
+    <button class="btn btn-ghost btn-sm" onclick="svcAction('restart')">Restart</button>
+    <button class="btn btn-ghost btn-sm" id="btn-enable" onclick="svcAction('enable')">Enable</button>
+    <span class="refresh-bar" id="refresh-lbl">—</span>
+  </div>
+</main>
+
+<!-- ═══════ CONFIG TAB ═══════ -->
+<main id="tab-config" class="hidden">
+
+  <!-- 1. Network -->
+  <div class="section">
+    <div class="section-hdr" onclick="toggleSection(this)">
+      <h3>Network</h3><span class="caret">▾</span>
+    </div>
+    <div class="section-body two-col">
+      <div>
+        <div class="field">
+          <label>Server IP / hostname</label>
+          <input id="c_target_ip" type="text" placeholder="192.168.1.8">
+        </div>
+        <div class="field">
+          <label>UDP uplink port</label>
+          <input id="c_port_up" type="number" min="1" max="65535" value="5555">
+        </div>
+        <div class="field">
+          <label>UDP downlink port</label>
+          <input id="c_port_down" type="number" min="1" max="65535" value="5556">
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label>TCP status port (0 = off)</label>
+          <input id="c_status_port" type="number" min="0" max="65535" value="5557">
+        </div>
+        <div class="field">
+          <label>Heartbeat interval (s)</label>
+          <input id="c_heartbeat_interval_s" type="number" min="1" max="3600" value="10">
+        </div>
+        <div class="field">
+          <label>Gateway EUI (16 hex chars)</label>
+          <input id="c_gateway_id" type="text" placeholder="a84041ffff16c21c" maxlength="16">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. RX Radio (spidev1.0) -->
+  <div class="section">
+    <div class="section-hdr" onclick="toggleSection(this)">
+      <h3>RX Radio — spidev1.0</h3><span class="caret">▾</span>
+    </div>
+    <div class="section-body two-col">
+      <div>
+        <div class="field">
+          <label>Frequency (Hz)</label>
+          <input id="c_rx_freq" type="number" min="100000000" max="1000000000" placeholder="902320000" oninput="updateHints()">
+          <div class="hint" id="rx-mhz"></div>
+        </div>
+        <div class="field">
+          <label>Spreading factor</label>
+          <select id="c_rx_sf">
+            <option value="7">SF7</option><option value="8">SF8</option><option value="9">SF9</option>
+            <option value="10">SF10</option><option value="11">SF11</option><option value="12">SF12</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bandwidth (kHz)</label>
+          <select id="c_rx_bw">
+            <option value="125">125</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label>Code rate</label>
+          <select id="c_rx_cr">
+            <option value="5">4/5</option><option value="6">4/6</option>
+            <option value="7">4/7</option><option value="8">4/8</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Preamble length (symbols)</label>
+          <input id="c_rx_prlen" type="number" min="2" max="65535" value="8">
+        </div>
+        <div class="field">
+          <label>Sync word</label>
+          <select id="c_rx_syncword">
+            <option value="52">52 — public / LoRaWAN (0x34)</option>
+            <option value="18">18 — private (0x12)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. TX Radio (spidev2.0) -->
+  <div class="section">
+    <div class="section-hdr" onclick="toggleSection(this)">
+      <h3>TX Radio — spidev2.0</h3><span class="caret">▾</span>
+    </div>
+    <div class="section-body two-col">
+      <div>
+        <div class="field">
+          <label>Frequency (Hz)</label>
+          <input id="c_tx_freq" type="number" min="100000000" max="1000000000" placeholder="923300000" oninput="updateHints()">
+          <div class="hint" id="tx-mhz"></div>
+        </div>
+        <div class="field">
+          <label>Spreading factor</label>
+          <select id="c_tx_sf">
+            <option value="7">SF7</option><option value="8">SF8</option><option value="9">SF9</option>
+            <option value="10">SF10</option><option value="11">SF11</option><option value="12">SF12</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bandwidth (kHz)</label>
+          <select id="c_tx_bw">
+            <option value="125">125</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>TX power (dBm)</label>
+          <input id="c_tx_power" type="number" min="2" max="20" value="16">
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label>Code rate</label>
+          <select id="c_tx_cr">
+            <option value="5">4/5</option><option value="6">4/6</option>
+            <option value="7">4/7</option><option value="8">4/8</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Preamble length (symbols)</label>
+          <input id="c_tx_prlen" type="number" min="2" max="65535" value="8">
+        </div>
+        <div class="field">
+          <label>Sync word</label>
+          <select id="c_tx_syncword">
+            <option value="52">52 — public / LoRaWAN (0x34)</option>
+            <option value="18">18 — private (0x12)</option>
+          </select>
+        </div>
+        <div class="field" style="margin-top:6px">
+          <div class="sw-row">
+            <label class="sw"><input type="checkbox" id="c_tx_invert"><span class="sw-track"></span></label>
+            <span class="sw-lbl">Invert IQ (downlink)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. LEDs -->
+  <div class="section">
+    <div class="section-hdr" onclick="toggleSection(this)">
+      <h3>LEDs</h3><span class="caret">▾</span>
+    </div>
+    <div class="section-body two-col">
+      <div>
+        <div class="field">
+          <label>RX LED (OpenWrt LED name or blank)</label>
+          <input id="c_led_rx" type="text" placeholder="dragino2:green:power">
+          <div class="hint">e.g. dragino2:green:power — blinks on receive</div>
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label>TX LED (OpenWrt LED name or blank)</label>
+          <input id="c_led_tx" type="text" placeholder="dragino2:red:wan">
+          <div class="hint">e.g. dragino2:red:wan — blinks on transmit</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- STICKY ACTION BAR (config tab only) -->
+<div class="action-bar hidden" id="action-bar">
+  <button class="btn btn-primary" onclick="saveConfig()">Save &amp; Restart</button>
+  <button class="btn btn-ghost"   onclick="loadConfig()">Reload</button>
+  <span class="save-msg" id="save-msg"></span>
+</div>
+
+<script>
+'use strict';
+
+/* ── SECTION COLLAPSE ── */
+function toggleSection(hdr) {
+  hdr.classList.toggle('collapsed');
+  hdr.nextElementSibling.classList.toggle('hidden');
+}
+
+/* ── TABS ── */
+var statusTimer = null;
+document.querySelectorAll('.tab').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    var name = btn.dataset.tab;
+    document.getElementById('tab-status').classList.toggle('hidden', name !== 'status');
+    document.getElementById('tab-config').classList.toggle('hidden', name !== 'config');
+    document.getElementById('action-bar').classList.toggle('hidden', name !== 'config');
+    clearInterval(statusTimer);
+    if (name === 'status') {
+      loadStatus();
+      statusTimer = setInterval(loadStatus, 5000);
+    } else if (name === 'config') {
+      loadConfig();
+    }
+  });
+});
+
+/* ── UTILS ── */
+function fmtUptime(s) {
+  var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
+      m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (d) return d + 'd ' + h + 'h';
+  if (h) return h + 'h ' + m + 'm';
+  if (m) return m + 'm ' + sec + 's';
+  return sec + 's';
+}
+
+function sv(id, val) {
+  var el = document.getElementById(id);
+  if (!el || val === undefined || val === null) return;
+  if (el.type === 'checkbox') el.checked = !!val;
+  else el.value = val;
+}
+function gv(id)  { var e = document.getElementById(id); return e ? e.value : null; }
+function gb(id)  { var e = document.getElementById(id); return e ? e.checked : false; }
+function gi(id)  { var v = parseInt(gv(id));   return isNaN(v) ? 0 : v; }
+
+/* ── STATUS ── */
+function loadStatus() {
+  document.getElementById('spin').style.display = 'inline-block';
+  fetch('/cgi-bin/status')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      document.getElementById('spin').style.display = 'none';
+
+      var eui = d.eui ? d.eui.toUpperCase() : '—';
+      document.getElementById('eui-lbl').textContent = eui;
+
+      var pill = document.getElementById('svc-pill');
+      if (d.running) {
+        pill.textContent = 'Running'; pill.className = 'pill online';
+      } else {
+        pill.textContent = 'Stopped'; pill.className = 'pill offline';
+      }
+
+      var eb = document.getElementById('btn-enable');
+      if (d.enabled) {
+        eb.textContent = 'Disable'; eb.setAttribute('onclick', "svcAction('disable')");
+      } else {
+        eb.textContent = 'Enable';  eb.setAttribute('onclick', "svcAction('enable')");
+      }
+
+      if (d.error && !d.running) {
+        document.getElementById('stat-grid').innerHTML =
+          '<div class="stat-card"><div class="lbl">Status</div><div class="val c-err">Not running</div></div>';
+      } else {
+        var cards = [
+          { lbl:'Uptime',    val: fmtUptime(d.uptime_s || 0),                    cls:'' },
+          { lbl:'RX pkts',   val: d.rx       || 0,                               cls:'ok' },
+          { lbl:'TX pkts',   val: d.tx       || 0,                               cls:'ok' },
+          { lbl:'TX errors', val: d.tx_err   || 0,  cls:(d.tx_err  > 0)?'err':'dim' },
+          { lbl:'Q drops',   val: d.q_drop   || 0,  cls:(d.q_drop  > 0)?'warn':'dim' },
+          { lbl:'Q depth',   val: d.q_depth  || 0,                               cls:'' },
+          { lbl:'RX freq',   val: (+(d.rx_mhz||0)).toFixed(3), unit:'MHz',       cls:'' },
+          { lbl:'TX freq',   val: (+(d.tx_mhz||0)).toFixed(3), unit:'MHz',       cls:'' }
+        ];
+        document.getElementById('stat-grid').innerHTML = cards.map(function(c) {
+          return '<div class="stat-card">' +
+                 '<div class="lbl">' + c.lbl + '</div>' +
+                 '<div class="val' + (c.cls ? ' c-' + c.cls : '') + '">' + c.val +
+                 (c.unit ? '<span class="unit">' + c.unit + '</span>' : '') +
+                 '</div></div>';
+        }).join('');
+      }
+
+      document.getElementById('refresh-lbl').textContent =
+        'Last update: ' + new Date().toLocaleTimeString();
+    })
+    .catch(function() {
+      document.getElementById('spin').style.display = 'none';
+      document.getElementById('svc-pill').textContent = 'Unreachable';
+      document.getElementById('svc-pill').className = 'pill offline';
+      document.getElementById('stat-grid').innerHTML =
+        '<div class="stat-card"><div class="lbl">Error</div>' +
+        '<div class="val c-err">Cannot reach gateway</div></div>';
+      document.getElementById('refresh-lbl').textContent =
+        'Last update: ' + new Date().toLocaleTimeString();
+    });
+}
+
+function svcAction(action) {
+  document.getElementById('spin').style.display = 'inline-block';
+  fetch('/cgi-bin/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: action})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(){ loadStatus(); })
+  .catch(function(){ loadStatus(); });
+}
+
+/* ── CONFIG ── */
+function updateHints() {
+  var rf = parseInt(document.getElementById('c_rx_freq').value);
+  var tf = parseInt(document.getElementById('c_tx_freq').value);
+  if (rf) document.getElementById('rx-mhz').textContent = (rf / 1e6).toFixed(3) + ' MHz';
+  if (tf) document.getElementById('tx-mhz').textContent = (tf / 1e6).toFixed(3) + ' MHz';
+}
+
+function loadConfig() {
+  fetch('/cgi-bin/config')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      sv('c_target_ip',            d.target_ip);
+      sv('c_port_up',              d.port_up);
+      sv('c_port_down',            d.port_down);
+      sv('c_status_port',          d.status_port);
+      sv('c_heartbeat_interval_s', d.heartbeat_interval_s);
+      sv('c_gateway_id',           d.gateway_id);
+      sv('c_rx_freq',              d.rx_freq);
+      sv('c_rx_sf',                d.rx_sf);
+      sv('c_rx_bw',                d.rx_bw);
+      sv('c_rx_cr',                d.rx_cr);
+      sv('c_rx_prlen',             d.rx_prlen);
+      sv('c_rx_syncword',          d.rx_syncword);
+      sv('c_tx_freq',              d.tx_freq);
+      sv('c_tx_sf',                d.tx_sf);
+      sv('c_tx_bw',                d.tx_bw);
+      sv('c_tx_cr',                d.tx_cr);
+      sv('c_tx_prlen',             d.tx_prlen);
+      sv('c_tx_syncword',          d.tx_syncword);
+      sv('c_tx_power',             d.tx_power);
+      sv('c_tx_invert',            d.tx_invert);
+      sv('c_led_rx',               d.led_rx);
+      sv('c_led_tx',               d.led_tx);
+      updateHints();
+    })
+    .catch(function(){});
+}
+
+function saveConfig() {
+  var obj = {
+    target_ip:            gv('c_target_ip'),
+    port_up:              gi('c_port_up'),
+    port_down:            gi('c_port_down'),
+    status_port:          gi('c_status_port'),
+    heartbeat_interval_s: gi('c_heartbeat_interval_s'),
+    gateway_id:           gv('c_gateway_id'),
+    rx_freq:              gi('c_rx_freq'),
+    rx_sf:                gi('c_rx_sf'),
+    rx_bw:                gi('c_rx_bw'),
+    rx_cr:                gi('c_rx_cr'),
+    rx_prlen:             gi('c_rx_prlen'),
+    rx_syncword:          gi('c_rx_syncword'),
+    tx_freq:              gi('c_tx_freq'),
+    tx_sf:                gi('c_tx_sf'),
+    tx_bw:                gi('c_tx_bw'),
+    tx_cr:                gi('c_tx_cr'),
+    tx_prlen:             gi('c_tx_prlen'),
+    tx_syncword:          gi('c_tx_syncword'),
+    tx_power:             gi('c_tx_power'),
+    tx_invert:            gb('c_tx_invert'),
+    led_rx:               gv('c_led_rx'),
+    led_tx:               gv('c_led_tx')
+  };
+  var msg = document.getElementById('save-msg');
+  msg.textContent = 'Saving…'; msg.className = 'save-msg info';
+  fetch('/cgi-bin/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(obj, null, 2)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (d.status === 'saved') {
+      msg.textContent = 'Saved — restarting…'; msg.className = 'save-msg ok';
+    } else {
+      msg.textContent = JSON.stringify(d); msg.className = 'save-msg err';
+    }
+    setTimeout(function(){ msg.textContent = ''; }, 4000);
+  })
+  .catch(function(e) {
+    msg.textContent = 'Error: ' + e; msg.className = 'save-msg err';
+  });
+}
+
+/* ── BOOT ── */
+loadStatus();
+statusTimer = setInterval(loadStatus, 5000);
+</script>
+</body>
+</html>

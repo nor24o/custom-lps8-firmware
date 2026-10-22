@@ -1,0 +1,75 @@
+{
+    "target_ip":  "192.168.1.8",
+    "port_up":    5555,
+    "port_down":  5556,
+    "status_port": 5557,
+    "heartbeat_interval_s": 10,
+
+    "spi_path":   "/dev/spidev1.0",
+    "reset_gpio": "23",
+
+    "pa_gpio":    "dragino2:red:wan",
+
+    "clksrc":     0,
+    "sync_word":  "private",
+    "full_duplex": false,
+
+    "rf0_type":         "SX1250",
+    "rf0_freq":         867500000,
+    "rf0_rssi_offset":  -215.4,
+    "rf0_tx_enable":    true,
+    "rf0_single_input": false,
+
+    "rf1_type":         "SX1250",
+    "rf1_freq":         868500000,
+    "rf1_rssi_offset":  -215.4,
+    "rf1_tx_enable":    false,
+    "rf1_single_input": false,
+
+    "chan_if":    [-400000, -200000, 0, 200000, 400000, -400000, -200000, 0],
+    "chan_radio": [0, 0, 0, 0, 0, 1, 1, 1],
+
+    "chan_lora_std_enable": false,
+    "chan_lora_std_radio":  1,
+    "chan_lora_std_if":     -200000,
+    "chan_lora_std_bw":     250,
+    "chan_lora_std_sf":     7,
+
+    "chan_fsk_enable":   false,
+    "chan_fsk_radio":    1,
+    "chan_fsk_if":       300000,
+    "chan_fsk_bw":       125,
+    "chan_fsk_datarate": 50000,
+
+    "tx_gain_lut": [
+        {"rf_power": 12, "pa_gain": 0, "pwr_idx": 18, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 13, "pa_gain": 0, "pwr_idx": 19, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 14, "pa_gain": 0, "pwr_idx": 21, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 15, "pa_gain": 1, "pwr_idx":  2, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 16, "pa_gain": 1, "pwr_idx":  3, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 17, "pa_gain": 1, "pwr_idx":  4, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 18, "pa_gain": 1, "pwr_idx":  5, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 19, "pa_gain": 1, "pwr_idx":  6, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 20, "pa_gain": 1, "pwr_idx":  7, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 21, "pa_gain": 1, "pwr_idx":  8, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 22, "pa_gain": 1, "pwr_idx":  9, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 23, "pa_gain": 1, "pwr_idx": 10, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 24, "pa_gain": 1, "pwr_idx": 12, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 25, "pa_gain": 1, "pwr_idx": 13, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 26, "pa_gain": 1, "pwr_idx": 17, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0},
+        {"rf_power": 27, "pa_gain": 1, "pwr_idx": 22, "dac_gain": 0, "mix_gain": 0, "dig_gain": 0}
+    ],
+
+    "tx_default_freq":      868100000,
+    "tx_default_sf":        7,
+    "tx_default_power":     14,
+    "tx_default_rfch":      0,
+    "tx_default_coderate":  "4/5",
+    "tx_default_bandwidth": 125,
+    "tx_default_preamble":  8,
+    "tx_default_invert":    false,
+    "tx_free_timeout_ms":   2000,
+
+    "led_rx": "",
+    "led_tx": ""
+}

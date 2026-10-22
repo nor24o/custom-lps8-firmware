@@ -1,0 +1,8 @@
+config uhttpd main
+    option listen_http '0.0.0.0:80'
+    option home '/www'
+    option cgi_prefix '/cgi-bin'
+    option script_timeout 10
+    option network_timeout 30
+    option no_dirlists 1
+    option max_requests 4

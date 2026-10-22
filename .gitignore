@@ -1,0 +1,34 @@
+# OpenWrt ImageBuilder cache, build and package directories
+build_dir/
+staging_dir/
+bin/
+dl/
+tmp/
+packages/
+.config.old
+
+# Firmware binary dumps and archives
+*.bin
+*.tar.gz
+*.tar.xz
+*.ipk
+firmwarebackup_lps8/
+firmwareorg/
+sx1302_hal/firmwarebackup_lps8/
+sx1302_hal/firmwareorg/
+
+# Compiled objects and intermediate files
+*.o
+*.a
+*.so
+tags
+.claude/
+
+# Keep essential ImageBuilder metadata
+!.config
+!.packageinfo
+!.profiles.mk
+!.targetinfo
+!Makefile
+!rules.mk
+!repositories.conf

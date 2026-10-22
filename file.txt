@@ -1,0 +1,796 @@
+Current Target: "ar71xx (Generic)"
+Default Packages: base-files libc libgcc busybox dropbear mtd uci opkg netifd fstools uclient-fetch logd kmod-gpio-button-hotplug swconfig kmod-ath9k wpad-mini uboot-envtools dnsmasq iptables ip6tables ppp ppp-mod-pppoe firewall odhcpd-ipv6only odhcp6c
+Available Profiles:
+
+Default:
+    Default Profile (all drivers)
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport
+carambola2:
+    8devices Carambola2
+    Packages: kmod-usb-core kmod-usb2
+lima:
+    8devices Lima
+    Packages: kmod-usb-core kmod-usb2
+ALFAAP120C:
+    ALFA Network AP120C board
+    Packages: 
+ap121f:
+    ALFA Network AP121F
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage -swconfig
+ap91-5g:
+    ALFA Network AP91-5G
+    Packages: rssileds -swconfig
+ALFAAP96:
+    ALFA Network AP96 board
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-rtc-pcf2123
+HORNETUB:
+    ALFA Network Hornet-UB board (8MB flash, 32MB ram)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+HORNETUBx2:
+    ALFA Network Hornet-UB-x2 board (16MB flash, 64MB ram)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+ALFANX:
+    ALFA Network N2/N5 board
+    Packages: 
+n5q:
+    ALFA Network N5Q
+    Packages: rssileds -swconfig
+r36a:
+    ALFA Network R36A
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport -swconfig
+TUBE2H16M:
+    ALFA Network Tube2H board (16MB flash)
+    Packages: 
+TUBE2H8M:
+    ALFA Network Tube2H board (8MB flash)
+    Packages: 
+fritz4020:
+    AVM FRITZ!Box 4020
+    Packages: fritz-tffs -uboot-envtools kmod-usb-core kmod-usb2 kmod-usb-storage
+fritz300e:
+    AVM FRITZ!WLAN Repeater 300E
+    Packages: fritz-tffs -uboot-envtools rssileds -swconfig
+fritz450e:
+    AVM FRITZ!WLAN Repeater 450E
+    Packages: fritz-tffs -uboot-envtools -swconfig
+sc1750:
+    Abicom SC1750
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+sc300m:
+    Abicom SC300M
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+sc450:
+    Abicom SC450
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+c-55:
+    AirTight Networks C-55
+    Packages: kmod-ath9k
+ALL0258N:
+    Allnet ALL0258N
+    Packages: rssileds
+ALL0305:
+    Allnet ALL0305
+    Packages: fconfig kmod-ath5k -kmod-ath9k
+ALL0315N:
+    Allnet ALL0315N
+    Packages: rssileds
+antminer-s1:
+    Antminer-S1
+    Packages: kmod-usb-core kmod-usb2 kmod-crypto-manager kmod-i2c-gpio-custom kmod-usb-hid
+antminer-s3:
+    Antminer-S3
+    Packages: kmod-usb-core kmod-usb2 kmod-crypto-manager kmod-i2c-gpio-custom kmod-usb-hid
+antrouter-r1:
+    Antrouter-R1
+    Packages: kmod-usb-core kmod-usb2
+arduino-yun:
+    Arduino Yun
+    Packages: kmod-usb-core kmod-usb2
+AP121_16M:
+    Atheros AP121 reference board (16MB flash)
+    Packages: kmod-usb-core kmod-usb2
+AP121_8M:
+    Atheros AP121 reference board (8MB flash)
+    Packages: kmod-usb-core kmod-usb2
+AP132:
+    Atheros AP132 reference board
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+AP135:
+    Atheros AP135 reference board
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+AP136_010:
+    Atheros AP136-010 reference board
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+AP136_020:
+    Atheros AP136-020 reference board
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+AP96:
+    Atheros AP96 reference board
+    Packages: kmod-usb-core kmod-usb2
+DB120:
+    Atheros DB120 reference board
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+PB42:
+    Atheros PB42 reference board
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+PB44:
+    Atheros PB44 reference board
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 vsc7385-ucode-pb44 vsc7395-ucode-pb44
+BXU2000N2:
+    BHU BXU2000n-2
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+F9K1115V2:
+    Belkin AC1750DB (F9K1115V2)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb3 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+bhr-4grv2:
+    Buffalo BHR-4GRV2
+    Packages: 
+WZR450HP2:
+    Buffalo WZR-450HP2
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+WZR600DHP:
+    Buffalo WZR-600DHP
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+WZRHPAG300H:
+    Buffalo WZR-HP-AG300H
+    Packages: kmod-usb-ohci kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+WZRHPG300NH:
+    Buffalo WZR-HP-G300NH
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+WZRHPG300NH2:
+    Buffalo WZR-HP-G300NH2
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+WZRHPG450H:
+    Buffalo WZR-HP-G450H
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+cf-e316n-v2:
+    COMFAST CF-E316N v2
+    Packages: -swconfig -uboot-envtools
+cf-e320n-v2:
+    COMFAST CF-E320N v2
+    Packages: -swconfig -uboot-envtools kmod-usb-core kmod-usb2
+cf-e355ac-v1:
+    COMFAST CF-E355AC v1
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca988x -swconfig -uboot-envtools
+cf-e355ac-v2:
+    COMFAST CF-E355AC v2
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca9888 -swconfig -uboot-envtools
+cf-e375ac:
+    COMFAST CF-E375AC
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca9888 -uboot-envtools
+cf-e380ac-v1:
+    COMFAST CF-E380AC v1
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca988x -swconfig -uboot-envtools
+cf-e380ac-v2:
+    COMFAST CF-E380AC v2
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca988x -swconfig -uboot-envtools
+cf-e385ac:
+    COMFAST CF-E385AC
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca9984 -uboot-envtools
+cf-e520n:
+    COMFAST CF-E520N
+    Packages: kmod-usb-core kmod-usb2 -swconfig -uboot-envtools
+cf-e530n:
+    COMFAST CF-E530N
+    Packages: kmod-usb-core kmod-usb2 -swconfig -uboot-envtools
+WP543_16M:
+    Compex WP543/WPJ543 (16MB flash)
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+WP543_8M:
+    Compex WP543/WPJ543 (8MB flash)
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+WPE72_16M:
+    Compex WPE72/WPE72NX (16MB flash)
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+WPE72_8M:
+    Compex WPE72/WPE72NX (8MB flash)
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+wpj342:
+    Compex WPJ342 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+wpj344:
+    Compex WPJ344 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+wpj531:
+    Compex WPJ531 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+wpj558:
+    Compex WPJ558 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+wpj563:
+    Compex WPJ563 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+dap-1330-a1:
+    D-Link DAP-1330 rev. A1
+    Packages: rssileds
+dap-2695-a1:
+    D-Link DAP-2695 rev. A1
+    Packages: ath10k-firmware-qca988x kmod-ath10k
+DGL5500A1:
+    D-Link DGL-5500 rev. A1
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca988x
+DHP1565A1:
+    D-Link DHP-1565 rev. A1
+    Packages: kmod-usb-core kmod-usb2
+DIR505A1:
+    D-Link DIR-505 rev. A1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+DIR825B1:
+    D-Link DIR-825 rev. B1
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport
+DIR825C1:
+    D-Link DIR-825 rev. C1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+DIR835A1:
+    D-Link DIR-835 rev. A1
+    Packages: kmod-usb-core kmod-usb2
+dir-869-a1:
+    D-Link DIR-869 rev. A1
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+dragino2:
+    Dragino 2 (MS14)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+el-m150:
+    EasyLink EL-M150
+    Packages: kmod-usb-core kmod-usb2
+el-mini:
+    EasyLink EL-MINI
+    Packages: kmod-usb-core kmod-usb2
+ew-balin:
+    Embedded Wireless Balin Platform
+    Packages: kmod-usb-core kmod-usb-chipidea
+ew-dorin:
+    Embedded Wireless Dorin Platform
+    Packages: kmod-usb-core kmod-usb-chipidea
+ew-dorin-router:
+    Embedded Wireless Dorin Router Platform
+    Packages: kmod-usb-core kmod-usb-chipidea
+EAP300V2:
+    EnGenius EAP300V2
+    Packages: 
+ens202ext:
+    EnGenius ENS202EXT
+    Packages: rssileds
+EPG5000:
+    EnGenius EPG5000
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage kmod-ath10k ath10k-firmware-qca988x
+ESR1750:
+    EnGenius ESR1750
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage kmod-ath10k ath10k-firmware-qca988x
+ESR900:
+    EnGenius ESR900
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+gl-inet-6408A-v1:
+    GL.iNet 6408
+    Packages: kmod-usb-core kmod-usb2
+gl-inet-6416A-v1:
+    GL.iNet 6416
+    Packages: kmod-usb-core kmod-usb2
+gl-domino:
+    GL.iNet Domino Pi
+    Packages: kmod-usb-core kmod-usb2
+gl-ar150:
+    GL.iNet GL-AR150
+    Packages: kmod-usb-core kmod-usb2
+gl-ar300:
+    GL.iNet GL-AR300
+    Packages: kmod-usb-core kmod-usb2
+gl-ar300m:
+    GL.iNet GL-AR300M
+    Packages: kmod-usb-core kmod-usb2
+gl-ar750:
+    GL.iNet GL-AR750
+    Packages: kmod-ath10k ath10k-firmware-qca9887 kmod-usb-core kmod-usb2 kmod-usb-storage
+gl-mifi:
+    GL.iNet GL-MiFi
+    Packages: kmod-usb-core kmod-usb2
+gl-usb150:
+    GL.iNet GL-USB150
+    Packages: -swconfig
+minibox-v1:
+    GainStrong MiniBox V1.0
+    Packages: kmod-usb-core kmod-usb2
+oolite-v1:
+    GainStrong Oolite V1.0
+    Packages: kmod-usb-core kmod-usb2
+oolite-v5.2:
+    GainStrong Oolite V5.2
+    Packages: ath10k-firmware-qca9887 kmod-ath10k kmod-usb-core kmod-usb2
+oolite-v5.2-dev:
+    GainStrong Oolite V5.2-Dev (development board)
+    Packages: ath10k-firmware-qca9887 kmod-ath10k kmod-usb-core kmod-usb2
+lan-turtle:
+    Hak5 LAN Turtle
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage -kmod-ath9k -swconfig -uboot-envtools -wpad-mini
+packet-squirrel:
+    Hak5 Packet Squirrel
+    Packages: kmod-usb-core kmod-usb2 -kmod-ath9k -swconfig -uboot-envtools -wpad-mini
+wifi-pineapple-nano:
+    Hak5 WiFi Pineapple NANO
+    Packages: kmod-ath9k-htc kmod-usb-core kmod-usb2 kmod-usb-storage -swconfig -uboot-envtools
+hiwifi-hc6361:
+    HiWiFi HC6361
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage kmod-fs-ext4 kmod-nls-iso8859-1 e2fsprogs
+WRT160NL:
+    Linksys WRT160NL
+    Packages: kmod-usb-core kmod-usb2
+WRT400N:
+    Linksys WRT400N
+    Packages: 
+mr12:
+    Meraki MR12
+    Packages: kmod-spi-gpio
+mr16:
+    Meraki MR16
+    Packages: kmod-spi-gpio
+mc-mac1200r:
+    Mercury MAC1200R
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+mw4530r-v1:
+    Mercury MW4530R v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+smart-300:
+    NC-LINK SMART-300
+    Packages: 
+WNDAP360:
+    NETGEAR WNDAP360
+    Packages: 
+wndr3700:
+    NETGEAR WNDR3700
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport kmod-leds-wndr3700-usb
+wndr3700v2:
+    NETGEAR WNDR3700 v2
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport kmod-leds-wndr3700-usb
+wndr3800:
+    NETGEAR WNDR3800
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport kmod-leds-wndr3700-usb
+wndr3800ch:
+    NETGEAR WNDR3800 (Ch)
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport kmod-leds-wndr3700-usb
+wndrmac:
+    NETGEAR WNDRMAC
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport kmod-leds-wndr3700-usb
+wndrmacv2:
+    NETGEAR WNDRMAC v2
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport kmod-leds-wndr3700-usb
+WNR2200:
+    NETGEAR WNR2200
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+koala:
+    OCEDO Koala
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+omy-g1:
+    OMYlink OMY-G1
+    Packages: kmod-usb-core kmod-usb2
+omy-x1:
+    OMYlink OMY-X1
+    Packages: 
+onion-omega:
+    Onion Omega
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage kmod-i2c-core kmod-i2c-gpio-custom kmod-spi-bitbang kmod-spi-dev kmod-spi-gpio kmod-spi-gpio-custom kmod-usb-serial
+som9331:
+    OpenEmbed SOM9331
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage kmod-i2c-core kmod-i2c-gpio-custom kmod-spi-bitbang kmod-spi-dev kmod-spi-gpio kmod-spi-gpio-custom kmod-usb-serial
+A60:
+    OpenMesh A40/A60
+    Packages: om-watchdog kmod-ath10k ath10k-firmware-qca988x mod-usb-core kmod-usb2
+MR1750:
+    OpenMesh MR1750
+    Packages: om-watchdog kmod-ath10k ath10k-firmware-qca988x
+MR600:
+    OpenMesh MR600
+    Packages: om-watchdog
+MR900:
+    OpenMesh MR900
+    Packages: om-watchdog
+OM2P:
+    OpenMesh OM2P/OM2P-HS/OM2P-LC
+    Packages: om-watchdog
+OM5PAC:
+    OpenMesh OM5P-AC
+    Packages: kmod-ath10k ath10k-firmware-qca988x om-watchdog
+OM5P:
+    OpenMesh OM5P/OM5P-AN
+    Packages: om-watchdog
+cpe505n:
+    P&W CPE505N
+    Packages: 
+r602n:
+    P&W R602N
+    Packages: kmod-usb-core kmod-usb2
+ts-d084:
+    PISEN TS-D084
+    Packages: kmod-usb-core kmod-usb2
+pqi-air-pen:
+    PQI Air Pen
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+MZKW04NU:
+    Planex MZK-W04NU
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+MZKW300NH:
+    Planex MZK-W300NH
+    Packages: 
+cap324:
+    PowerCloud CAP324 Cloud AP
+    Packages: 
+cap324-nocloud:
+    PowerCloud CAP324 Cloud AP (No-Cloud)
+    Packages: 
+cr3000-nocloud:
+    PowerCloud CR3000 (No-Cloud)
+    Packages: 
+cr3000:
+    PowerCloud CR3000 Cloud Router
+    Packages: 
+cr5000-nocloud:
+    PowerCloud CR5000 (No-Cloud)
+    Packages: kmod-usb2 kmod-usb-ledtrig-usbport kmod-usb-core
+cr5000:
+    PowerCloud CR5000 Cloud Router
+    Packages: kmod-usb2 kmod-usb-ledtrig-usbport kmod-usb-core
+DLRTDEV01:
+    PowerCloud Systems dlrtdev01 model
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-usb-ledtrig-usbport
+qihoo-c301:
+    Qihoo C301
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+AP143_16M:
+    Qualcomm Atheros AP143 reference board (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+AP143_8M:
+    Qualcomm Atheros AP143 reference board (8MB flash)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+AP147_010:
+    Qualcomm Atheros AP147-010 reference board
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+AP152_16M:
+    Qualcomm Atheros AP152 reference board (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+e1700ac-v2-16M:
+    Qxwlan E1700AC v2 (16MB flash)
+    Packages: kmod-ath10k ath10k-firmware-qca988x kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+e1700ac-v2-8M:
+    Qxwlan E1700AC v2 (8MB flash)
+    Packages: kmod-ath10k ath10k-firmware-qca988x kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+e558-v2-16M:
+    Qxwlan E558 v2 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+e558-v2-8M:
+    Qxwlan E558 v2 (8MB flash)
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+e600g-v2-16M:
+    Qxwlan E600G v2 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+e600g-v2-8M:
+    Qxwlan E600G v2 (8MB flash)
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+e600gac-v2-16M:
+    Qxwlan E600GAC v2 (16MB flash)
+    Packages: kmod-ath10k ath10k-firmware-qca9887 kmod-usb-core kmod-usb2 -swconfig
+e600gac-v2-8M:
+    Qxwlan E600GAC v2 (8MB flash)
+    Packages: kmod-ath10k ath10k-firmware-qca9887 kmod-usb-core kmod-usb2 -swconfig
+e750a-v4-16M:
+    Qxwlan E750A v4 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+e750a-v4-8M:
+    Qxwlan E750A v4 (8MB flash)
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+e750g-v8-16M:
+    Qxwlan E750G v8 (16MB flash)
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+e750g-v8-8M:
+    Qxwlan E750G v8 (8MB flash)
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+ap531b0:
+    Rockeetech AP531B0
+    Packages: kmod-usb-core kmod-usb2
+wam250:
+    Samsung WAM250
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+CAP4200AG:
+    Senao CAP4200AG
+    Packages: 
+EAP7660D:
+    Senao EAP7660D
+    Packages: 
+wlr8100:
+    Sitecom WLR-8100
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-usb3 kmod-ath10k ath10k-firmware-qca988x
+bsb:
+    Smart Electronics Black Swift board
+    Packages: kmod-usb-core kmod-usb2
+archer-c25-v1:
+    TP-LINK Archer C25 v1
+    Packages: kmod-ath10k ath10k-firmware-qca9887
+archer-c5-v1:
+    TP-LINK Archer C5 v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+archer-c58-v1:
+    TP-LINK Archer C58 v1
+    Packages: kmod-ath10k ath10k-firmware-qca9888
+archer-c59-v1:
+    TP-LINK Archer C59 v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca9888
+archer-c60-v1:
+    TP-LINK Archer C60 v1
+    Packages: kmod-ath10k ath10k-firmware-qca9888
+archer-c60-v2:
+    TP-LINK Archer C60 v2
+    Packages: kmod-ath10k ath10k-firmware-qca9888
+archer-c7-v1:
+    TP-LINK Archer C7 v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+archer-c7-v2:
+    TP-LINK Archer C7 v2
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+archer-c7-v2-il:
+    TP-LINK Archer C7 v2 (IL)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+tl-wdr7500-v3:
+    TP-LINK Archer C7 v3
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+archer-c7-v4:
+    TP-LINK Archer C7 v4
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+archer-c7-v5:
+    TP-LINK Archer C7 v5
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+cpe210-v2:
+    TP-LINK CPE210 v2
+    Packages: rssileds
+cpe210-220-v1:
+    TP-LINK CPE210/220 v1
+    Packages: rssileds
+cpe510-520-v1:
+    TP-LINK CPE510/520 v1
+    Packages: rssileds
+eap120-v1:
+    TP-LINK EAP120 v1
+    Packages: 
+re355-v1:
+    TP-LINK RE355 v1
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+re450-v1:
+    TP-LINK RE450 v1
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+tl-mr6400-v1:
+    TP-LINK TL-MR6400 v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-net kmod-usb-net-rndis kmod-usb-serial kmod-usb-serial-option adb-enablemodem
+tl-wdr3500-v1:
+    TP-LINK TL-WDR3500 v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wdr3600-v1:
+    TP-LINK TL-WDR3600 v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wdr4300-v1:
+    TP-LINK TL-WDR4300 v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wdr4300-v1-il:
+    TP-LINK TL-WDR4300 v1 (IL)
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wdr4310-v1:
+    TP-LINK TL-WDR4310 v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wdr4900-v2:
+    TP-LINK TL-WDR4900 v2
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wdr6500-v2:
+    TP-LINK TL-WDR6500 v2
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca988x
+tl-wpa8630-v1:
+    TP-LINK TL-WPA8630 v1
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+tl-wr1043n-v5:
+    TP-LINK TL-WR1043N v5
+    Packages: 
+tl-wr1043nd-v1:
+    TP-LINK TL-WR1043N/ND v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wr1043nd-v2:
+    TP-LINK TL-WR1043N/ND v2
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wr1043nd-v3:
+    TP-LINK TL-WR1043N/ND v3
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wr1043nd-v4:
+    TP-LINK TL-WR1043N/ND v4
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wr2543-v1:
+    TP-LINK TL-WR2543N/ND v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wr710n-v1:
+    TP-LINK TL-WR710N v1
+    Packages: kmod-usb-core kmod-usb2
+tl-wr710n-v2.1:
+    TP-LINK TL-WR710N v2.1
+    Packages: kmod-usb-core kmod-usb2
+tl-wr810n-v1:
+    TP-LINK TL-WR810N v1
+    Packages: kmod-usb-core kmod-usb2
+tl-wr810n-v2:
+    TP-LINK TL-WR810N v2
+    Packages: 
+tl-wr842n-v1:
+    TP-LINK TL-WR842N/ND v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wr842n-v2:
+    TP-LINK TL-WR842N/ND v2
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wr842n-v3:
+    TP-LINK TL-WR842N/ND v3
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+tl-wr902ac-v1:
+    TP-LINK TL-WR902AC v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k ath10k-firmware-qca9887 -swconfig -uboot-envtools
+tl-wr942n-v1:
+    TP-LINK TL-WR942N v1
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+wbs210-v1:
+    TP-LINK WBS210 v1
+    Packages: rssileds
+wbs510-v1:
+    TP-LINK WBS510 v1
+    Packages: rssileds
+TEW673GRU:
+    TRENDNet TEW-673GRU
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+TEW732BR:
+    TRENDNet TEW-732BR
+    Packages: 
+TEW823DRU:
+    TRENDNet TEW-823DRU
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca988x
+tellstick-znet-lite:
+    TellStick ZNet Lite
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-acm kmod-usb-serial kmod-usb-serial-pl2303
+rut900:
+    Teltonika RUT900
+    Packages: kmod-usb-core kmod-usb2 -uboot-envtools
+ubnt-air-gateway:
+    Ubiquiti Air Gateway
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ohci
+ubnt-air-gateway-pro:
+    Ubiquiti Air Gateway Pro
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ohci
+ubnt-airrouter:
+    Ubiquiti AirRouter
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ohci
+ubnt-bullet-m:
+    Ubiquiti Bullet-M
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ohci
+ubnt-ls-sr71:
+    Ubiquiti LS-SR71
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+ubnt-lbe-m5:
+    Ubiquiti Litebeam M5
+    Packages: kmod-usb-core kmod-usb2
+ubnt-loco-m-xw:
+    Ubiquiti Loco XW
+    Packages: kmod-usb-core kmod-usb2
+ubnt-nano-m-xw:
+    Ubiquiti Nano M XW
+    Packages: kmod-usb-core kmod-usb2
+ubnt-nano-m:
+    Ubiquiti Nano-M
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ohci
+rw2458n:
+    Ubiquiti RW2458N
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ohci
+ubnt-rocket-m-ti:
+    Ubiquiti Rocket M TI
+    Packages: kmod-usb-core kmod-usb2
+ubnt-rocket-m-xw:
+    Ubiquiti Rocket M XW
+    Packages: kmod-usb-core kmod-usb2
+ubnt-rocket-m:
+    Ubiquiti Rocket-M
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ohci
+ubnt-rs:
+    Ubiquiti RouterStation
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+ubnt-rspro:
+    Ubiquiti RouterStation Pro
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+ubnt-uap-pro:
+    Ubiquiti UAP Pro
+    Packages: 
+ubnt-unifi:
+    Ubiquiti UniFi
+    Packages: kmod-usb-core kmod-usb2
+ubnt-unifiac-lite:
+    Ubiquiti UniFi AC-Lite
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+ubnt-unifiac-mesh:
+    Ubiquiti UniFi AC-Mesh
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+ubnt-unifiac-mesh-pro:
+    Ubiquiti UniFi AC-Mesh-Pro
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca988x
+ubnt-unifiac-pro:
+    Ubiquiti UniFi AC-Pro
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca988x
+ubnt-unifi-outdoor:
+    Ubiquiti UniFi Outdoor
+    Packages: kmod-usb-core kmod-usb2
+ubnt-unifi-outdoor-plus:
+    Ubiquiti UniFi Outdoor Plus
+    Packages: 
+ubdev01:
+    Ubiquiti ubDEV01
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ohci
+wrtnode2q:
+    WRTnode2Q
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-storage
+dr342:
+    Wallys DR342
+    Packages: kmod-usb-core kmod-usb2 -swconfig
+dr531:
+    Wallys DR531
+    Packages: kmod-usb-core kmod-usb2
+weio:
+    WeIO
+    Packages: kmod-usb-core kmod-usb2
+mynet-n600:
+    Western Digital My Net N600
+    Packages: kmod-usb-core kmod-usb2
+mynet-n750:
+    Western Digital My Net N750
+    Packages: kmod-usb-core kmod-usb2
+MYNETREXT:
+    Western Digital My Net Wi-Fi Range Extender
+    Packages: rssileds
+ap90q:
+    YunCore AP80Q/AP90Q
+    Packages: 
+cpe830:
+    YunCore CPE830
+    Packages: rssileds
+cpe870:
+    YunCore CPE870
+    Packages: rssileds
+sr3200:
+    YunCore SR3200
+    Packages: kmod-usb-core kmod-usb2 kmod-ath10k ath10k-firmware-qca988x
+t830:
+    YunCore T830
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport
+xd3200:
+    YunCore XD3200
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+zbt-we1526:
+    Zbtlink ZBT-WE1526
+    Packages: kmod-usb-core kmod-usb2
+ZCN1523H28:
+    Zcomax ZCN-1523H-2-8
+    Packages: 
+ZCN1523H516:
+    Zcomax ZCN-1523H-5-16
+    Packages: 
+NBG6616:
+    ZyXEL NBG6616
+    Packages: kmod-usb-core kmod-usb2 kmod-usb-ledtrig-usbport kmod-usb-storage kmod-rtc-pcf8563 kmod-ath10k ath10k-firmware-qca988x
+dLAN_Hotspot:
+    devolo dLAN Hotspot
+    Packages: 
+dLAN_pro_1200_ac:
+    devolo dLAN pro 1200+ WiFi ac
+    Packages: kmod-ath10k ath10k-firmware-qca988x
+dLAN_pro_500_wp:
+    devolo dLAN pro 500 Wireless+
+    Packages: 
+rme-eg200:
+    eTactica EG-200
+    Packages: kmod-usb-core kmod-usb2 kmod-ledtrig-oneshot kmod-usb-serial kmod-usb-serial-ftdi kmod-usb-storage kmod-fs-ext4
+JA76PF:
+    jjPlus JA76PF
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-hwmon-core kmod-i2c-core kmod-hwmon-lm75
+JA76PF2:
+    jjPlus JA76PF2
+    Packages: 
+JWAP003:
+    jjPlus JWAP003
+    Packages: kmod-usb-core kmod-usb-ohci kmod-usb2
+jwap230:
+    jjPlus JWAP230
+    Packages: kmod-usb-core kmod-usb2

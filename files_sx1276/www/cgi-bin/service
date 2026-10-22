@@ -1,0 +1,34 @@
+#!/bin/sh
+echo "Content-Type: application/json"
+echo "Access-Control-Allow-Origin: *"
+echo ""
+
+jstr() { printf '%s' "$1" | grep -o "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed 's/.*":[[:space:]]*"//' | tr -d '"'; }
+
+running=false
+pidof sx1276_app >/dev/null 2>&1 && running=true
+
+enabled=false
+ls /etc/rc.d/ 2>/dev/null | grep -q '^S[0-9]*sx1276_app' && enabled=true
+
+if [ "$REQUEST_METHOD" = "POST" ]; then
+    CL=${CONTENT_LENGTH:-0}
+    body=$(head -c "$CL")
+    action=$(jstr "$body" action)
+    case "$action" in
+        start)   /etc/init.d/sx1276_app start   >/dev/null 2>&1; sleep 2 ;;
+        stop)    /etc/init.d/sx1276_app stop    >/dev/null 2>&1; sleep 1 ;;
+        restart) /etc/init.d/sx1276_app restart >/dev/null 2>&1; sleep 2 ;;
+        enable)  /etc/init.d/sx1276_app enable  >/dev/null 2>&1 ;;
+        disable) /etc/init.d/sx1276_app disable >/dev/null 2>&1 ;;
+        *) echo '{"error":"unknown action"}'; exit 0 ;;
+    esac
+    running=false
+    pidof sx1276_app >/dev/null 2>&1 && running=true
+    enabled=false
+    ls /etc/rc.d/ 2>/dev/null | grep -q '^S[0-9]*sx1276_app' && enabled=true
+    printf '{"status":"ok","running":%s,"enabled":%s}\n' "$running" "$enabled"
+else
+    hw=$(cat /tmp/sx1276_hw.json 2>/dev/null || echo '{}')
+    printf '{"running":%s,"enabled":%s,"hw":%s}\n' "$running" "$enabled" "$hw"
+fi
