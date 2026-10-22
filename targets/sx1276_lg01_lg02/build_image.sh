@@ -7,6 +7,7 @@ set -e
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
@@ -26,13 +27,38 @@ echo -e "${BLUE}================================================================
 echo "ImageBuilder: $IMAGEBUILDER_DIR"
 echo "Overlay:      $OVERLAY_DIR"
 
+# Ensure ImageBuilder precompiled tools & kernel exist
+if [ ! -x "$IMAGEBUILDER_DIR/staging_dir/host/bin/opkg" ] || [ ! -f "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf" ]; then
+    CANDIDATE_TARS=(
+        "$OPENWRT_IB_TAR"
+        "/home/hor/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        "$HOME/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        "$IMAGEBUILDER_DIR/../openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+    )
+    IB_TAR=""
+    for t in "${CANDIDATE_TARS[@]}"; do
+        if [ -n "$t" ] && [ -f "$t" ]; then
+            IB_TAR="$t"
+            break
+        fi
+    done
+
+    if [ -n "$IB_TAR" ]; then
+        echo -e "${YELLOW}[*] Unpacking ImageBuilder precompiled host tools and kernel from $IB_TAR...${NC}"
+        mkdir -p "$IMAGEBUILDER_DIR"
+        tar -xf "$IB_TAR" --strip-components=1 -C "$IMAGEBUILDER_DIR" \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/staging_dir \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/packages \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic
+    fi
+fi
+
 # Ensure CGI scripts, binaries, and init scripts are executable
 for f in "$OVERLAY_DIR"/www/cgi-bin/* "$OVERLAY_DIR"/usr/bin/* "$OVERLAY_DIR"/etc/init.d/*; do
     [ -f "$f" ] && chmod 755 "$f"
 done
 
 # Package list for LG01/LG02:
-# Includes custom SPI bitbang, I2C, lightweight web server (uhttpd), networking tools
 PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core uhttpd nano tcpdump -luci -wpad-mini -iptables -ip6tables -firewall -odhcpd -odhcpd-ipv6only -odhcp6c"
 
 cd "$IMAGEBUILDER_DIR"
