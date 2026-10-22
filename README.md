@@ -44,7 +44,7 @@ This branch/target contains the complete custom firmware, rootfs overlay, and ap
     ├── etc/
     │   ├── config/        # network, wireless, system, uhttpd, dropbear
     │   ├── init.d/        # lg02_pkt_fwd, spi_init, sx1276_app
-    │   ├── lora/          # config.json (radio_0 and radio_1 config), gateway.json
+    │   ├── lora/          # config.json (radio_0 and radio_1 config)
     │   └── modules.d/     # 30-spi-gpio-custom
     ├── usr/bin/           # lg01_pkt_fwd, lg02_pkt_fwd, simple_spi_rw, sx1276_app, net_watchdog.sh
     └── www/               # Custom Dark Web GUI (Status, LoRa Config, WiFi Scan & Station Setup)

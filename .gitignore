@@ -23,6 +23,11 @@ sx1302_hal/firmwareorg/
 *.so
 tags
 .claude/
+src/lg01_pkt_fwd
+src/lg02_pkt_fwd
+src/lg02_single_rx_tx
+src/simple_spi_rw
+src/spirw
 
 # Keep essential ImageBuilder metadata
 !.config
