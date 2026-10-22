@@ -8,7 +8,8 @@
     "spi_path":   "/dev/spidev1.0",
     "reset_gpio": "23",
 
-    "pa_gpio":    "dragino2:red:wan",
+    "pa_gpio":             "dragino2:red:wan",
+    "pa_gpio_active_high": false,
 
     "clksrc":     0,
     "sync_word":  "private",

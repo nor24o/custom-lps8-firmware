@@ -1,130 +1,91 @@
-# Custom Dragino Firmware & Applications Repository
+# Dragino LPS8 Custom Firmware & SX1302 HAL Application
 
-A streamlined, unified firmware build system and custom application stack for **Dragino LoRa Gateways** based on the Atheros AR9331 SoC (`ar71xx-generic`):
-- **Dragino LPS8**: 8-Channel Multi-SF LoRaWAN Concentrator (Semtech SX1302 + SX1250)
-- **Dragino LG02**: Dual-Channel LoRa Gateway (2x Semtech SX1276)
-- **Dragino LG01**: Single-Channel LoRa Gateway (1x Semtech SX1276)
+This branch/target contains the complete custom firmware, rootfs overlay, and application stack for the **Dragino LPS8** (and SX1302 concentrator variants) powered by the Qualcomm Atheros AR9331 SoC.
 
 ---
 
-## 1. Repository & Branch Structure
+## 1. Hardware Architecture & Interfaces
 
-This repository is organized into three git branches to provide both a unified master workspace and dedicated, clean per-device branches:
-
-```
-                      ┌────────────────────────────────────────┐
-                      │              main branch               │
-                      │  - Unified Build Dispatcher (build.sh) │
-                      │  - Environment Setup (setup_env.sh)    │
-                      │  - Master Documentation & Architecture │
-                      │  - PC Test Console (run.py)            │
-                      │  - Both Targets in targets/            │
-                      └──────────────────┬─────────────────────┘
-                                         │
-                 ┌───────────────────────┴───────────────────────┐
-                 ▼                                               ▼
-┌───────────────────────────────────┐           ┌───────────────────────────────────┐
-│           sx1302 branch           │           │     sx1276-lg01-lg02 branch       │
-│  - Dragino LPS8 (8-Channel SX1302)│           │  - Dragino LG01 & LG02 (SX1276)   │
-│  - libloragw HAL + raw_lora_app   │           │  - lg01_pkt_fwd & lg02_pkt_fwd    │
-│  - 8-Channel Web GUI (Dark Mode)  │           │  - WiFi STA Web GUI (Dark Mode)   │
-│  - Dedicated LPS8 Overlay & Image │           │  - Auto-probe SPI & Dual Bitbang  │
-└───────────────────────────────────┘           └───────────────────────────────────┘
-```
-
-### Switching Branches:
-- To switch to the LPS8 SX1302 branch:
-  ```bash
-  git checkout sx1302
-  ```
-- To switch to the LG01 / LG02 SX1276 branch:
-  ```bash
-  git checkout sx1276-lg01-lg02
-  ```
-- To switch back to main:
-  ```bash
-  git checkout main
-  ```
+- **SoC**: Atheros AR9331 (MIPS 24Kc @ 400 MHz, 64 MB RAM, 16 MB Flash)
+- **Concentrator**: Semtech SX1302 (8 Multi-SF channels + SX1250 RF frontends)
+- **SPI Bus**: `/dev/spidev1.0` (handled by kernel `spi-gpio-custom` or hardware SPI)
+- **Reset GPIO**: `GPIO 23`
+- **PA/LNA Switch**: LED / GPIO `dragino2:red:wan` (configurable active-high or active-low in `config.json`)
 
 ---
 
-## 2. Environment Setup (One-Step Script)
+## 2. Directory Structure
 
-The repository provides an automated environment setup script that installs all host dependencies (`build-essential`, `gawk`, `zlib1g-dev`, `python3-pip`, `prompt_toolkit`, etc.) and verifies the MIPS cross-toolchain:
-
-```bash
-chmod +x scripts/setup_env.sh
-./scripts/setup_env.sh
+```
+.
+├── build_app.sh           # Cross-compiles libtools, libloragw.a, and raw_lora_app
+├── build_image.sh         # Generates OpenWrt sysupgrade.bin using ImageBuilder
+├── build_all.sh           # Builds both app and complete firmware image
+├── src/                   # SX1302 HAL library & application source code
+│   ├── libloragw/         # Semtech SX1302 hardware abstraction library
+│   ├── libtools/          # Auxiliary JSON (parson), base64, PRNG libraries
+│   ├── packet_forwarder/  # Standard Semtech forwarder
+│   ├── raw_lora_app.c     # Optimized custom UDP forwarder with PA control & heartbeat
+│   ├── run.py             # PC terminal monitor & injector (prompt_toolkit)
+│   └── config.json.example# Hardware configuration reference
+└── files/                 # Target Rootfs Overlay (injected into SquashFS)
+    ├── etc/
+    │   ├── config/        # network, system, uhttpd, dropbear
+    │   ├── init.d/        # raw_lora_app, spi_init, lg02_pkt_fwd
+    │   ├── lora/          # config.json (radio channel plan), gateway.json
+    │   └── modules.d/     # 30-spi-gpio-custom
+    ├── usr/bin/           # raw_lora_app, net_watchdog.sh, simple_spi_rw
+    └── www/               # Custom Dark Web GUI & CGI scripts (config, status, logs)
 ```
 
 ---
 
 ## 3. How to Build
 
-### Option A: From `main` branch (Unified Builder)
-
+### Quick Build (App + Firmware Image)
 ```bash
-# Build LPS8 (SX1302) apps and firmware image:
-./build.sh sx1302
-
-# Build LG01 / LG02 (SX1276) apps and firmware image:
-./build.sh lg02
-
-# Build both targets sequentially:
-./build.sh all
-
-# Compile only applications without building the firmware image:
-./build.sh app sx1302
-./build.sh app lg02
-
-# Build only the OpenWrt image using existing overlay:
-./build.sh image sx1302
-./build.sh image lg02
-```
-
-### Option B: From Dedicated Target Branches
-
-When on the `sx1302` or `sx1276-lg01-lg02` branch:
-```bash
-# Build everything for this target:
+chmod +x build_all.sh build_app.sh build_image.sh
 ./build_all.sh
-
-# Or build individually:
-./build_app.sh    # Compiles app and stages into files/usr/bin/
-./build_image.sh  # Generates openwrt-...-sysupgrade.bin
 ```
 
----
+### Build Only the Application
+```bash
+./build_app.sh
+```
+The compiled binary `raw_lora_app` is placed in `src/` and staged into `files/usr/bin/raw_lora_app`.
 
-## 4. Built Images & Flash Locations
-
-All firmware images are generated in:
+### Build Only the OpenWrt Image
+```bash
+./build_image.sh
+```
+The resulting firmware is generated in:
 `bin/targets/ar71xx/generic/openwrt-18.06.9-ar71xx-generic-dragino2-squashfs-sysupgrade.bin`
 
-### Flashing to Gateway:
-1. **Via SSH / SCP (Sysupgrade)**:
-   ```bash
-   scp bin/targets/ar71xx/generic/openwrt-18.06.9-ar71xx-generic-dragino2-squashfs-sysupgrade.bin root@192.168.1.11:/tmp/firmware.bin
-   ssh root@192.168.1.11 "sysupgrade -n /tmp/firmware.bin"
-   ```
-2. **Via Web GUI**: Navigate to `http://192.168.1.x` and upload the `.bin` image under the upgrade section.
-3. **Via U-Boot TFTP Recovery**: Set PC IP to `192.168.255.2`, connect ethernet, power on holding the reset button for 5 seconds, and flash via TFTP.
-
 ---
 
-## 5. PC Testing & Monitor Console (`run.py`)
+## 4. Configuration (`/etc/lora/config.json`)
 
-A Python interactive console is included to monitor uplinks, send immediate downlinks, and inspect heartbeats:
-
-```bash
-python3 run.py
+```json
+{
+    "target_ip": "192.168.1.8",
+    "port_up": 5555,
+    "port_down": 5556,
+    "status_port": 5557,
+    "heartbeat_interval_s": 10,
+    "spi_path": "/dev/spidev1.0",
+    "reset_gpio": "23",
+    "pa_gpio": "dragino2:red:wan",
+    "pa_gpio_active_high": false,
+    "clksrc": 0,
+    "sync_word": "private"
+}
 ```
-- **Listening on**: UDP `:5555` (uplink from gateway)
-- **Sending to**: UDP `:5556` (downlink to gateway)
-- Interactive commands: `/help`, `/tx <hex_payload>`, `/stat`, `/clear`.
 
 ---
 
-## 6. Technical Details & Specifications
+## 5. Web Interface
 
-For comprehensive hardware pinouts, GPIO definitions, SPI bus bitbang configurations, and wire protocol details, see [ARCHITECTURE.md](ARCHITECTURE.md).
+The firmware includes a web GUI on port 80:
+- **Status Tab**: Real-time daemon uptime, memory, CPU load, and system health.
+- **Configuration Tab**: Live 8-channel frequency plan and TX power LUT tables.
+- **Logs Tab**: Gateway system journal and packet reception stats.
