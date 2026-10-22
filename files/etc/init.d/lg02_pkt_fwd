@@ -4,61 +4,16 @@ USE_PROCD=1
 START=95
 STOP=10
 
-CONF=/etc/lora/gateway.json
-CONF_SX1302=/etc/lora/config.json
-
-# Probe via simple_spi_rw: args are rst_gpio spidev_num(0=spidev1.0, 1=spidev2.0)
-# Returns 0 if SX1276 detected (REG_VERSION=0x12), 1 if not.
-probe() {
-    /usr/bin/simple_spi_rw "$1" "$2" >/dev/null 2>&1
-}
-
-detect_mode() {
-    # Radio1 (rst=8, spidev1.0) and Radio2 (rst=23, spidev2.0)
-    local r1=1 r2=1
-    probe 8 0 && r1=0   # Radio1 present?
-    probe 23 1 && r2=0  # Radio2 present?
-
-    if [ $r1 -eq 0 ] && [ $r2 -eq 0 ]; then
-        echo "lg02"        # LG02: both SX1276 radios detected
-    elif [ $r2 -eq 0 ]; then
-        echo "lg01"        # LG01: only Radio2 (spidev2.0) detected
-    elif [ -e /dev/spidev1.0 ]; then
-        echo "sx1302"      # spidev1.0 exists but not SX1276 → SX1302 HAL
-    else
-        echo "none"
-    fi
-}
-
 start_service() {
-    mkdir -p /var/iot
-    echo "offline" > /var/iot/status
-
-    local mode
-    mode=$(detect_mode)
-    logger -t lora "Detected hardware: $mode"
-
-    case "$mode" in
-        lg02)   PROG=/usr/bin/lg02_pkt_fwd;  FILECONF="$CONF" ;;
-        lg01)   PROG=/usr/bin/lg01_pkt_fwd;  FILECONF="$CONF" ;;
-        sx1302) PROG=/usr/bin/raw_lora_app;  FILECONF="$CONF_SX1302" ;;
-        *)
-            logger -t lora "ERROR: no LoRa hardware detected — aborting start"
-            return 1
-            ;;
-    esac
-
-    logger -t lora "Starting $PROG"
     procd_open_instance
-    procd_set_param command "$PROG"
+    procd_set_param command /usr/bin/lg02_pkt_fwd
     procd_set_param respawn 3600 5 5
     procd_set_param stdout 1
     procd_set_param stderr 1
-    procd_set_param file "$FILECONF"
+    procd_set_param file /etc/lora/config.json
     procd_close_instance
 }
 
 service_triggers() {
-    procd_add_reload_trigger "$CONF"
-    procd_add_reload_trigger "$CONF_SX1302"
+    procd_add_reload_trigger /etc/lora/config.json
 }

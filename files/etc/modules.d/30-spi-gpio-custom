@@ -1,1 +1,1 @@
-spidev
+spi-gpio-custom bus0=1,24,18,20,0,8000000,19

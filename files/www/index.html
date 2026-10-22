@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LoRa Gateway</title>
+<title>LoRa Gateway — LG01/LG02</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -14,102 +14,157 @@
   --r:6px;--font:14px/1.4 'Segoe UI',system-ui,sans-serif
 }
 body{background:var(--bg);color:var(--fg);font:var(--font);min-height:100vh}
-header{background:var(--bg1);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header{
+  background:var(--bg1);border-bottom:1px solid var(--border);
+  padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap
+}
 header h1{font-size:16px;font-weight:600;letter-spacing:.03em;color:#fff}
 header h1 span{color:var(--accent)}
-#eui-lbl{font-size:12px;font-family:monospace;color:var(--fg3);letter-spacing:.04em}
-.hdr-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1 small{font-size:11px;font-weight:400;color:var(--fg3);margin-left:6px}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .pill{font-size:11px;padding:3px 10px;border-radius:99px;border:1px solid var(--border);background:var(--bg2);color:var(--fg2);font-weight:500}
 .pill.online{border-color:var(--ok);color:var(--ok);background:#0d2218}
 .pill.offline{border-color:var(--err);color:var(--err);background:#200d0d}
+#eui-text{font-size:12px;color:var(--fg2);font-family:monospace}
 .tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg1);padding:0 24px;position:sticky;top:0;z-index:10}
 .tab{padding:11px 18px;font-size:13px;font-weight:500;color:var(--fg3);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;margin-bottom:-1px}
 .tab:hover{color:var(--fg2)}
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-main{padding:24px;max-width:980px;margin:0 auto}
-/* stat cards */
+main{padding:24px;max-width:1100px;margin:0 auto}
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px}
 .stat-card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
 .stat-card .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--fg3);margin-bottom:6px}
-.stat-card .val{font-size:20px;font-weight:700;color:var(--fg);line-height:1.1;word-break:break-all}
-.stat-card .unit{font-size:10px;color:var(--fg3);margin-left:2px}
+.stat-card .val{font-size:24px;font-weight:600;color:var(--fg);line-height:1}
+.stat-card .unit{font-size:11px;color:var(--fg3);margin-left:3px}
+.stat-card.accent{border-color:var(--accent);background:#0d1a2e}
+.stat-card.accent .val{color:var(--accent)}
 .c-ok{color:var(--ok)}.c-warn{color:var(--warn)}.c-err{color:var(--err)}.c-dim{color:var(--fg3)}
 .refresh-bar{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--fg3);margin-top:10px}
-.spin{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:none;flex-shrink:0}
+.spin{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:none}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* sections */
-.section{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
-.section-hdr{padding:12px 18px;display:flex;align-items:center;gap:10px;background:var(--bg2);cursor:pointer;user-select:none}
-.section-hdr h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);flex:1}
-.section-hdr .caret{font-size:14px;color:var(--fg3);transition:transform .2s;line-height:1}
-.section-hdr.collapsed .caret{transform:rotate(-90deg)}
+.section{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px;overflow:hidden}
+.section-hdr{padding:12px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);background:var(--bg2);cursor:pointer;user-select:none}
+.section-hdr h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);flex:1}
+.section-hdr .arrow{font-size:16px;color:var(--fg3);transition:transform .2s}
+.section-hdr.collapsed .arrow{transform:rotate(-90deg)}
 .section-body{padding:16px 18px}
 .section-body.hidden{display:none}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
-@media(max-width:680px){.two-col{grid-template-columns:1fr}}
-/* fields */
-.field{margin-bottom:14px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:640px){.two-col{grid-template-columns:1fr}}
+.field{margin-bottom:12px}
 .field:last-child{margin-bottom:0}
-.field>label{display:block;font-size:11px;font-weight:600;color:var(--fg2);margin-bottom:5px;letter-spacing:.02em}
-.hint{font-size:10px;color:var(--fg3);margin-top:3px}
-input[type=text],input[type=number],select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--fg);padding:7px 10px;font-size:13px;font-family:inherit;transition:border-color .15s;-webkit-appearance:none;appearance:none}
+.field label{display:block;font-size:11px;font-weight:500;color:var(--fg2);margin-bottom:4px;letter-spacing:.02em}
+.field .hint{font-size:10px;color:var(--fg3);margin-top:3px}
+input[type=text],input[type=number],input[type=password],select{
+  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+  color:var(--fg);padding:7px 10px;font-size:13px;font-family:inherit;
+  transition:border-color .15s;appearance:none
+}
 input:focus,select:focus{outline:none;border-color:var(--accent)}
 select option{background:var(--bg3)}
-/* toggle switch */
-.sw-row{display:flex;align-items:center;gap:10px;height:32px}
-.sw-row .sw-lbl{font-size:11px;font-weight:600;color:var(--fg2);letter-spacing:.02em}
-.sw{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
-.sw input{opacity:0;width:0;height:0}
-.sw-track{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);border-radius:99px;transition:background .2s,border-color .2s;cursor:pointer}
-.sw input:checked+.sw-track{background:var(--accent2);border-color:var(--accent)}
-.sw-track::after{content:'';position:absolute;left:2px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:var(--fg3);transition:left .2s,background .2s}
-.sw input:checked+.sw-track::after{left:18px;background:#fff}
-/* channel plan table */
-.ch-table{width:100%;border-collapse:collapse;font-size:12px}
-.ch-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--fg3);padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
-.ch-table td{padding:5px 4px;border-bottom:1px solid var(--bg2)}
-.ch-table td input,.ch-table td select{padding:4px 6px;font-size:12px}
-.ch-table td.freq-prev{font-size:11px;color:var(--fg2);padding:5px 8px;font-family:monospace;min-width:90px}
-/* lut table */
-.lut-table{width:100%;border-collapse:collapse;font-size:12px}
-.lut-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--fg3);padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
-.lut-table td{padding:4px 3px;border-bottom:1px solid var(--bg2)}
-.lut-table td input{padding:4px 6px;font-size:12px}
-.lut-table .del-btn{background:none;border:1px solid var(--border);color:var(--fg3);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px}
-.lut-table .del-btn:hover{border-color:var(--err);color:var(--err)}
-/* action bar */
+.toggle-field{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+.toggle-field:last-child{border-bottom:none;padding-bottom:0}
+.toggle-field label{font-size:12px;color:var(--fg2)}
+.switch{position:relative;width:36px;height:20px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);border-radius:20px;cursor:pointer;transition:.2s}
+.slider:before{content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;background:var(--fg3);border-radius:50%;transition:.2s}
+.switch input:checked+.slider{background:var(--accent2);border-color:var(--accent)}
+.switch input:checked+.slider:before{transform:translateX(16px);background:#fff}
+.group-box{border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;background:var(--bg2)}
+.radio-label{font-size:11px;font-weight:600;color:var(--fg2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
 .action-bar{position:sticky;bottom:0;background:var(--bg1);border-top:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;z-index:10}
 .btn{padding:8px 22px;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;border:1px solid;transition:background .15s,color .15s}
 .btn-primary{background:var(--accent2);border-color:var(--accent);color:#fff}
 .btn-primary:hover{background:var(--accent)}
+.btn-warn{background:#3a1a00;border-color:var(--warn);color:var(--warn)}
+.btn-warn:hover{background:#5a2800}
 .btn-ghost{background:none;border-color:var(--border);color:var(--fg2)}
 .btn-ghost:hover{border-color:var(--fg2);color:var(--fg)}
-.btn-add{background:none;border:1px dashed var(--border);color:var(--fg3);border-radius:4px;padding:5px 16px;cursor:pointer;font-size:12px;width:100%;margin-top:6px}
-.btn-add:hover{border-color:var(--accent);color:var(--accent)}
 .save-msg{font-size:12px}
 .save-msg.ok{color:var(--ok)}.save-msg.err{color:var(--err)}.save-msg.info{color:var(--fg2)}
 .hidden{display:none!important}
+.sub-section{border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-top:12px;background:var(--bg2)}
+.sub-section-title{font-size:11px;font-weight:600;color:var(--fg2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.badge{font-size:10px;padding:2px 7px;border-radius:99px;background:var(--bg3);border:1px solid var(--border);color:var(--fg3)}
+.sep{height:1px;background:var(--border);margin:14px 0}
+.info-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)}
+.info-row:last-child{border-bottom:none}
+.info-row .k{color:var(--fg3)}
+.info-row .v{color:var(--fg);font-family:monospace;font-size:11px}
+.scan-net{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;cursor:pointer;border-radius:4px;margin-bottom:2px;background:var(--bg3);border:1px solid var(--border)}
+.scan-net:hover,.scan-net.selected{background:var(--accent2);border-color:var(--accent)}
+.scan-ssid{font-size:13px;font-weight:500;color:var(--fg)}
+.scan-meta{font-size:11px;color:var(--fg3);white-space:nowrap}
+.scan-net.selected .scan-ssid,.scan-net.selected .scan-meta{color:#fff}
+.scan-spinning{display:inline-block;animation:spin .8s linear infinite;margin-right:4px}
+.scan-wrap{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);padding:4px;background:var(--bg);margin-top:6px}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>LoRa <span>Gateway</span></h1>
-  <span id="eui-lbl">—</span>
+  <h1>LoRa <span>Gateway</span><small>SX1276</small></h1>
+  <span id="eui-text">—</span>
   <div class="hdr-right">
-    <span class="pill" id="svc-pill">connecting…</span>
+    <span class="pill" id="status-pill">connecting…</span>
   </div>
 </header>
 
 <div class="tabs">
   <button class="tab active" data-tab="status">Status</button>
-  <button class="tab"        data-tab="config">Configuration</button>
+  <button class="tab"        data-tab="lora">LoRa Config</button>
+  <button class="tab"        data-tab="device">Device</button>
 </div>
 
-<!-- ═══════ STATUS TAB ═══════ -->
+<!-- ═══ STATUS ═══ -->
 <main id="tab-status">
+
+  <!-- Hardware diagnostic panel -->
+  <div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:18px 22px;margin-bottom:14px">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg3);font-weight:700;margin-bottom:14px">Hardware Detection</div>
+    <div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap">
+      <div id="hw-mode" style="font-size:28px;font-weight:900;letter-spacing:.06em;padding:10px 26px;border-radius:10px;border:2px solid var(--border);background:var(--bg2);color:var(--fg3);text-align:center;min-width:88px;transition:all .3s">?</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="hw-r0-dot" style="width:14px;height:14px;border-radius:50%;background:var(--fg3);flex-shrink:0;transition:all .3s"></div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--fg)">Radio 0</div>
+            <div id="hw-r0-desc" style="font-size:11px;font-family:monospace;color:var(--fg3);margin-top:1px">—</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="hw-r1-dot" style="width:14px;height:14px;border-radius:50%;background:var(--fg3);flex-shrink:0;transition:all .3s"></div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--fg)">Radio 1</div>
+            <div id="hw-r1-desc" style="font-size:11px;font-family:monospace;color:var(--fg3);margin-top:1px">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Service control panel -->
+  <div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:14px 22px;margin-bottom:14px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:12px;min-width:160px">
+      <div id="svc-dot" style="width:13px;height:13px;border-radius:50%;background:var(--fg3);flex-shrink:0;transition:all .3s"></div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--fg3);font-weight:600">sx1276_app</div>
+        <div id="svc-lbl" style="font-size:15px;font-weight:700;color:var(--fg3);transition:color .3s">Unknown</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="svc-ss-btn" class="btn btn-ghost" style="padding:6px 20px" onclick="svcAction('start')">Start</button>
+      <button class="btn btn-ghost" style="padding:6px 20px" onclick="svcAction('restart')">Restart</button>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span id="svc-auto-lbl" style="font-size:12px;font-weight:500;color:var(--fg3)">Autostart: —</span>
+      <button id="svc-auto-btn" class="btn btn-ghost" style="padding:5px 14px;font-size:12px" onclick="svcToggleAutostart()">—</button>
+    </div>
+  </div>
+
   <div class="stat-grid" id="stat-grid">
-    <div class="stat-card"><div class="lbl">Loading…</div><div class="val c-dim">—</div></div>
+    <div class="stat-card"><div class="lbl">Loading…</div></div>
   </div>
   <div class="refresh-bar">
     <div class="spin" id="spin"></div>
@@ -117,373 +172,466 @@ select option{background:var(--bg3)}
   </div>
 </main>
 
-<!-- ═══════ CONFIG TAB ═══════ -->
-<main id="tab-config" class="hidden">
+<!-- ═══ LORA CONFIG ═══ -->
+<main id="tab-lora" class="hidden">
 
-  <!-- 1. Network -->
+  <!-- SERVER -->
   <div class="section">
     <div class="section-hdr" onclick="toggleSection(this)">
-      <h3>Network</h3><span class="caret">▾</span>
+      <h3>Server</h3><span class="arrow">▾</span>
     </div>
     <div class="section-body two-col">
       <div>
         <div class="field">
-          <label>Server IP / hostname</label>
+          <label>Server IP / Hostname</label>
           <input id="c_target_ip" type="text" placeholder="192.168.1.8">
         </div>
         <div class="field">
-          <label>UDP uplink port</label>
-          <input id="c_port_up" type="number" min="1" max="65535" value="5555">
+          <label>Uplink port</label>
+          <input id="c_port_up" type="number" min="1" max="65535">
         </div>
         <div class="field">
-          <label>UDP downlink port</label>
-          <input id="c_port_down" type="number" min="1" max="65535" value="5556">
+          <label>Downlink port</label>
+          <input id="c_port_down" type="number" min="1" max="65535">
         </div>
       </div>
       <div>
         <div class="field">
-          <label>TCP status port (0 = off)</label>
-          <input id="c_status_port" type="number" min="0" max="65535" value="5557">
+          <label>Status port <span style="color:var(--fg3)">(0 = off)</span></label>
+          <input id="c_status_port" type="number" min="0" max="65535">
         </div>
         <div class="field">
           <label>Heartbeat interval (s)</label>
-          <input id="c_heartbeat_interval_s" type="number" min="1" max="3600" value="10">
+          <input id="c_heartbeat_interval_s" type="number" min="1">
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 2. Hardware -->
+  <!-- RADIO 0 -->
   <div class="section">
     <div class="section-hdr" onclick="toggleSection(this)">
-      <h3>Hardware</h3><span class="caret">▾</span>
+      <h3>Radio 0 — SX1276 #1</h3><span class="arrow">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="group-box" style="margin-bottom:14px">
+        <div class="toggle-field">
+          <label>Enabled</label>
+          <label class="switch"><input type="checkbox" id="r0_enabled"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="field">
+            <label>SPI device</label>
+            <input id="r0_spi_path" type="text" placeholder="/dev/spidev1.0">
+          </div>
+          <div class="field">
+            <label>DIO0 GPIO number</label>
+            <input id="r0_dio0_gpio" type="text" placeholder="7">
+            <div class="hint">Interrupt pin (RxDone/TxDone). Leave empty to poll IRQ register.</div>
+          </div>
+          <div class="field">
+            <label>Reset GPIO number</label>
+            <input id="r0_reset_gpio" type="text" placeholder="23">
+          </div>
+          <div class="field">
+            <label>Frequency (Hz)</label>
+            <input id="r0_freq" type="number" placeholder="868100000" oninput="updateFreqHint('r0')">
+            <div class="hint" id="r0_freq_hint"></div>
+          </div>
+          <div class="field">
+            <label>Spreading Factor</label>
+            <select id="r0_sf">
+              <option value="7">SF7</option><option value="8">SF8</option>
+              <option value="9">SF9</option><option value="10">SF10</option>
+              <option value="11">SF11</option><option value="12">SF12</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Bandwidth (kHz)</label>
+            <select id="r0_bw">
+              <option value="125">125 kHz</option>
+              <option value="250">250 kHz</option>
+              <option value="500">500 kHz</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Code rate</label>
+            <select id="r0_coderate">
+              <option value="4/5">4/5</option>
+              <option value="4/6">4/6</option>
+              <option value="4/7">4/7</option>
+              <option value="4/8">4/8</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div class="field">
+            <label>RSSI offset (dB)</label>
+            <input id="r0_rssi_offset" type="number" step="0.1">
+          </div>
+          <div class="field">
+            <label>TX power (dBm)</label>
+            <input id="r0_tx_power" type="number" min="-4" max="20">
+          </div>
+          <div class="field">
+            <label>Preamble symbols</label>
+            <input id="r0_preamble" type="number" min="6" max="65535">
+          </div>
+          <div class="field">
+            <label>Sync word</label>
+            <select id="r0_sync_word">
+              <option value="private">Private (0x12) — RAW / custom</option>
+              <option value="public">Public (0x34) — LoRaWAN</option>
+            </select>
+          </div>
+          <div class="group-box" style="margin-top:8px">
+            <div class="toggle-field">
+              <label>TX enabled</label>
+              <label class="switch"><input type="checkbox" id="r0_tx_enable"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-field">
+              <label>PA boost mode</label>
+              <label class="switch"><input type="checkbox" id="r0_pa_boost"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RADIO 1 -->
+  <div class="section">
+    <div class="section-hdr" onclick="toggleSection(this)">
+      <h3>Radio 1 — SX1276 #2 <span style="font-size:10px;font-weight:400;color:var(--fg3)">(LG02 only)</span></h3><span class="arrow">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="group-box" style="margin-bottom:14px">
+        <div class="toggle-field">
+          <label>Enabled</label>
+          <label class="switch"><input type="checkbox" id="r1_enabled"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="field">
+            <label>SPI device</label>
+            <input id="r1_spi_path" type="text" placeholder="/dev/spidev2.0">
+          </div>
+          <div class="field">
+            <label>DIO0 GPIO number</label>
+            <input id="r1_dio0_gpio" type="text" placeholder="">
+            <div class="hint">Must be a <strong>different</strong> GPIO than Radio 0 (e.g. GPIO1 on LG02 — check your schematic). Leave empty for poll mode (safe default).</div>
+          </div>
+          <div class="field">
+            <label>Reset GPIO number</label>
+            <input id="r1_reset_gpio" type="text" placeholder="23">
+          </div>
+          <div class="field">
+            <label>Frequency (Hz)</label>
+            <input id="r1_freq" type="number" placeholder="868300000" oninput="updateFreqHint('r1')">
+            <div class="hint" id="r1_freq_hint"></div>
+          </div>
+          <div class="field">
+            <label>Spreading Factor</label>
+            <select id="r1_sf">
+              <option value="7">SF7</option><option value="8">SF8</option>
+              <option value="9">SF9</option><option value="10">SF10</option>
+              <option value="11">SF11</option><option value="12">SF12</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Bandwidth (kHz)</label>
+            <select id="r1_bw">
+              <option value="125">125 kHz</option>
+              <option value="250">250 kHz</option>
+              <option value="500">500 kHz</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Code rate</label>
+            <select id="r1_coderate">
+              <option value="4/5">4/5</option>
+              <option value="4/6">4/6</option>
+              <option value="4/7">4/7</option>
+              <option value="4/8">4/8</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div class="field">
+            <label>RSSI offset (dB)</label>
+            <input id="r1_rssi_offset" type="number" step="0.1">
+          </div>
+          <div class="field">
+            <label>TX power (dBm)</label>
+            <input id="r1_tx_power" type="number" min="-4" max="20">
+          </div>
+          <div class="field">
+            <label>Preamble symbols</label>
+            <input id="r1_preamble" type="number" min="6" max="65535">
+          </div>
+          <div class="field">
+            <label>Sync word</label>
+            <select id="r1_sync_word">
+              <option value="private">Private (0x12) — RAW / custom</option>
+              <option value="public">Public (0x34) — LoRaWAN</option>
+            </select>
+          </div>
+          <div class="group-box" style="margin-top:8px">
+            <div class="toggle-field">
+              <label>TX enabled</label>
+              <label class="switch"><input type="checkbox" id="r1_tx_enable"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-field">
+              <label>PA boost mode</label>
+              <label class="switch"><input type="checkbox" id="r1_pa_boost"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- I/O -->
+  <div class="section">
+    <div class="section-hdr" onclick="toggleSection(this)">
+      <h3>I/O</h3><span class="arrow">▾</span>
     </div>
     <div class="section-body two-col">
       <div>
         <div class="field">
-          <label>SPI device path</label>
-          <input id="c_spi_path" type="text" placeholder="/dev/spidev1.0">
-        </div>
-        <div class="field">
-          <label>SX1302 reset GPIO (number)</label>
-          <input id="c_reset_gpio" type="text" placeholder="23">
-        </div>
-        <div class="field">
-          <label>PA/LNA switch GPIO</label>
-          <input id="c_pa_gpio" type="text" placeholder='17 or "dragino2:red:wan"'>
-          <div class="hint">Numeric sysfs GPIO or OpenWrt LED name. LOW=TX, HIGH=RX.</div>
-        </div>
-        <div class="field">
-          <label>Clock source (0=RF0, 1=RF1)</label>
-          <select id="c_clksrc">
-            <option value="0">0 — RF chain 0</option>
-            <option value="1">1 — RF chain 1</option>
-          </select>
+          <label>PA / LNA switch GPIO</label>
+          <input id="c_pa_gpio" type="text" placeholder='e.g. "17" or empty'>
+          <div class="hint">Numeric GPIO or OpenWrt LED name. HIGH=TX, LOW=RX. Leave empty to disable.</div>
         </div>
       </div>
       <div>
         <div class="field">
-          <label>Sync word</label>
-          <select id="c_sync_word">
-            <option value="private">private (0x12)</option>
-            <option value="public">public / LoRaWAN (0x34)</option>
-          </select>
-        </div>
-        <div class="field" style="margin-top:6px">
-          <div class="sw-row">
-            <label class="sw"><input type="checkbox" id="c_full_duplex"><span class="sw-track"></span></label>
-            <span class="sw-lbl">Full duplex</span>
-          </div>
-          <div class="hint">Enable only if hardware supports simultaneous RX and TX.</div>
+          <label>RX indicator LED</label>
+          <input id="c_led_rx" type="text" placeholder="dragino2:green:lan4">
+          <div class="hint">sysfs LED name, or leave empty.</div>
         </div>
         <div class="field">
-          <label>RX LED (LED name or GPIO)</label>
-          <input id="c_led_rx" type="text" placeholder="dragino2:green:power">
-        </div>
-        <div class="field">
-          <label>TX LED (LED name or GPIO)</label>
+          <label>TX indicator LED</label>
           <input id="c_led_tx" type="text" placeholder="dragino2:red:wan">
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 3. RF Chains -->
-  <div class="section">
-    <div class="section-hdr" onclick="toggleSection(this)">
-      <h3>RF Chains</h3><span class="caret">▾</span>
-    </div>
-    <div class="section-body two-col">
-      <!-- RF0 -->
-      <div>
-        <div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">RF Chain 0</div>
-        <div class="field">
-          <label>Radio type</label>
-          <select id="c_rf0_type">
-            <option value="SX1250">SX1250</option>
-            <option value="SX1255">SX1255</option>
-            <option value="SX1257">SX1257</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Center frequency (Hz)</label>
-          <input id="c_rf0_freq" type="number" min="100000000" max="1000000000" placeholder="867500000">
-          <div class="hint" id="rf0-mhz"></div>
-        </div>
-        <div class="field">
-          <label>RSSI offset (dB)</label>
-          <input id="c_rf0_rssi_offset" type="number" step="0.1" placeholder="-215.4">
-        </div>
-        <div class="field">
-          <div class="sw-row">
-            <label class="sw"><input type="checkbox" id="c_rf0_tx_enable" checked><span class="sw-track"></span></label>
-            <span class="sw-lbl">TX enable</span>
-          </div>
-        </div>
-        <div class="field">
-          <div class="sw-row">
-            <label class="sw"><input type="checkbox" id="c_rf0_single_input"><span class="sw-track"></span></label>
-            <span class="sw-lbl">Single input mode</span>
-          </div>
-        </div>
-      </div>
-      <!-- RF1 -->
-      <div>
-        <div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">RF Chain 1</div>
-        <div class="field">
-          <label>Radio type</label>
-          <select id="c_rf1_type">
-            <option value="SX1250">SX1250</option>
-            <option value="SX1255">SX1255</option>
-            <option value="SX1257">SX1257</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Center frequency (Hz)</label>
-          <input id="c_rf1_freq" type="number" min="100000000" max="1000000000" placeholder="868500000">
-          <div class="hint" id="rf1-mhz"></div>
-        </div>
-        <div class="field">
-          <label>RSSI offset (dB)</label>
-          <input id="c_rf1_rssi_offset" type="number" step="0.1" placeholder="-215.4">
-        </div>
-        <div class="field">
-          <div class="sw-row">
-            <label class="sw"><input type="checkbox" id="c_rf1_tx_enable"><span class="sw-track"></span></label>
-            <span class="sw-lbl">TX enable</span>
-          </div>
-        </div>
-        <div class="field">
-          <div class="sw-row">
-            <label class="sw"><input type="checkbox" id="c_rf1_single_input"><span class="sw-track"></span></label>
-            <span class="sw-lbl">Single input mode</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+</main>
 
-  <!-- 4. Channel Plan -->
+<!-- ═══ DEVICE TAB ═══ -->
+<main id="tab-device" class="hidden">
+
+  <!-- IDENTITY -->
   <div class="section">
     <div class="section-hdr" onclick="toggleSection(this)">
-      <h3>Channel Plan (8 MultiSF)</h3><span class="caret">▾</span>
+      <h3>Identity</h3><span class="arrow">▾</span>
     </div>
     <div class="section-body">
-      <table class="ch-table" id="ch-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Radio</th>
-            <th>IF offset (Hz)</th>
-            <th>Absolute freq</th>
-          </tr>
-        </thead>
-        <tbody id="ch-tbody"></tbody>
-      </table>
-      <div class="hint" style="margin-top:8px">IF offset is relative to the radio center frequency.</div>
-    </div>
-  </div>
-
-  <!-- 5. LoRa Std & FSK -->
-  <div class="section">
-    <div class="section-hdr" onclick="toggleSection(this)">
-      <h3>LoRa Std &amp; FSK Channels</h3><span class="caret">▾</span>
-    </div>
-    <div class="section-body two-col">
-      <div>
-        <div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">LoRa Std (ch 8)</div>
-        <div class="field">
-          <div class="sw-row">
-            <label class="sw"><input type="checkbox" id="c_chan_lora_std_enable"><span class="sw-track"></span></label>
-            <span class="sw-lbl">Enable</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>Radio chain (0 or 1)</label>
-          <select id="c_chan_lora_std_radio">
-            <option value="0">0</option><option value="1">1</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>IF offset (Hz)</label>
-          <input id="c_chan_lora_std_if" type="number" placeholder="-200000">
-        </div>
-        <div class="field">
-          <label>Bandwidth (kHz)</label>
-          <select id="c_chan_lora_std_bw">
-            <option value="125">125</option>
-            <option value="250">250</option>
-            <option value="500">500</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Spreading factor</label>
-          <select id="c_chan_lora_std_sf">
-            <option value="5">SF5</option><option value="6">SF6</option><option value="7">SF7</option>
-            <option value="8">SF8</option><option value="9">SF9</option><option value="10">SF10</option>
-            <option value="11">SF11</option><option value="12">SF12</option>
-          </select>
-        </div>
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">FSK (ch 9)</div>
-        <div class="field">
-          <div class="sw-row">
-            <label class="sw"><input type="checkbox" id="c_chan_fsk_enable"><span class="sw-track"></span></label>
-            <span class="sw-lbl">Enable</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>Radio chain (0 or 1)</label>
-          <select id="c_chan_fsk_radio">
-            <option value="0">0</option><option value="1">1</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>IF offset (Hz)</label>
-          <input id="c_chan_fsk_if" type="number" placeholder="300000">
-        </div>
-        <div class="field">
-          <label>Bandwidth (kHz)</label>
-          <input id="c_chan_fsk_bw" type="number" placeholder="125">
-        </div>
-        <div class="field">
-          <label>Data rate (bps)</label>
-          <input id="c_chan_fsk_datarate" type="number" placeholder="50000">
-        </div>
+      <div class="field" style="max-width:320px">
+        <label>Hostname</label>
+        <input id="d_hostname" type="text" placeholder="dragino">
+        <div class="hint">Applies via uci — device reboots are not needed, but DNS propagation may take a moment.</div>
       </div>
     </div>
   </div>
 
-  <!-- 6. TX Defaults -->
+  <!-- LAN / MANAGEMENT -->
   <div class="section">
     <div class="section-hdr" onclick="toggleSection(this)">
-      <h3>TX Defaults</h3><span class="caret">▾</span>
-    </div>
-    <div class="section-body two-col">
-      <div>
-        <div class="field">
-          <label>Default TX frequency (Hz)</label>
-          <input id="c_tx_default_freq" type="number" placeholder="868100000">
-          <div class="hint" id="txd-mhz"></div>
-        </div>
-        <div class="field">
-          <label>Spreading factor</label>
-          <select id="c_tx_default_sf">
-            <option value="5">SF5</option><option value="6">SF6</option><option value="7" selected>SF7</option>
-            <option value="8">SF8</option><option value="9">SF9</option><option value="10">SF10</option>
-            <option value="11">SF11</option><option value="12">SF12</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>TX power (dBm)</label>
-          <input id="c_tx_default_power" type="number" min="-10" max="30" placeholder="14">
-        </div>
-        <div class="field">
-          <label>RF chain</label>
-          <select id="c_tx_default_rfch">
-            <option value="0">0</option><option value="1">1</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Code rate</label>
-          <select id="c_tx_default_coderate">
-            <option value="4/5">4/5</option>
-            <option value="4/6">4/6</option>
-            <option value="4/7">4/7</option>
-            <option value="4/8">4/8</option>
-          </select>
-        </div>
-      </div>
-      <div>
-        <div class="field">
-          <label>Bandwidth (kHz)</label>
-          <select id="c_tx_default_bandwidth">
-            <option value="125">125</option>
-            <option value="250">250</option>
-            <option value="500">500</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Preamble length (symbols)</label>
-          <input id="c_tx_default_preamble" type="number" min="2" max="65535" placeholder="8">
-        </div>
-        <div class="field">
-          <div class="sw-row">
-            <label class="sw"><input type="checkbox" id="c_tx_default_invert"><span class="sw-track"></span></label>
-            <span class="sw-lbl">Invert IQ (downlink)</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>TX free timeout (ms)</label>
-          <input id="c_tx_free_timeout_ms" type="number" min="100" max="30000" placeholder="2000">
-          <div class="hint">Max wait for TX radio to become idle.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 7. TX Gain LUT -->
-  <div class="section">
-    <div class="section-hdr" onclick="toggleSection(this)">
-      <h3>TX Gain LUT</h3><span class="caret">▾</span>
+      <h3>LAN / Management (eth)</h3><span class="arrow">▾</span>
     </div>
     <div class="section-body">
-      <table class="lut-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>rf_power (dBm)</th>
-            <th>pa_gain</th>
-            <th>pwr_idx</th>
-            <th>dac_gain</th>
-            <th>mix_gain</th>
-            <th>dig_gain</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="lut-tbody"></tbody>
-      </table>
-      <button class="btn-add" onclick="lutAddRow()">+ Add entry</button>
+      <div class="field" style="max-width:220px;margin-bottom:16px">
+        <label>Mode</label>
+        <select id="d_lan_proto" onchange="toggleLanStatic()">
+          <option value="dhcp">DHCP (auto)</option>
+          <option value="static">Static IP</option>
+        </select>
+      </div>
+      <div id="d_lan_static_fields" class="two-col hidden">
+        <div>
+          <div class="field">
+            <label>IP address</label>
+            <input id="d_lan_ip" type="text" placeholder="192.168.1.50">
+          </div>
+          <div class="field">
+            <label>Subnet mask</label>
+            <input id="d_lan_mask" type="text" placeholder="255.255.255.0">
+          </div>
+        </div>
+        <div>
+          <div class="field">
+            <label>Gateway</label>
+            <input id="d_lan_gw" type="text" placeholder="192.168.1.1">
+          </div>
+          <div class="field">
+            <label>DNS server <span style="color:var(--fg3)">(optional)</span></label>
+            <input id="d_lan_dns" type="text" placeholder="8.8.8.8">
+          </div>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:6px">Management interface (all ethernet ports). Used to reach this web UI.</div>
+    </div>
+  </div>
+
+  <!-- WIFI CLIENT -->
+  <div class="section">
+    <div class="section-hdr" onclick="toggleSection(this)">
+      <h3>WiFi Client (internet fallback)</h3><span class="arrow">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="group-box" style="margin-bottom:14px">
+        <div class="toggle-field">
+          <label>Connect to WiFi network</label>
+          <label class="switch"><input type="checkbox" id="d_wifi_enabled" onchange="toggleWifi()"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div id="d_wifi_fields" class="hidden">
+        <div class="two-col">
+          <div>
+            <div class="field">
+              <label>SSID (network name)</label>
+              <div style="display:flex;gap:8px">
+                <input id="d_wifi_ssid" type="text" placeholder="MyRouter" style="flex:1;min-width:0">
+                <button class="btn btn-ghost" style="white-space:nowrap;padding:7px 14px;font-size:12px" onclick="scanWifi()" id="scan-btn">Scan</button>
+              </div>
+            </div>
+            <div id="scan-results" class="hidden">
+              <div style="font-size:10px;color:var(--fg3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Click to select:</div>
+              <div class="scan-wrap" id="scan-list"></div>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label>Password</label>
+              <input id="d_wifi_key" type="password" placeholder="(leave empty if open network)">
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>Security</label>
+              <select id="d_wifi_enc">
+                <option value="psk2">WPA2 — recommended</option>
+                <option value="psk">WPA</option>
+                <option value="psk-mixed">WPA/WPA2 mixed</option>
+                <option value="none">Open (no password)</option>
+              </select>
+            </div>
+            <div class="hint" style="margin-top:8px">
+              WiFi connects as a client (STA mode) via wlan0, gets an IP from your router.
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;align-items:center;gap:12px">
+          <button class="btn btn-primary" onclick="connectWifi()">Connect</button>
+          <span style="font-size:11px;color:var(--fg3)">Applies WiFi only — hostname and LAN are unchanged.</span>
+        </div>
+      </div>
     </div>
   </div>
 
 </main>
 
-<!-- STICKY ACTION BAR (config only) -->
-<div class="action-bar hidden" id="action-bar">
-  <button class="btn btn-primary" onclick="saveConfig()">Save &amp; Restart</button>
-  <button class="btn btn-ghost"   onclick="loadConfig()">Reload</button>
-  <span class="save-msg" id="save-msg"></span>
+<!-- STICKY ACTION BAR -->
+<div class="action-bar hidden" id="action-bar-lora">
+  <button class="btn btn-primary" onclick="saveLoraConfig()">Save &amp; Restart</button>
+  <button class="btn btn-ghost"   onclick="loadLoraConfig()">Reload</button>
+  <span class="save-msg" id="lora-msg"></span>
+</div>
+
+<div class="action-bar hidden" id="action-bar-device">
+  <button class="btn btn-primary" onclick="saveDeviceConfig()">Apply Network Settings</button>
+  <button class="btn btn-ghost"   onclick="loadDeviceConfig()">Reload</button>
+  <span class="save-msg" id="device-msg"></span>
 </div>
 
 <script>
 'use strict';
 
-/* ── SECTION COLLAPSE ── */
+/* ── helpers ── */
+function $(id) { return document.getElementById(id); }
+function setVal(id, v) { var el=$(id); if(el) el.value = (v!=null?v:''); }
+function setChk(id, v) { var el=$(id); if(el) el.checked = !!v; }
+function setOpt(id, v) { var el=$(id); if(el) el.value = String(v); }
+function getVal(id)  { return $(id).value.trim(); }
+function getNum(id)  { return +$(id).value; }
+function getChk(id)  { return !!$(id).checked; }
+function setMsg(id, txt, cls) { var el=$(id); el.textContent=txt; el.className='save-msg '+(cls||''); }
+
 function toggleSection(hdr) {
   hdr.classList.toggle('collapsed');
   hdr.nextElementSibling.classList.toggle('hidden');
+}
+
+function toggleLanStatic() {
+  $('d_lan_static_fields').classList.toggle('hidden', getVal('d_lan_proto') !== 'static');
+}
+function toggleWifi() {
+  $('d_wifi_fields').classList.toggle('hidden', !getChk('d_wifi_enabled'));
+}
+
+/* ── WiFi scan ── */
+function scanWifi() {
+  var btn = $('scan-btn');
+  btn.textContent = 'Scanning…';
+  btn.disabled = true;
+  setMsg('device-msg', 'Scanning for networks (2-3 s)…', 'info');
+  $('scan-results').classList.add('hidden');
+
+  fetch('/cgi-bin/wifiscan')
+    .then(function(r){ return r.json(); })
+    .then(function(nets) {
+      btn.textContent = 'Scan'; btn.disabled = false;
+      if (nets.error) { setMsg('device-msg', 'Scan failed: '+nets.error, 'err'); return; }
+      if (!nets.length) { setMsg('device-msg', 'No networks found.', 'warn'); return; }
+      setMsg('device-msg', 'Found '+nets.length+' network'+(nets.length!==1?'s':'')+'. Click one to select.', 'info');
+      $('scan-list').innerHTML = nets
+        .sort(function(a,b){ return b.signal - a.signal; })
+        .map(function(n) {
+          var lock = n.enc === 'none' ? '○' : '●';
+          var bar  = n.signal > -60 ? '▰▰▰' : n.signal > -75 ? '▰▰▱' : '▰▱▱';
+          return '<div class="scan-net" onclick="pickNet(this,\'' +
+            n.ssid.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;') + '\',\'' + n.enc + '\')" data-ssid="' +
+            n.ssid.replace(/"/g,'&quot;') + '">' +
+            '<span class="scan-ssid">' + lock + ' ' + escHtml(n.ssid) + '</span>' +
+            '<span class="scan-meta">' + bar + ' ' + n.signal + ' dBm</span>' +
+            '</div>';
+        }).join('');
+      $('scan-results').classList.remove('hidden');
+    })
+    .catch(function(e) {
+      btn.textContent = 'Scan'; btn.disabled = false;
+      setMsg('device-msg', 'Scan error: '+e.message, 'err');
+    });
+}
+
+function pickNet(el, ssid, enc) {
+  setVal('d_wifi_ssid', ssid);
+  if (enc && enc !== 'none') setOpt('d_wifi_enc', enc);
+  else setOpt('d_wifi_enc', 'none');
+  document.querySelectorAll('.scan-net').forEach(function(n){ n.classList.remove('selected'); });
+  el.classList.add('selected');
+  $('d_wifi_key').focus();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function updateFreqHint(pfx) {
+  var hz = +$(pfx+'_freq').value;
+  var el = $(pfx+'_freq_hint');
+  if (el) el.textContent = hz ? (hz/1e6).toFixed(4) + ' MHz' : '';
+}
+
+/* ── uptime formatter ── */
+function fmtUptime(s) {
+  var d=Math.floor(s/86400), h=Math.floor((s%86400)/3600),
+      m=Math.floor((s%3600)/60), sec=s%60;
+  return (d?d+'d ':'')+( h?h+'h ':'')+( m?m+'m ':'')+sec+'s';
 }
 
 /* ── TABS ── */
@@ -493,342 +641,351 @@ document.querySelectorAll('.tab').forEach(function(btn) {
     document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
     var name = btn.dataset.tab;
-    document.getElementById('tab-status').classList.toggle('hidden', name !== 'status');
-    document.getElementById('tab-config').classList.toggle('hidden', name !== 'config');
-    document.getElementById('action-bar').classList.toggle('hidden', name !== 'config');
+    $('tab-status').classList.toggle('hidden', name!=='status');
+    $('tab-lora').classList.toggle('hidden', name!=='lora');
+    $('tab-device').classList.toggle('hidden', name!=='device');
+    $('action-bar-lora').classList.toggle('hidden', name!=='lora');
+    $('action-bar-device').classList.toggle('hidden', name!=='device');
     clearInterval(statusTimer);
+    clearInterval(svcTimer);
     if (name === 'status') {
       loadStatus();
-      statusTimer = setInterval(loadStatus, 5000);
-    } else if (name === 'config') {
-      loadConfig();
+      loadServiceState();
+      statusTimer = setInterval(loadStatus, 4000);
+      svcTimer    = setInterval(loadServiceState, 6000);
+    } else if (name === 'lora') {
+      loadLoraConfig();
+    } else if (name === 'device') {
+      loadDeviceConfig();
     }
   });
 });
 
-/* ── UTILS ── */
-function fmtUptime(s) {
-  var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
-      m = Math.floor((s % 3600) / 60), sec = s % 60;
-  if (d) return d + 'd ' + h + 'h';
-  if (h) return h + 'h ' + m + 'm';
-  if (m) return m + 'm ' + sec + 's';
-  return sec + 's';
-}
-
 /* ── STATUS ── */
 function loadStatus() {
-  document.getElementById('spin').style.display = 'block';
+  $('spin').style.display = 'block';
   fetch('/cgi-bin/status')
     .then(function(r){ return r.json(); })
     .then(function(d) {
-      document.getElementById('spin').style.display = 'none';
+      $('spin').style.display = 'none';
+      var ok = !d.error;
+      var pill = $('status-pill');
+      pill.textContent = ok ? 'Online' : 'Offline';
+      pill.className   = 'pill '+(ok?'online':'offline');
+      if (ok) $('eui-text').textContent = 'EUI '+d.eui;
+      else    $('eui-text').textContent = '';
 
-      var eui = d.eui || '—';
-      document.getElementById('eui-lbl').textContent = eui;
+      var cards = ok ? [
+        { lbl:'Uptime',     val:fmtUptime(d.uptime||d.uptime_s||0), unit:'',  cls:'accent' },
+        { lbl:'RX Packets', val:d.rx,       unit:'', cls:d.rx>0?'ok':'' },
+        { lbl:'TX Packets', val:d.tx,       unit:'', cls:d.tx>0?'ok':'' },
+        { lbl:'CRC Errors', val:d.crc_err,  unit:'', cls:d.crc_err>0?'warn':'dim' },
+        { lbl:'TX Errors',  val:d.tx_err,   unit:'', cls:d.tx_err>0?'err':'dim' },
+        { lbl:'TX Queue',   val:d.tx_queue||d.q_depth||0, unit:'', cls:(d.tx_queue||0)>4?'warn':'ok' }
+      ] : [{ lbl:'Gateway', val:'Offline', unit:'', cls:'err' }];
 
-      var svcPill = document.getElementById('svc-pill');
-      if (d.error) {
-        svcPill.textContent = 'Offline'; svcPill.className = 'pill offline';
-      } else {
-        svcPill.textContent = 'Running'; svcPill.className = 'pill online';
-      }
-
-      if (d.error) {
-        document.getElementById('stat-grid').innerHTML =
-          '<div class="stat-card"><div class="lbl">Status</div><div class="val c-err">Not running</div></div>';
-        document.getElementById('refresh-lbl').textContent = 'Last update: ' + new Date().toLocaleTimeString();
-        return;
-      }
-
-      var cards = [
-        { lbl:'Uptime',   val: fmtUptime(d.uptime_s || 0),          cls:'' },
-        { lbl:'RX',       val: d.rx   || 0,                          cls:'ok' },
-        { lbl:'TX',       val: d.tx   || 0,                          cls:'ok' },
-        { lbl:'CRC err',  val: d.crc_err  || 0,                      cls: (d.crc_err  > 0) ? 'warn' : 'dim' },
-        { lbl:'TX err',   val: d.tx_err   || 0,                      cls: (d.tx_err   > 0) ? 'err'  : 'dim' },
-        { lbl:'Q drop',   val: d.q_drop   || 0,                      cls: (d.q_drop   > 0) ? 'warn' : 'dim' },
-        { lbl:'Q depth',  val: d.q_depth  || 0,                      cls:'' },
-        { lbl:'RF0',      val: (d.rf0_mhz || 0).toFixed(3), unit:'MHz', cls:''},
-        { lbl:'RF1',      val: (d.rf1_mhz || 0).toFixed(3), unit:'MHz', cls:''},
-        { lbl:'Sync',     val: d.sync || '—',                        cls: d.sync === 'public' ? 'ok' : 'dim' }
-      ];
-      document.getElementById('stat-grid').innerHTML = cards.map(function(c) {
-        return '<div class="stat-card">' +
-               '<div class="lbl">' + c.lbl + '</div>' +
-               '<div class="val' + (c.cls ? ' c-' + c.cls : '') + '">' + c.val +
-               (c.unit ? '<span class="unit">' + c.unit + '</span>' : '') +
-               '</div></div>';
+      $('stat-grid').innerHTML = cards.map(function(c){
+        return '<div class="stat-card'+(c.cls==='accent'?' accent':'')+'">'
+          +'<div class="lbl">'+c.lbl+'</div>'
+          +'<div class="val c-'+c.cls+'">'+c.val
+          +(c.unit?'<span class="unit">'+c.unit+'</span>':'')
+          +'</div></div>';
       }).join('');
-
-      document.getElementById('refresh-lbl').textContent = 'Last update: ' + new Date().toLocaleTimeString();
+      $('refresh-lbl').textContent = 'Last update: '+new Date().toLocaleTimeString();
     })
     .catch(function() {
-      document.getElementById('spin').style.display = 'none';
-      document.getElementById('svc-pill').textContent = 'Unreachable';
-      document.getElementById('svc-pill').className = 'pill offline';
-      document.getElementById('stat-grid').innerHTML =
-        '<div class="stat-card"><div class="lbl">Error</div><div class="val c-err">Cannot reach gateway</div></div>';
-      document.getElementById('refresh-lbl').textContent = 'Last update: ' + new Date().toLocaleTimeString();
+      $('spin').style.display = 'none';
+      $('status-pill').textContent = 'Unreachable';
+      $('status-pill').className   = 'pill offline';
+      $('stat-grid').innerHTML = '<div class="stat-card"><div class="lbl">Error</div>'
+        +'<div class="val c-err">Cannot reach gateway</div></div>';
     });
 }
 
-/* ── CHANNEL PLAN TABLE ── */
-var g_rf0_freq = 867500000, g_rf1_freq = 868500000;
-
-function buildChTable() {
-  var tb = document.getElementById('ch-tbody');
-  tb.innerHTML = '';
-  for (var i = 0; i < 8; i++) {
-    var tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td style="color:var(--fg3);padding:5px 8px;font-size:12px">' + i + '</td>' +
-      '<td><select id="ch_radio_' + i + '" onchange="updateFreqPreviews()" style="width:60px;padding:4px 6px;font-size:12px">' +
-        '<option value="0">0</option><option value="1">1</option></select></td>' +
-      '<td><input id="ch_if_' + i + '" type="number" oninput="updateFreqPreviews()" style="width:110px;padding:4px 6px;font-size:12px" placeholder="0"></td>' +
-      '<td class="freq-prev" id="ch_abs_' + i + '">—</td>';
-    tb.appendChild(tr);
-  }
-}
-
-function updateFreqPreviews() {
-  g_rf0_freq = parseInt(document.getElementById('c_rf0_freq').value) || g_rf0_freq;
-  g_rf1_freq = parseInt(document.getElementById('c_rf1_freq').value) || g_rf1_freq;
-  document.getElementById('rf0-mhz').textContent = (g_rf0_freq / 1e6).toFixed(3) + ' MHz';
-  document.getElementById('rf1-mhz').textContent = (g_rf1_freq / 1e6).toFixed(3) + ' MHz';
-  var txf = parseInt(document.getElementById('c_tx_default_freq').value);
-  if (txf) document.getElementById('txd-mhz').textContent = (txf / 1e6).toFixed(3) + ' MHz';
-  for (var i = 0; i < 8; i++) {
-    var radio = parseInt(document.getElementById('ch_radio_' + i).value) || 0;
-    var iif   = parseInt(document.getElementById('ch_if_' + i).value)    || 0;
-    var center = (radio === 1) ? g_rf1_freq : g_rf0_freq;
-    document.getElementById('ch_abs_' + i).textContent = ((center + iif) / 1e6).toFixed(3) + ' MHz';
-  }
-}
-
-function readChTable() {
-  var ifArr = [], radioArr = [];
-  for (var i = 0; i < 8; i++) {
-    ifArr.push(parseInt(document.getElementById('ch_if_' + i).value) || 0);
-    radioArr.push(parseInt(document.getElementById('ch_radio_' + i).value) || 0);
-  }
-  return { chan_if: ifArr, chan_radio: radioArr };
-}
-
-/* ── TX GAIN LUT ── */
-function lutAddRow(vals) {
-  vals = vals || {};
-  var tb   = document.getElementById('lut-tbody');
-  var idx  = tb.rows.length;
-  var tr   = document.createElement('tr');
-  tr.id    = 'lut-row-' + idx;
-  function inp(id, dflt, w) {
-    return '<td><input id="' + id + '" type="number" value="' + (vals[dflt] !== undefined ? vals[dflt] : 0) +
-           '" style="width:' + (w||60) + 'px;padding:4px 6px;font-size:12px"></td>';
-  }
-  tr.innerHTML =
-    '<td style="color:var(--fg3);padding:5px 8px;font-size:12px" class="lut-idx">' + idx + '</td>' +
-    inp('lut_rfpwr_' + idx,  'rf_power',  65) +
-    inp('lut_pagain_' + idx, 'pa_gain',   55) +
-    inp('lut_pwidx_' + idx,  'pwr_idx',   55) +
-    inp('lut_dacgain_' + idx,'dac_gain',  55) +
-    inp('lut_mixgain_' + idx,'mix_gain',  55) +
-    inp('lut_diggain_' + idx,'dig_gain',  55) +
-    '<td><button class="del-btn" onclick="lutDelRow(' + idx + ')">✕</button></td>';
-  tb.appendChild(tr);
-}
-
-function lutDelRow(idx) {
-  var row = document.getElementById('lut-row-' + idx);
-  if (row) row.parentNode.removeChild(row);
-  reindexLut();
-}
-
-function reindexLut() {
-  var tb = document.getElementById('lut-tbody');
-  Array.from(tb.rows).forEach(function(tr, i) {
-    tr.id = 'lut-row-' + i;
-    tr.querySelector('.lut-idx').textContent = i;
-    var cells = tr.querySelectorAll('input,button');
-    var flds = ['rfpwr','pagain','pwidx','dacgain','mixgain','diggain'];
-    flds.forEach(function(f, fi) {
-      cells[fi].id = 'lut_' + f + '_' + i;
-    });
-    tr.querySelector('.del-btn').setAttribute('onclick', 'lutDelRow(' + i + ')');
-  });
-}
-
-function populateLut(arr) {
-  document.getElementById('lut-tbody').innerHTML = '';
-  (arr || []).forEach(function(entry) { lutAddRow(entry); });
-}
-
-function readLut() {
-  var tb = document.getElementById('lut-tbody');
-  var out = [];
-  Array.from(tb.rows).forEach(function(tr, i) {
-    out.push({
-      rf_power: parseInt(document.getElementById('lut_rfpwr_'  + i).value) || 0,
-      pa_gain:  parseInt(document.getElementById('lut_pagain_' + i).value) || 0,
-      pwr_idx:  parseInt(document.getElementById('lut_pwidx_'  + i).value) || 0,
-      dac_gain: parseInt(document.getElementById('lut_dacgain_'+ i).value) || 0,
-      mix_gain: parseInt(document.getElementById('lut_mixgain_'+ i).value) || 0,
-      dig_gain: parseInt(document.getElementById('lut_diggain_'+ i).value) || 0
-    });
-  });
-  return out;
-}
-
-/* ── CONFIG LOAD / SAVE ── */
-function sv(id, val) {
-  var el = document.getElementById(id);
-  if (!el || val === undefined || val === null) return;
-  if (el.type === 'checkbox') el.checked = !!val;
-  else el.value = val;
-}
-
-function gv(id)    { var e = document.getElementById(id); return e ? e.value : null; }
-function gb(id)    { var e = document.getElementById(id); return e ? e.checked : false; }
-function gn(id)    { var v = parseFloat(gv(id)); return isNaN(v) ? 0 : v; }
-function gi(id)    { var v = parseInt(gv(id));   return isNaN(v) ? 0 : v; }
-
-function loadConfig() {
+/* ── LORA CONFIG ── */
+function loadLoraConfig() {
+  setMsg('lora-msg','Loading…','info');
   fetch('/cgi-bin/config')
     .then(function(r){ return r.json(); })
     .then(function(d) {
-      sv('c_target_ip',             d.target_ip);
-      sv('c_port_up',               d.port_up);
-      sv('c_port_down',             d.port_down);
-      sv('c_status_port',           d.status_port);
-      sv('c_heartbeat_interval_s',  d.heartbeat_interval_s);
-      sv('c_spi_path',              d.spi_path);
-      sv('c_reset_gpio',            d.reset_gpio);
-      sv('c_pa_gpio',               d.pa_gpio);
-      sv('c_clksrc',                d.clksrc);
-      sv('c_sync_word',             d.sync_word);
-      sv('c_full_duplex',           d.full_duplex);
-      sv('c_led_rx',                d.led_rx);
-      sv('c_led_tx',                d.led_tx);
-      sv('c_rf0_type',              d.rf0_type);
-      sv('c_rf0_freq',              d.rf0_freq);
-      sv('c_rf0_rssi_offset',       d.rf0_rssi_offset);
-      sv('c_rf0_tx_enable',         d.rf0_tx_enable);
-      sv('c_rf0_single_input',      d.rf0_single_input);
-      sv('c_rf1_type',              d.rf1_type);
-      sv('c_rf1_freq',              d.rf1_freq);
-      sv('c_rf1_rssi_offset',       d.rf1_rssi_offset);
-      sv('c_rf1_tx_enable',         d.rf1_tx_enable);
-      sv('c_rf1_single_input',      d.rf1_single_input);
-      if (Array.isArray(d.chan_if) && Array.isArray(d.chan_radio)) {
-        for (var i = 0; i < 8; i++) {
-          sv('ch_if_' + i,    d.chan_if[i]);
-          sv('ch_radio_' + i, d.chan_radio[i]);
-        }
+      setMsg('lora-msg','');
+      // server
+      setVal('c_target_ip',            d.target_ip||'192.168.1.8');
+      setVal('c_port_up',              d.port_up||5555);
+      setVal('c_port_down',            d.port_down||5556);
+      setVal('c_status_port',          d.status_port||5557);
+      setVal('c_heartbeat_interval_s', d.heartbeat_interval_s||10);
+      // I/O
+      setVal('c_pa_gpio', d.pa_gpio||'');
+      setVal('c_led_rx',  d.led_rx||'');
+      setVal('c_led_tx',  d.led_tx||'');
+      // radio 0
+      var r0 = d.radio_0 || {};
+      setChk('r0_enabled',     r0.enabled!=null?r0.enabled:true);
+      setVal('r0_spi_path',    r0.spi_path||'/dev/spidev1.0');
+      setVal('r0_dio0_gpio',   r0.dio0_gpio||'7');
+      setVal('r0_reset_gpio',  r0.reset_gpio||'23');
+      setVal('r0_freq',        r0.freq||868100000);
+      setOpt('r0_sf',          r0.sf||7);
+      setOpt('r0_bw',          r0.bw||125);
+      setOpt('r0_coderate',    r0.coderate||'4/5');
+      setVal('r0_rssi_offset', r0.rssi_offset!=null?r0.rssi_offset:0);
+      setChk('r0_tx_enable',   r0.tx_enable!=null?r0.tx_enable:true);
+      setChk('r0_pa_boost',    r0.pa_boost!=null?r0.pa_boost:true);
+      setVal('r0_tx_power',    r0.tx_power||14);
+      setVal('r0_preamble',    r0.preamble||8);
+      setOpt('r0_sync_word',   r0.sync_word||'private');
+      updateFreqHint('r0');
+      // radio 1
+      var r1 = d.radio_1 || {};
+      setChk('r1_enabled',     r1.enabled!=null?r1.enabled:false);
+      setVal('r1_spi_path',    r1.spi_path||'/dev/spidev2.0');
+      setVal('r1_dio0_gpio',   r1.dio0_gpio||'7');
+      setVal('r1_reset_gpio',  r1.reset_gpio||'23');
+      setVal('r1_freq',        r1.freq||868300000);
+      setOpt('r1_sf',          r1.sf||7);
+      setOpt('r1_bw',          r1.bw||125);
+      setOpt('r1_coderate',    r1.coderate||'4/5');
+      setVal('r1_rssi_offset', r1.rssi_offset!=null?r1.rssi_offset:0);
+      setChk('r1_tx_enable',   r1.tx_enable!=null?r1.tx_enable:false);
+      setChk('r1_pa_boost',    r1.pa_boost!=null?r1.pa_boost:true);
+      setVal('r1_tx_power',    r1.tx_power||14);
+      setVal('r1_preamble',    r1.preamble||8);
+      setOpt('r1_sync_word',   r1.sync_word||'private');
+      updateFreqHint('r1');
+    })
+    .catch(function(e){ setMsg('lora-msg','Failed to load: '+e.message,'err'); });
+}
+
+function radioObj(pfx) {
+  return {
+    enabled:     getChk(pfx+'_enabled'),
+    spi_path:    getVal(pfx+'_spi_path'),
+    dio0_gpio:   getVal(pfx+'_dio0_gpio'),
+    reset_gpio:  getVal(pfx+'_reset_gpio'),
+    freq:        getNum(pfx+'_freq'),
+    sf:          getNum(pfx+'_sf'),
+    bw:          getNum(pfx+'_bw'),
+    coderate:    getVal(pfx+'_coderate'),
+    rssi_offset: getNum(pfx+'_rssi_offset'),
+    tx_enable:   getChk(pfx+'_tx_enable'),
+    pa_boost:    getChk(pfx+'_pa_boost'),
+    tx_power:    getNum(pfx+'_tx_power'),
+    preamble:    getNum(pfx+'_preamble'),
+    sync_word:   getVal(pfx+'_sync_word')
+  };
+}
+
+function saveLoraConfig() {
+  var cfg = {
+    target_ip:            getVal('c_target_ip'),
+    port_up:              getNum('c_port_up'),
+    port_down:            getNum('c_port_down'),
+    status_port:          getNum('c_status_port'),
+    heartbeat_interval_s: getNum('c_heartbeat_interval_s'),
+    pa_gpio:              getVal('c_pa_gpio'),
+    led_rx:               getVal('c_led_rx'),
+    led_tx:               getVal('c_led_tx'),
+    radio_0:              radioObj('r0'),
+    radio_1:              radioObj('r1')
+  };
+  setMsg('lora-msg','Saving…','info');
+  fetch('/cgi-bin/config', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cfg)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(d.status==='saved') setMsg('lora-msg','Saved. Service restarting…','ok');
+    else setMsg('lora-msg','Error: '+(d.error||JSON.stringify(d)),'err');
+  })
+  .catch(function(e){ setMsg('lora-msg','Network error: '+e.message,'err'); });
+}
+
+/* ── DEVICE CONFIG ── */
+function loadDeviceConfig() {
+  setMsg('device-msg','Loading…','info');
+  fetch('/cgi-bin/network')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      setMsg('device-msg','');
+      setVal('d_hostname',      d.hostname||'dragino');
+      setOpt('d_lan_proto',     d.lan_proto||'dhcp');
+      setVal('d_lan_ip',        d.lan_ip||'');
+      setVal('d_lan_mask',      d.lan_mask||'255.255.255.0');
+      setVal('d_lan_gw',        d.lan_gw||'');
+      setVal('d_lan_dns',       d.lan_dns||'');
+      setChk('d_wifi_enabled',  !!d.wifi_enabled);
+      setVal('d_wifi_ssid',     d.wifi_ssid||'');
+      setVal('d_wifi_key',      '');
+      setOpt('d_wifi_enc',      d.wifi_enc||'psk2');
+      toggleLanStatic();
+      toggleWifi();
+      $('scan-results').classList.add('hidden');
+    })
+    .catch(function(e){ setMsg('device-msg','Failed to load: '+e.message,'err'); });
+}
+
+function saveDeviceConfig() {
+  var cfg = {
+    hostname:     getVal('d_hostname'),
+    lan_proto:    getVal('d_lan_proto'),
+    lan_ip:       getVal('d_lan_ip'),
+    lan_mask:     getVal('d_lan_mask'),
+    lan_gw:       getVal('d_lan_gw'),
+    lan_dns:      getVal('d_lan_dns'),
+    wifi_enabled: getChk('d_wifi_enabled'),
+    wifi_ssid:    getVal('d_wifi_ssid'),
+    wifi_key:     getVal('d_wifi_key'),
+    wifi_enc:     getVal('d_wifi_enc')
+  };
+  setMsg('device-msg','Applying…','info');
+  fetch('/cgi-bin/network', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cfg)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(d.status==='applied') {
+      setMsg('device-msg','Applied.','ok');
+      setTimeout(loadDeviceConfig, 1200);
+    } else {
+      setMsg('device-msg','Error: '+(d.error||JSON.stringify(d)),'err');
+    }
+  })
+  .catch(function(e){ setMsg('device-msg','Network error: '+e.message,'err'); });
+}
+
+function connectWifi() {
+  var cfg = {
+    action:       'wifi',
+    wifi_enabled: getChk('d_wifi_enabled'),
+    wifi_ssid:    getVal('d_wifi_ssid'),
+    wifi_key:     getVal('d_wifi_key'),
+    wifi_enc:     getVal('d_wifi_enc')
+  };
+  setMsg('device-msg','Connecting to WiFi…','info');
+  fetch('/cgi-bin/network', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cfg)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(d.status==='applied') setMsg('device-msg','WiFi connecting — allow 10-20 s for DHCP.','ok');
+    else setMsg('device-msg','Error: '+(d.error||JSON.stringify(d)),'err');
+  })
+  .catch(function(e){ setMsg('device-msg','Error: '+e.message,'err'); });
+}
+
+/* ── SERVICE / HW STATE ── */
+var svcRunning = false;
+var svcEnabled = false;
+var svcTimer   = null;
+
+function loadServiceState() {
+  fetch('/cgi-bin/service')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      svcRunning = !!d.running;
+      svcEnabled = !!d.enabled;
+
+      var dot   = $('svc-dot');
+      var lbl   = $('svc-lbl');
+      var ssBtn = $('svc-ss-btn');
+      if (svcRunning) {
+        dot.style.background = 'var(--ok)';
+        dot.style.boxShadow  = '0 0 8px var(--ok)';
+        lbl.style.color      = 'var(--ok)';
+        lbl.textContent      = 'Running';
+        ssBtn.textContent    = 'Stop';
+        ssBtn.onclick        = function(){ svcAction('stop'); };
+        ssBtn.className      = 'btn btn-warn';
+      } else {
+        dot.style.background = 'var(--err)';
+        dot.style.boxShadow  = '0 0 8px var(--err)';
+        lbl.style.color      = 'var(--err)';
+        lbl.textContent      = 'Stopped';
+        ssBtn.textContent    = 'Start';
+        ssBtn.onclick        = function(){ svcAction('start'); };
+        ssBtn.className      = 'btn btn-ghost';
       }
-      sv('c_chan_lora_std_enable',   d.chan_lora_std_enable);
-      sv('c_chan_lora_std_radio',    d.chan_lora_std_radio);
-      sv('c_chan_lora_std_if',       d.chan_lora_std_if);
-      sv('c_chan_lora_std_bw',       d.chan_lora_std_bw);
-      sv('c_chan_lora_std_sf',       d.chan_lora_std_sf);
-      sv('c_chan_fsk_enable',        d.chan_fsk_enable);
-      sv('c_chan_fsk_radio',         d.chan_fsk_radio);
-      sv('c_chan_fsk_if',            d.chan_fsk_if);
-      sv('c_chan_fsk_bw',            d.chan_fsk_bw);
-      sv('c_chan_fsk_datarate',      d.chan_fsk_datarate);
-      sv('c_tx_default_freq',       d.tx_default_freq);
-      sv('c_tx_default_sf',         d.tx_default_sf);
-      sv('c_tx_default_power',      d.tx_default_power);
-      sv('c_tx_default_rfch',       d.tx_default_rfch);
-      sv('c_tx_default_coderate',   d.tx_default_coderate);
-      sv('c_tx_default_bandwidth',  d.tx_default_bandwidth);
-      sv('c_tx_default_preamble',   d.tx_default_preamble);
-      sv('c_tx_default_invert',     d.tx_default_invert);
-      sv('c_tx_free_timeout_ms',    d.tx_free_timeout_ms);
-      if (Array.isArray(d.tx_gain_lut)) populateLut(d.tx_gain_lut);
-      updateFreqPreviews();
+      ssBtn.style.cssText = 'padding:6px 20px';
+
+      var autolbl = $('svc-auto-lbl');
+      var autobtn = $('svc-auto-btn');
+      if (svcEnabled) {
+        autolbl.style.color = 'var(--ok)';
+        autolbl.textContent = 'Autostart: ON';
+        autobtn.textContent = 'Disable';
+      } else {
+        autolbl.style.color = 'var(--fg3)';
+        autolbl.textContent = 'Autostart: OFF';
+        autobtn.textContent = 'Enable';
+      }
+
+      var hw = d.hw || {};
+      var badge = $('hw-mode');
+      if (hw.mode === 'LG02') {
+        badge.textContent        = 'LG02';
+        badge.style.borderColor  = 'var(--accent)';
+        badge.style.color        = 'var(--accent)';
+        badge.style.background   = '#0d1a2e';
+      } else if (hw.mode === 'LG01') {
+        badge.textContent        = 'LG01';
+        badge.style.borderColor  = 'var(--ok)';
+        badge.style.color        = 'var(--ok)';
+        badge.style.background   = '#0d2218';
+      } else {
+        badge.textContent        = '?';
+        badge.style.borderColor  = 'var(--border)';
+        badge.style.color        = 'var(--fg3)';
+        badge.style.background   = 'var(--bg2)';
+      }
+
+      setHwRadio('hw-r0-dot', 'hw-r0-desc', hw.radio0, hw.r0_path);
+      setHwRadio('hw-r1-dot', 'hw-r1-desc', hw.radio1, hw.r1_path);
     })
     .catch(function(){});
 }
 
-function saveConfig() {
-  var ch = readChTable();
-  var obj = {
-    target_ip:            gv('c_target_ip'),
-    port_up:              gi('c_port_up'),
-    port_down:            gi('c_port_down'),
-    status_port:          gi('c_status_port'),
-    heartbeat_interval_s: gi('c_heartbeat_interval_s'),
-    spi_path:             gv('c_spi_path'),
-    reset_gpio:           gv('c_reset_gpio'),
-    pa_gpio:              gv('c_pa_gpio'),
-    clksrc:               gi('c_clksrc'),
-    sync_word:            gv('c_sync_word'),
-    full_duplex:          gb('c_full_duplex'),
-    led_rx:               gv('c_led_rx'),
-    led_tx:               gv('c_led_tx'),
-    rf0_type:             gv('c_rf0_type'),
-    rf0_freq:             gi('c_rf0_freq'),
-    rf0_rssi_offset:      gn('c_rf0_rssi_offset'),
-    rf0_tx_enable:        gb('c_rf0_tx_enable'),
-    rf0_single_input:     gb('c_rf0_single_input'),
-    rf1_type:             gv('c_rf1_type'),
-    rf1_freq:             gi('c_rf1_freq'),
-    rf1_rssi_offset:      gn('c_rf1_rssi_offset'),
-    rf1_tx_enable:        gb('c_rf1_tx_enable'),
-    rf1_single_input:     gb('c_rf1_single_input'),
-    chan_if:              ch.chan_if,
-    chan_radio:           ch.chan_radio,
-    chan_lora_std_enable: gb('c_chan_lora_std_enable'),
-    chan_lora_std_radio:  gi('c_chan_lora_std_radio'),
-    chan_lora_std_if:     gi('c_chan_lora_std_if'),
-    chan_lora_std_bw:     gi('c_chan_lora_std_bw'),
-    chan_lora_std_sf:     gi('c_chan_lora_std_sf'),
-    chan_fsk_enable:      gb('c_chan_fsk_enable'),
-    chan_fsk_radio:       gi('c_chan_fsk_radio'),
-    chan_fsk_if:          gi('c_chan_fsk_if'),
-    chan_fsk_bw:          gi('c_chan_fsk_bw'),
-    chan_fsk_datarate:    gi('c_chan_fsk_datarate'),
-    tx_default_freq:      gi('c_tx_default_freq'),
-    tx_default_sf:        gi('c_tx_default_sf'),
-    tx_default_power:     gi('c_tx_default_power'),
-    tx_default_rfch:      gi('c_tx_default_rfch'),
-    tx_default_coderate:  gv('c_tx_default_coderate'),
-    tx_default_bandwidth: gi('c_tx_default_bandwidth'),
-    tx_default_preamble:  gi('c_tx_default_preamble'),
-    tx_default_invert:    gb('c_tx_default_invert'),
-    tx_free_timeout_ms:   gi('c_tx_free_timeout_ms'),
-    tx_gain_lut:          readLut()
-  };
-  var msg = document.getElementById('save-msg');
-  msg.textContent = 'Saving…'; msg.className = 'save-msg info';
-  fetch('/cgi-bin/config', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(obj)
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(d) {
-    if (d.status === 'saved') {
-      msg.textContent = 'Saved — restarting…'; msg.className = 'save-msg ok';
-    } else {
-      msg.textContent = JSON.stringify(d); msg.className = 'save-msg err';
-    }
-    setTimeout(function(){ msg.textContent = ''; }, 4000);
-  })
-  .catch(function(e) {
-    msg.textContent = 'Error: ' + e; msg.className = 'save-msg err';
-  });
+function setHwRadio(dotId, descId, ok, path) {
+  var dot  = $(dotId);
+  var desc = $(descId);
+  if (ok === true) {
+    dot.style.background = 'var(--ok)';
+    dot.style.boxShadow  = '0 0 6px var(--ok)';
+    desc.style.color     = 'var(--fg2)';
+    desc.textContent     = (path || '') + '  —  SX1276 OK (v0x12)';
+  } else if (ok === false) {
+    dot.style.background = 'var(--err)';
+    dot.style.boxShadow  = '0 0 6px var(--err)';
+    desc.style.color     = 'var(--err)';
+    desc.textContent     = (path || '') + '  —  not detected';
+  } else {
+    dot.style.background = 'var(--fg3)';
+    dot.style.boxShadow  = 'none';
+    desc.style.color     = 'var(--fg3)';
+    desc.textContent     = '—';
+  }
 }
 
-/* ── FREQ HINT LISTENERS ── */
-document.getElementById('c_rf0_freq').addEventListener('input', updateFreqPreviews);
-document.getElementById('c_rf1_freq').addEventListener('input', updateFreqPreviews);
-document.getElementById('c_tx_default_freq').addEventListener('input', updateFreqPreviews);
+function svcAction(action) {
+  fetch('/cgi-bin/service', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: action})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(){ setTimeout(loadServiceState, 1800); })
+  .catch(function(){});
+}
+
+function svcToggleAutostart() {
+  svcAction(svcEnabled ? 'disable' : 'enable');
+}
 
 /* ── BOOT ── */
-buildChTable();
 loadStatus();
-statusTimer = setInterval(loadStatus, 5000);
+statusTimer = setInterval(loadStatus, 4000);
+loadServiceState();
+svcTimer = setInterval(loadServiceState, 6000);
 </script>
 </body>
 </html>

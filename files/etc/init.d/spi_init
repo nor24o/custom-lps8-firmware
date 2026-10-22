@@ -5,7 +5,9 @@ STOP=90
 
 start() {
     rmmod spi-gpio-custom 2>/dev/null
-    insmod spi-gpio-custom bus0=1,24,18,20,0,8000000,19
+    # RX radio: bus1  SCK=14 MOSI=16 MISO=26 CS=15 -> /dev/spidev1.0
+    # TX radio: bus2  SCK=18 MOSI=21 MISO=19 CS=24 -> /dev/spidev2.0
+    insmod spi-gpio-custom bus0=1,14,16,26,0,8000000,15 bus1=2,18,21,19,0,8000000,24
     sleep 1
 }
 
