@@ -15,26 +15,26 @@
 .lora-stat-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 12px;
     margin-bottom: 20px;
 }
 .lora-stat-box {
     flex: 1;
-    min-width: 180px;
+    min-width: 145px;
     background: #f8f9fa;
     border: 1px solid #e9ecef;
     border-radius: 6px;
-    padding: 15px;
+    padding: 14px;
     text-align: center;
 }
 .lora-stat-val {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 700;
     line-height: 1.2;
     margin: 5px 0;
 }
 .lora-stat-lbl {
-    font-size: 12px;
+    font-size: 11px;
     text-transform: uppercase;
     color: #6c757d;
     font-weight: 600;
@@ -133,33 +133,37 @@
 </style>
 
 <div class="lora-container">
-    <h2><span class="live-dot"></span><%:LoRa Gateway Realtime Status%></h2>
-    <p class="description"><%:Live telemetry, concentrator health, packet feed, and network server upstream connectivity.%></p>
+    <h2><span class="live-dot"></span><%:LoRa Gateway Realtime Status (raw_lora_app)%></h2>
+    <p class="description"><%:Live telemetry from /usr/bin/raw_lora_app (TCP status port 5557 & /etc/lora/config.json).%></p>
 
     <!-- TOP OVERVIEW CARD -->
     <div class="lora-card">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div>
-                <span id="service-badge" class="badge-running"><%:CHECKING...%></span>
-                <span style="margin-left: 10px; font-weight: 600;" id="hw-title"><%:SX1302 Concentrator (SPI)%></span>
-                <span style="margin-left: 15px; color: #6c757d;" id="service-uptime"><%:Initializing...%></span>
+                <span id="service-badge" class="badge-stopped"><%:CHECKING...%></span>
+                <span style="margin-left: 10px; font-weight: 600;" id="hw-title">raw_lora_app (/dev/spidev1.0, RST GPIO 23)</span>
+                <span style="margin-left: 15px; color: #6c757d;" id="service-uptime"></span>
             </div>
             <div>
-                <strong><%:Gateway EUI:%></strong> <span class="eui-tag" id="val-eui">----------------</span>
+                <strong><%:Gateway EUI:%></strong> <span class="eui-tag" id="val-eui">—</span>
             </div>
         </div>
 
         <hr style="margin: 15px 0 10px 0; border: 0; border-top: 1px solid #eee;" />
 
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-            <div style="font-size: 13px;">
-                <strong><%:Network Server:%></strong> <span id="val-server" style="color: #0056b3;">eu1.cloud.thethings.network</span> &nbsp;|&nbsp;
-                <strong><%:Ports:%></strong> Up: <span id="val-port-up">1700</span> / Down: <span id="val-port-down">1700</span> &nbsp;|&nbsp;
-                <strong><%:Region:%></strong> <span id="val-region" class="badge" style="background:#e9ecef; color:#495057;">EU868</span> &nbsp;|&nbsp;
-                <strong><%:Sync Word:%></strong> <span id="val-sync">0x34</span>
+            <div style="font-size: 13px; line-height: 1.8;">
+                <strong><%:Target Server:%></strong> <span id="val-server" style="color: #0056b3; font-family: monospace;">192.168.1.8</span> &nbsp;|&nbsp;
+                <strong><%:UDP Ports:%></strong> Up: <span id="val-port-up">5555</span> / Down: <span id="val-port-down">5556</span> &nbsp;|&nbsp;
+                <strong><%:Status TCP:%></strong> <span id="val-status-port">5557</span> &nbsp;|&nbsp;
+                <strong><%:Heartbeat:%></strong> <span id="val-hb">10</span>s<br/>
+                <strong><%:RF0:%></strong> <span id="val-rf0">867.500</span> MHz &nbsp;|&nbsp;
+                <strong><%:RF1:%></strong> <span id="val-rf1">868.500</span> MHz &nbsp;|&nbsp;
+                <strong><%:Sync Word:%></strong> <span id="val-sync">private (0x12)</span> &nbsp;|&nbsp;
+                <strong><%:PA GPIO:%></strong> <span id="val-pa" style="font-family: monospace;">dragino2:red:wan</span>
             </div>
             <div class="action-btn-bar">
-                <button type="button" class="cbi-button cbi-button-apply" onclick="serviceAction('restart')"><%:Restart Gateway%></button>
+                <button type="button" class="cbi-button cbi-button-apply" onclick="serviceAction('restart')"><%:Restart App%></button>
                 <button type="button" class="cbi-button cbi-button-reset" onclick="serviceAction('stop')"><%:Stop%></button>
                 <button type="button" class="cbi-button cbi-button-save" onclick="serviceAction('start')"><%:Start%></button>
             </div>
@@ -169,24 +173,29 @@
     <!-- STATS COUNTERS GRID -->
     <div class="lora-stat-grid">
         <div class="lora-stat-box">
-            <div class="lora-stat-lbl"><%:Total Received (RX)%></div>
+            <div class="lora-stat-lbl"><%:Received (RX)%></div>
             <div class="lora-stat-val" id="cnt-rx" style="color: #28a745;">0</div>
-            <div style="font-size: 11px; color: #888;"><%:Uplink packets captured%></div>
+            <div style="font-size: 11px; color: #888;"><%:Uplink packets%></div>
         </div>
         <div class="lora-stat-box">
-            <div class="lora-stat-lbl"><%:Total Transmitted (TX)%></div>
+            <div class="lora-stat-lbl"><%:Transmitted (TX)%></div>
             <div class="lora-stat-val" id="cnt-tx" style="color: #007bff;">0</div>
             <div style="font-size: 11px; color: #888;"><%:Downlinks sent%></div>
         </div>
         <div class="lora-stat-box">
             <div class="lora-stat-lbl"><%:CRC Errors%></div>
             <div class="lora-stat-val" id="cnt-crc" style="color: #dc3545;">0</div>
-            <div style="font-size: 11px; color: #888;"><%:Corrupted RF packets%></div>
+            <div style="font-size: 11px; color: #888;"><%:Corrupted RF%></div>
         </div>
         <div class="lora-stat-box">
-            <div class="lora-stat-lbl"><%:Upstream ACK Ratio%></div>
-            <div class="lora-stat-val" id="cnt-ack" style="color: #17a2b8;">100%</div>
-            <div style="font-size: 11px; color: #888;"><%:Server acknowledgement%></div>
+            <div class="lora-stat-lbl"><%:TX Errors%></div>
+            <div class="lora-stat-val" id="cnt-txerr" style="color: #fd7e14;">0</div>
+            <div style="font-size: 11px; color: #888;"><%:Failed TX%></div>
+        </div>
+        <div class="lora-stat-box">
+            <div class="lora-stat-lbl"><%:TX Queue / Drops%></div>
+            <div class="lora-stat-val" id="cnt-q" style="color: #17a2b8;">0 / 0</div>
+            <div style="font-size: 11px; color: #888;"><%:Depth / Dropped%></div>
         </div>
     </div>
 
@@ -218,7 +227,7 @@
                 <tbody id="tbody-packets">
                     <tr id="row-empty">
                         <td colspan="7" style="text-align: center; color: #888; padding: 25px;">
-                            <%:Waiting for incoming LoRa RF transmissions...%>
+                            <%:Waiting for incoming LoRa RF transmissions from raw_lora_app...%>
                         </td>
                     </tr>
                 </tbody>
@@ -229,7 +238,7 @@
     <!-- LOG CONSOLE -->
     <div class="lora-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h3 style="margin: 0;"><%:Gateway Process Log (Last 50 Lines)%></h3>
+            <h3 style="margin: 0;"><%:raw_lora_app Process Output (/var/log/lora.log)%></h3>
             <div>
                 <label style="cursor: pointer; font-size: 13px; margin-right: 15px;">
                     <input type="checkbox" id="chk-autoscroll" checked="checked" /> <%:Auto-scroll%>
@@ -237,7 +246,7 @@
                 <button type="button" class="cbi-button" onclick="refreshLog()"><%:Refresh Log%></button>
             </div>
         </div>
-        <div class="log-console" id="log-content"><%:Loading gateway service logs...%></div>
+        <div class="log-console" id="log-content"><%:Loading raw_lora_app logs...%></div>
     </div>
 </div>
 
@@ -269,22 +278,23 @@ function updateStatus() {
                     sBadge.innerHTML = "<%:STOPPED%>";
                 }
                 document.getElementById("service-uptime").innerText = data.uptime || "";
-                document.getElementById("val-eui").innerText = data.gateway_id || "--------";
-                document.getElementById("val-server").innerText = data.server || "";
-                document.getElementById("val-port-up").innerText = data.port_up || 1700;
-                document.getElementById("val-port-down").innerText = data.port_down || 1700;
-                document.getElementById("val-region").innerText = data.region || "EU868";
-                document.getElementById("val-sync").innerText = data.syncword || "0x34";
-
-                var hwName = "SX1302 Concentrator";
-                if (data.concentrator === "sx1276_lg02") hwName = "SX1276 Dual-Channel";
-                else if (data.concentrator === "sx1276_lg01") hwName = "SX1276 Single-Channel";
-                document.getElementById("hw-title").innerText = hwName + " (" + (data.interface || "SPI").toUpperCase() + ")";
+                document.getElementById("val-eui").innerText = data.gateway_id || "—";
+                document.getElementById("val-server").innerText = data.server || "192.168.1.8";
+                document.getElementById("val-port-up").innerText = data.port_up || 5555;
+                document.getElementById("val-port-down").innerText = data.port_down || 5556;
+                document.getElementById("val-status-port").innerText = data.status_port !== undefined ? data.status_port : 5557;
+                document.getElementById("val-hb").innerText = data.heartbeat_interval_s || 10;
+                document.getElementById("val-rf0").innerText = (data.rf0_mhz || 867.5).toFixed(3);
+                document.getElementById("val-rf1").innerText = (data.rf1_mhz || 868.5).toFixed(3);
+                document.getElementById("val-sync").innerText = data.syncword || "private (0x12)";
+                document.getElementById("val-pa").innerText = data.pa_gpio || "(disabled)";
+                document.getElementById("hw-title").innerText = "raw_lora_app (" + (data.spi_path || "/dev/spidev1.0") + ", RST GPIO " + (data.reset_gpio || "23") + ")";
 
                 document.getElementById("cnt-rx").innerText = data.rx_count || 0;
                 document.getElementById("cnt-tx").innerText = data.tx_count || 0;
                 document.getElementById("cnt-crc").innerText = data.crc_err || 0;
-                document.getElementById("cnt-ack").innerText = data.ack_ratio || "100%";
+                document.getElementById("cnt-txerr").innerText = data.tx_err || 0;
+                document.getElementById("cnt-q").innerText = (data.q_depth || 0) + " / " + (data.q_drop || 0);
             } catch(e) {}
         }
     };
@@ -333,7 +343,6 @@ function updatePackets() {
                         tbody.appendChild(tr);
                     }
 
-                    // Keep table to max 50 rows
                     while (tbody.children.length > 50) {
                         tbody.removeChild(tbody.lastChild);
                     }
@@ -366,7 +375,6 @@ function clearPacketTable() {
 }
 
 function serviceAction(action) {
-    if (!confirm("<%:Are you sure you want to %> " + action + " <%:the LoRa Gateway daemon?%>")) return;
     var xhr = new XMLHttpRequest();
     xhr.open("POST", '<%=luci.dispatcher.build_url("admin/lora/action_service")%>', true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
@@ -375,13 +383,12 @@ function serviceAction(action) {
             setTimeout(function() {
                 updateStatus();
                 refreshLog();
-            }, 1000);
+            }, 600);
         }
     };
     xhr.send("cmd=" + encodeURIComponent(action));
 }
 
-// Polling loop
 function startPolling() {
     updateStatus();
     updatePackets();
@@ -392,8 +399,7 @@ function startPolling() {
         updatePackets();
     }, 1500);
 
-    // Refresh logs every 5s
-    setInterval(refreshLog, 5000);
+    setInterval(refreshLog, 4000);
 }
 
 window.onload = startPolling;
