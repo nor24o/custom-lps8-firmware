@@ -64,13 +64,15 @@ if [ ! -f "$IMAGEBUILDER_DIR/packages/Packages" ] || [ ! -x "$IMAGEBUILDER_DIR/s
     [ "$IB_TAR" = "/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz" ] && rm -f "$IB_TAR"
 fi
 
-# Ensure CGI scripts, binaries, and init scripts are executable
-for f in "$OVERLAY_DIR"/www/cgi-bin/* "$OVERLAY_DIR"/usr/bin/* "$OVERLAY_DIR"/etc/init.d/*; do
+# Ensure scripts are executable before bundling into squashfs
+for f in "$OVERLAY_DIR"/usr/bin/* "$OVERLAY_DIR"/etc/init.d/*; do
     [ -f "$f" ] && chmod 755 "$f"
 done
 
 # Package list for LG01/LG02:
-PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core uhttpd nano tcpdump -luci -wpad-mini -iptables -ip6tables -firewall -odhcpd -odhcpd-ipv6only -odhcp6c"
+# LuCI web UI, LoRa hardware drivers, sysadmin tools.
+# Explicitly stripped: DHCP servers, firewall, iptables, ppp routing bloat
+PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap nano htop -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c -wpad-mini"
 
 cd "$IMAGEBUILDER_DIR"
 make image \
