@@ -77,6 +77,11 @@ start_service() {
             ;;
     esac
 
+    if [ ! -e /dev/spidev1.0 ] && [ ! -e /dev/ttyACM0 ] && [ -x /usr/bin/lora_qemu_sim.sh ]; then
+        logger -t lora "No physical SPI/USB concentrator present — starting QEMU virtual LoRa simulator"
+        PROG=/usr/bin/lora_qemu_sim.sh
+    fi
+
     if [ ! -x "$PROG" ]; then
         logger -t lora "Executable $PROG not found"
         return 1

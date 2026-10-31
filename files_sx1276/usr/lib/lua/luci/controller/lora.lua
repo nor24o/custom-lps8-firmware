@@ -24,7 +24,7 @@ function action_status()
     local uci = require("luci.model.uci").cursor()
     local jsonc = require "luci.jsonc"
 
-    local pid_str = sys.exec("pidof raw_lora_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null"):gsub("%s+", "")
+    local pid_str = sys.exec("pidof raw_lora_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null || pgrep -f lora_qemu_sim.sh 2>/dev/null"):match("(%d+)") or ""
     local pid = tonumber(pid_str)
     local is_running = (pid ~= nil and pid > 0)
 
