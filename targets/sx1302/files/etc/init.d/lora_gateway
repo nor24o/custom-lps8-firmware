@@ -1,0 +1,109 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=95
+STOP=10
+
+CONF_SX1276=/etc/lora/gateway.json
+CONF_SX1302=/etc/lora/config.json
+
+probe_sx1276() {
+    # Check if simple_spi_rw detects SX1276 (version register 0x12)
+    if [ -x /usr/bin/simple_spi_rw ]; then
+        /usr/bin/simple_spi_rw "$1" "$2" >/dev/null 2>&1
+        return $?
+    fi
+    return 1
+}
+
+detect_hardware() {
+    local uci_model
+    uci_model=$(uci -q get lora.general.concentrator)
+    if [ -n "$uci_model" ]; then
+        case "$uci_model" in
+            sx1302)      echo "sx1302"; return 0 ;;
+            sx1276_lg02) echo "lg02";   return 0 ;;
+            sx1276_lg01) echo "lg01";   return 0 ;;
+        esac
+    fi
+
+    # Hardware autodetect probe
+    local r1=1 r2=1
+    probe_sx1276 8 0 && r1=0   # Radio1 (spidev1.0)
+    probe_sx1276 23 1 && r2=0  # Radio2 (spidev2.0)
+
+    if [ $r1 -eq 0 ] && [ $r2 -eq 0 ]; then
+        echo "lg02"
+    elif [ $r2 -eq 0 ]; then
+        echo "lg01"
+    elif [ -e /dev/spidev1.0 ] && [ -x /usr/bin/raw_lora_app ]; then
+        echo "sx1302"
+    elif [ -x /usr/bin/raw_lora_app ]; then
+        echo "sx1302"
+    elif [ -x /usr/bin/lg02_pkt_fwd ]; then
+        echo "lg02"
+    else
+        echo "none"
+    fi
+}
+
+start_service() {
+    mkdir -p /var/iot /etc/lora
+    echo "offline" > /var/iot/status
+
+    local mode
+    mode=$(detect_hardware)
+    logger -t lora "LoRa hardware mode: $mode"
+
+    local PROG=""
+    local FILECONF=""
+
+    case "$mode" in
+        sx1302)
+            PROG=/usr/bin/raw_lora_app
+            FILECONF="$CONF_SX1302"
+            ;;
+        lg02)
+            PROG=/usr/bin/lg02_pkt_fwd
+            FILECONF="$CONF_SX1276"
+            ;;
+        lg01)
+            PROG=/usr/bin/lg01_pkt_fwd
+            FILECONF="$CONF_SX1276"
+            ;;
+        *)
+            logger -t lora "No LoRa hardware detected or binary missing — starting in idle/standby mode"
+            return 0
+            ;;
+    esac
+
+    if [ ! -e /dev/spidev1.0 ] && [ ! -e /dev/ttyACM0 ] && [ -x /usr/bin/lora_qemu_sim.sh ]; then
+        logger -t lora "No physical SPI/USB concentrator present — starting QEMU virtual LoRa simulator"
+        PROG=/usr/bin/lora_qemu_sim.sh
+    fi
+
+    if [ ! -x "$PROG" ]; then
+        logger -t lora "Executable $PROG not found"
+        return 1
+    fi
+
+    logger -t lora "Starting gateway forwarder: $PROG"
+    procd_open_instance
+    procd_set_param command "$PROG"
+    procd_set_param respawn 3600 5 5
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    [ -f "$FILECONF" ] && procd_set_param file "$FILECONF"
+    procd_close_instance
+}
+
+stop_service() {
+    logger -t lora "Stopping LoRa gateway service"
+    killall lora_qemu_sim.sh raw_lora_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null || true
+}
+
+service_triggers() {
+    procd_add_reload_trigger "lora"
+    [ -f "$CONF_SX1302" ] && procd_add_reload_trigger "$CONF_SX1302"
+    [ -f "$CONF_SX1276" ] && procd_add_reload_trigger "$CONF_SX1276"
+}

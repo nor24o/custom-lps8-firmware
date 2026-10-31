@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# build_image.sh — Build OpenWrt Firmware for Dragino LG01 / LG02 (SX1276)
+# Target: ar71xx-generic | Profile: dragino2
+# ==============================================================================
+set -e
+
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IMAGEBUILDER_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+[ -f "$IMAGEBUILDER_DIR/Makefile" ] || IMAGEBUILDER_DIR="$SCRIPT_DIR"
+
+OVERLAY_DIR="$SCRIPT_DIR/files"
+if [ ! -d "$OVERLAY_DIR" ]; then
+    echo -e "${RED}[ERROR] Overlay directory $OVERLAY_DIR not found!${NC}"
+    exit 1
+fi
+
+echo -e "${BLUE}==================================================================${NC}"
+echo -e "${BLUE}  Building OpenWrt Image for Dragino LG01 / LG02 (SX1276)         ${NC}"
+echo -e "${BLUE}==================================================================${NC}"
+echo "ImageBuilder: $IMAGEBUILDER_DIR"
+echo "Overlay:      $OVERLAY_DIR"
+
+# Ensure ImageBuilder precompiled tools, packages, & kernel exist
+if [ ! -f "$IMAGEBUILDER_DIR/packages/Packages" ] || [ ! -x "$IMAGEBUILDER_DIR/staging_dir/host/bin/mksquashfs4" ] || [ ! -f "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin" ] || [ ! -f "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader-generic.elf" ]; then
+    CANDIDATE_TARS=(
+        "$OPENWRT_IB_TAR"
+        "/home/hor/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        "$HOME/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        "$IMAGEBUILDER_DIR/../openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+    )
+    IB_TAR=""
+    for t in "${CANDIDATE_TARS[@]}"; do
+        if [ -n "$t" ] && [ -f "$t" ]; then
+            IB_TAR="$t"
+            break
+        fi
+    done
+
+    if [ -z "$IB_TAR" ]; then
+        IB_TAR="/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        IB_URL="https://archive.openwrt.org/releases/18.06.9/targets/ar71xx/generic/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        echo -e "${YELLOW}[!] ImageBuilder host tools, packages, or kernel missing.${NC}"
+        echo -e "${BLUE}[*] Automatically downloading OpenWrt ImageBuilder components from archive mirror...${NC}"
+        wget -c --show-progress "$IB_URL" -O "$IB_TAR"
+    fi
+
+    echo -e "${YELLOW}[*] Unpacking ImageBuilder precompiled host tools, packages, and Dragino kernels...${NC}"
+    mkdir -p "$IMAGEBUILDER_DIR/staging_dir/host" "$IMAGEBUILDER_DIR/packages" "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic"
+    tar -xf "$IB_TAR" --strip-components=1 -C "$IMAGEBUILDER_DIR" \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/staging_dir/host \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/packages \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader-generic.elf
+    [ "$IB_TAR" = "/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz" ] && rm -f "$IB_TAR"
+fi
+
+# Ensure scripts are executable before bundling into squashfs
+for f in "$OVERLAY_DIR"/usr/bin/* "$OVERLAY_DIR"/etc/init.d/*; do
+    [ -f "$f" ] && chmod 755 "$f"
+done
+
+# Package list for LG01/LG02:
+# LuCI web UI, LoRa hardware drivers, sysadmin tools.
+# Explicitly stripped: DHCP servers, firewall, iptables, ppp routing bloat
+PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap nano htop -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c -wpad-mini"
+
+cd "$IMAGEBUILDER_DIR"
+make image \
+    PROFILE=dragino2 \
+    PACKAGES="$PACKAGES" \
+    FILES="$OVERLAY_DIR"
+
+OUT_BIN="$IMAGEBUILDER_DIR/bin/targets/ar71xx/generic/openwrt-18.06.9-ar71xx-generic-dragino2-squashfs-sysupgrade.bin"
+if [ -f "$OUT_BIN" ]; then
+    echo -e "\n${GREEN}==================================================================${NC}"
+    echo -e "${GREEN}[+] BUILD SUCCESSFUL! Firmware ready for LG01 / LG02:${NC}"
+    echo -e "    File: $OUT_BIN"
+    echo -e "    Size: $(du -h "$OUT_BIN" | cut -f1)"
+    echo -e "    MD5:  $(md5sum "$OUT_BIN" | awk '{print $1}')"
+    echo -e "${GREEN}==================================================================${NC}"
+else
+    echo -e "${RED}[ERROR] Firmware image was not generated.${NC}"
+    exit 1
+fi

@@ -1,0 +1,402 @@
+<%+header%>
+
+<style type="text/css">
+.lora-container {
+    margin-top: 15px;
+}
+.lora-card {
+    background: #ffffff;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.lora-stat-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+.lora-stat-box {
+    flex: 1;
+    min-width: 180px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    text-align: center;
+}
+.lora-stat-val {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 5px 0;
+}
+.lora-stat-lbl {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #6c757d;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+.badge-running {
+    background-color: #28a745;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.badge-stopped {
+    background-color: #dc3545;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.eui-tag {
+    font-family: monospace;
+    font-size: 15px;
+    background: #eef2f7;
+    color: #0366d6;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #d1d5da;
+    display: inline-block;
+    letter-spacing: 1px;
+}
+.live-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background-color: #28a745;
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: lora-pulse 1.8s infinite;
+}
+@keyframes lora-pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+.table-lora {
+    width: 100%;
+    margin-top: 10px;
+    border-collapse: collapse;
+}
+.table-lora th {
+    background-color: #f1f3f5;
+    padding: 10px;
+    font-size: 12px;
+    text-transform: uppercase;
+    border-bottom: 2px solid #dee2e6;
+    text-align: left;
+}
+.table-lora td {
+    padding: 9px 10px;
+    font-size: 13px;
+    border-bottom: 1px solid #f1f3f5;
+    font-family: monospace;
+}
+.table-lora tr:hover {
+    background-color: #f8f9fa;
+}
+.sig-badge {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 11px;
+}
+.sig-good { background: #d4edda; color: #155724; }
+.sig-med  { background: #fff3cd; color: #856404; }
+.sig-low  { background: #f8d7da; color: #721c24; }
+.log-console {
+    background: #1e1e1e;
+    color: #00ff66;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    padding: 12px;
+    border-radius: 6px;
+    height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+.action-btn-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+</style>
+
+<div class="lora-container">
+    <h2><span class="live-dot"></span><%:LoRa Gateway Realtime Status%></h2>
+    <p class="description"><%:Live telemetry, concentrator health, packet feed, and network server upstream connectivity.%></p>
+
+    <!-- TOP OVERVIEW CARD -->
+    <div class="lora-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div>
+                <span id="service-badge" class="badge-running"><%:CHECKING...%></span>
+                <span style="margin-left: 10px; font-weight: 600;" id="hw-title"><%:SX1302 Concentrator (SPI)%></span>
+                <span style="margin-left: 15px; color: #6c757d;" id="service-uptime"><%:Initializing...%></span>
+            </div>
+            <div>
+                <strong><%:Gateway EUI:%></strong> <span class="eui-tag" id="val-eui">----------------</span>
+            </div>
+        </div>
+
+        <hr style="margin: 15px 0 10px 0; border: 0; border-top: 1px solid #eee;" />
+
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="font-size: 13px;">
+                <strong><%:Network Server:%></strong> <span id="val-server" style="color: #0056b3;">eu1.cloud.thethings.network</span> &nbsp;|&nbsp;
+                <strong><%:Ports:%></strong> Up: <span id="val-port-up">1700</span> / Down: <span id="val-port-down">1700</span> &nbsp;|&nbsp;
+                <strong><%:Region:%></strong> <span id="val-region" class="badge" style="background:#e9ecef; color:#495057;">EU868</span> &nbsp;|&nbsp;
+                <strong><%:Sync Word:%></strong> <span id="val-sync">0x34</span>
+            </div>
+            <div class="action-btn-bar">
+                <button type="button" class="cbi-button cbi-button-apply" onclick="serviceAction('restart')"><%:Restart Gateway%></button>
+                <button type="button" class="cbi-button cbi-button-reset" onclick="serviceAction('stop')"><%:Stop%></button>
+                <button type="button" class="cbi-button cbi-button-save" onclick="serviceAction('start')"><%:Start%></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STATS COUNTERS GRID -->
+    <div class="lora-stat-grid">
+        <div class="lora-stat-box">
+            <div class="lora-stat-lbl"><%:Total Received (RX)%></div>
+            <div class="lora-stat-val" id="cnt-rx" style="color: #28a745;">0</div>
+            <div style="font-size: 11px; color: #888;"><%:Uplink packets captured%></div>
+        </div>
+        <div class="lora-stat-box">
+            <div class="lora-stat-lbl"><%:Total Transmitted (TX)%></div>
+            <div class="lora-stat-val" id="cnt-tx" style="color: #007bff;">0</div>
+            <div style="font-size: 11px; color: #888;"><%:Downlinks sent%></div>
+        </div>
+        <div class="lora-stat-box">
+            <div class="lora-stat-lbl"><%:CRC Errors%></div>
+            <div class="lora-stat-val" id="cnt-crc" style="color: #dc3545;">0</div>
+            <div style="font-size: 11px; color: #888;"><%:Corrupted RF packets%></div>
+        </div>
+        <div class="lora-stat-box">
+            <div class="lora-stat-lbl"><%:Upstream ACK Ratio%></div>
+            <div class="lora-stat-val" id="cnt-ack" style="color: #17a2b8;">100%</div>
+            <div style="font-size: 11px; color: #888;"><%:Server acknowledgement%></div>
+        </div>
+    </div>
+
+    <!-- LIVE PACKET STREAM TABLE -->
+    <div class="lora-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;"><span class="live-dot"></span><%:Live Packet Stream%></h3>
+            <div>
+                <label style="cursor: pointer; font-size: 13px; margin-right: 15px;">
+                    <input type="checkbox" id="chk-autorefresh" checked="checked" /> <%:Auto-refresh (1.5s)%>
+                </label>
+                <button type="button" class="cbi-button" onclick="clearPacketTable()"><%:Clear Feed%></button>
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="table-lora" id="tbl-packets">
+                <thead>
+                    <tr>
+                        <th style="width: 110px;"><%:Time%></th>
+                        <th style="width: 110px;"><%:Frequency%></th>
+                        <th style="width: 110px;"><%:Modulation%></th>
+                        <th style="width: 100px;"><%:RSSI%></th>
+                        <th style="width: 90px;"><%:SNR%></th>
+                        <th style="width: 80px;"><%:Size%></th>
+                        <th style="width: 100px;"><%:Status%></th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-packets">
+                    <tr id="row-empty">
+                        <td colspan="7" style="text-align: center; color: #888; padding: 25px;">
+                            <%:Waiting for incoming LoRa RF transmissions...%>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- LOG CONSOLE -->
+    <div class="lora-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;"><%:Gateway Process Log (Last 50 Lines)%></h3>
+            <div>
+                <label style="cursor: pointer; font-size: 13px; margin-right: 15px;">
+                    <input type="checkbox" id="chk-autoscroll" checked="checked" /> <%:Auto-scroll%>
+                </label>
+                <button type="button" class="cbi-button" onclick="refreshLog()"><%:Refresh Log%></button>
+            </div>
+        </div>
+        <div class="log-console" id="log-content"><%:Loading gateway service logs...%></div>
+    </div>
+</div>
+
+<script type="text/javascript">//<![CDATA[
+var pollTimer = null;
+var seenPacketIds = {};
+
+function formatRssi(rssi) {
+    var val = parseFloat(rssi);
+    var cls = "sig-good";
+    if (val < -105) cls = "sig-low";
+    else if (val < -85) cls = "sig-med";
+    return '<span class="sig-badge ' + cls + '">' + rssi + ' dBm</span>';
+}
+
+function updateStatus() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", '<%=luci.dispatcher.build_url("admin/lora/api_status")%>', true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+                var data = JSON.parse(xhr.responseText);
+                var sBadge = document.getElementById("service-badge");
+                if (data.running) {
+                    sBadge.className = "badge-running";
+                    sBadge.innerHTML = "<%:RUNNING (PID %>" + data.pid + ")";
+                } else {
+                    sBadge.className = "badge-stopped";
+                    sBadge.innerHTML = "<%:STOPPED%>";
+                }
+                document.getElementById("service-uptime").innerText = data.uptime || "";
+                document.getElementById("val-eui").innerText = data.gateway_id || "--------";
+                document.getElementById("val-server").innerText = data.server || "";
+                document.getElementById("val-port-up").innerText = data.port_up || 1700;
+                document.getElementById("val-port-down").innerText = data.port_down || 1700;
+                document.getElementById("val-region").innerText = data.region || "EU868";
+                document.getElementById("val-sync").innerText = data.syncword || "0x34";
+
+                var hwName = "SX1302 Concentrator";
+                if (data.concentrator === "sx1276_lg02") hwName = "SX1276 Dual-Channel";
+                else if (data.concentrator === "sx1276_lg01") hwName = "SX1276 Single-Channel";
+                document.getElementById("hw-title").innerText = hwName + " (" + (data.interface || "SPI").toUpperCase() + ")";
+
+                document.getElementById("cnt-rx").innerText = data.rx_count || 0;
+                document.getElementById("cnt-tx").innerText = data.tx_count || 0;
+                document.getElementById("cnt-crc").innerText = data.crc_err || 0;
+                document.getElementById("cnt-ack").innerText = data.ack_ratio || "100%";
+            } catch(e) {}
+        }
+    };
+    xhr.send();
+}
+
+function updatePackets() {
+    if (!document.getElementById("chk-autorefresh").checked) return;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", '<%=luci.dispatcher.build_url("admin/lora/api_packets")%>', true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+                var pkts = JSON.parse(xhr.responseText);
+                if (!pkts || pkts.length === 0) return;
+
+                var tbody = document.getElementById("tbody-packets");
+                var emptyRow = document.getElementById("row-empty");
+                if (emptyRow) tbody.removeChild(emptyRow);
+
+                for (var i = 0; i < pkts.length; i++) {
+                    var p = pkts[i];
+                    var key = p.time + "_" + p.freq + "_" + p.rssi;
+                    if (seenPacketIds[key]) continue;
+                    seenPacketIds[key] = true;
+
+                    var tr = document.createElement("tr");
+                    var statBadge = '<span class="sig-badge sig-good">CRC OK</span>';
+                    if (p.status && p.status.indexOf("BAD") !== -1) {
+                        statBadge = '<span class="sig-badge sig-low">CRC ERR</span>';
+                    }
+
+                    tr.innerHTML =
+                        '<td>' + (p.time || "") + '</td>' +
+                        '<td><strong>' + (p.freq || "") + ' MHz</strong></td>' +
+                        '<td>' + (p.datr || "") + '</td>' +
+                        '<td>' + formatRssi(p.rssi) + '</td>' +
+                        '<td>' + (p.snr || "0") + ' dB</td>' +
+                        '<td>' + (p.size || "0") + ' B</td>' +
+                        '<td>' + statBadge + '</td>';
+
+                    if (tbody.firstChild) {
+                        tbody.insertBefore(tr, tbody.firstChild);
+                    } else {
+                        tbody.appendChild(tr);
+                    }
+
+                    // Keep table to max 50 rows
+                    while (tbody.children.length > 50) {
+                        tbody.removeChild(tbody.lastChild);
+                    }
+                }
+            } catch(e) {}
+        }
+    };
+    xhr.send();
+}
+
+function refreshLog() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", '<%=luci.dispatcher.build_url("admin/lora/api_log")%>', true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            var box = document.getElementById("log-content");
+            box.innerText = xhr.responseText;
+            if (document.getElementById("chk-autoscroll").checked) {
+                box.scrollTop = box.scrollHeight;
+            }
+        }
+    };
+    xhr.send();
+}
+
+function clearPacketTable() {
+    var tbody = document.getElementById("tbody-packets");
+    tbody.innerHTML = '<tr id="row-empty"><td colspan="7" style="text-align: center; color: #888; padding: 25px;"><%:Feed cleared. Waiting for next packet...%></td></tr>';
+    seenPacketIds = {};
+}
+
+function serviceAction(action) {
+    if (!confirm("<%:Are you sure you want to %> " + action + " <%:the LoRa Gateway daemon?%>")) return;
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", '<%=luci.dispatcher.build_url("admin/lora/action_service")%>', true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            setTimeout(function() {
+                updateStatus();
+                refreshLog();
+            }, 1000);
+        }
+    };
+    xhr.send("cmd=" + encodeURIComponent(action));
+}
+
+// Polling loop
+function startPolling() {
+    updateStatus();
+    updatePackets();
+    refreshLog();
+
+    pollTimer = setInterval(function() {
+        updateStatus();
+        updatePackets();
+    }, 1500);
+
+    // Refresh logs every 5s
+    setInterval(refreshLog, 5000);
+}
+
+window.onload = startPolling;
+//]]></script>
+
+<%+footer%>
