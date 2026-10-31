@@ -1,7 +1,7 @@
 # Temporary build directories
-bin/
-dl/
-tmp/
+/bin/
+/dl/
+/tmp/
 .config.old
 
 # Firmware binary dumps and archives in root

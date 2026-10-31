@@ -1,0 +1,27 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006-2011 OpenWrt.org
+
+START=10
+STOP=98
+
+boot() {
+	[ -f /proc/mounts ] || /sbin/mount_root
+
+	mkdir -p /var/run /var/log /var/lock /var/state /var/tmp /tmp/.uci /var/iot /etc/lora /tmp/luci-sessions /tmp/luci-modulecache
+	chmod 0700 /tmp/.uci /tmp/luci-sessions
+	touch /var/log/wtmp /var/log/lastlog /tmp/resolv.conf.auto
+	echo "nameserver 10.0.2.3" > /tmp/resolv.conf.auto
+	ln -sf /tmp/resolv.conf.auto /tmp/resolv.conf
+	echo "dragino" > /proc/sys/kernel/hostname
+	echo "UTC" > /tmp/TZ
+
+	# Start rpcd and uhttpd first so LuCI and HTTP port 80 are immediately ready
+	/sbin/rpcd -s /var/run/ubus.sock -t 30 >/dev/null 2>&1 &
+	/usr/sbin/uhttpd -h /www -r dragino -x /cgi-bin -t 60 -T 30 -D -n 4 -p 0.0.0.0:80 >/dev/null 2>&1 &
+
+	ifconfig lo 127.0.0.1 netmask 255.0.0.0 up 2>/dev/null || true
+	/sbin/kmodloader
+	ifconfig eth0 10.0.2.15 netmask 255.255.255.0 broadcast 10.0.2.255 up 2>/dev/null || true
+	route add default gw 10.0.2.2 2>/dev/null || true
+	ping -c 1 -W 1 10.0.2.2 >/dev/null 2>&1 </dev/null &
+}
