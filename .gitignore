@@ -1,17 +1,13 @@
-# OpenWrt ImageBuilder cache, build and package directories
-build_dir/
-staging_dir/
+# Temporary build directories
 bin/
 dl/
 tmp/
-packages/
 .config.old
 
-# Firmware binary dumps and archives
-*.bin
-*.tar.gz
-*.tar.xz
-*.ipk
+# Firmware binary dumps and archives in root
+/*.bin
+/*.tar.gz
+/*.tar.xz
 firmwarebackup_lps8/
 firmwareorg/
 sx1302_hal/firmwarebackup_lps8/
@@ -23,11 +19,6 @@ sx1302_hal/firmwareorg/
 *.so
 tags
 .claude/
-src/lg01_pkt_fwd
-src/lg02_pkt_fwd
-src/lg02_single_rx_tx
-src/simple_spi_rw
-src/spirw
 
 # Keep essential ImageBuilder metadata
 !.config
@@ -38,3 +29,30 @@ src/spirw
 !rules.mk
 !repositories.conf
 scripts/env.sh
+
+# Keep ImageBuilder packages and host tools
+!packages/
+!packages/**
+!staging_dir/
+!staging_dir/host/
+!staging_dir/host/**
+!staging_dir/target-mips_24kc_musl/
+!staging_dir/target-mips_24kc_musl/**
+
+# Exclude unnecessary bloated build tools from host
+staging_dir/host/bin/*cmake*
+staging_dir/host/bin/*ctest*
+staging_dir/host/bin/*cpack*
+staging_dir/host/bin/*ccache*
+staging_dir/host/share/cmake*
+
+# Ignore build_dir except essential Dragino kernels
+build_dir/*
+!build_dir/target-mips_24kc_musl/
+build_dir/target-mips_24kc_musl/*
+!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/
+build_dir/target-mips_24kc_musl/linux-ar71xx_generic/*
+!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin
+!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux
+!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma
+!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf

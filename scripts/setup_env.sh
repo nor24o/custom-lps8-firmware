@@ -10,7 +10,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Colo
+NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -47,7 +47,7 @@ PACKAGES=(
     file
     sshpass
     tree
-    qemu-use
+    qemu-user
     qemu-system-mips
 )
 
@@ -126,7 +126,7 @@ if [ -z "$FOUND_TOOLCHAIN" ]; then
         fi
     fi
     
-    echo -e "${BLUE}[*] Extracting MIPS 24Kc SDK & toolchain into ${SDK_INSTALL_DIR}...${NC}"
+    echo -e "${BLUE}[*] Extracting MIPS 24Kc SDK and toolchain into ${SDK_INSTALL_DIR}...${NC}"
     tar -xJf "$ARCHIVE_FILE" -C "$SDK_INSTALL_DIR" --strip-components=1
     rm -f "$ARCHIVE_FILE"
     
@@ -144,19 +144,64 @@ GCC_BIN="$FOUND_TOOLCHAIN/mips-openwrt-linux-musl-gcc"
 [ -x "$GCC_BIN" ] || GCC_BIN="$FOUND_TOOLCHAIN/mips-openwrt-linux-gcc"
 echo -e "    GCC version: $($GCC_BIN --version | head -n 1)"
 
-# Symlink staging_dir into repo if not present
-STAGING_DIR_PARENT="$(cd "$FOUND_TOOLCHAIN/../.." && pwd)"
-if [ ! -e "$REPO_DIR/staging_dir" ] && [ -d "$STAGING_DIR_PARENT" ]; then
-    echo -e "${BLUE}[*] Creating convenience symlink $REPO_DIR/staging_dir -> $STAGING_DIR_PARENT${NC}"
-    ln -sfn "$STAGING_DIR_PARENT" "$REPO_DIR/staging_dir"
+# Clean up any stale symlink for staging_dir pointing to the SDK
+if [ -L "$REPO_DIR/staging_dir" ]; then
+    echo -e "${YELLOW}[*] Removing legacy symlink $REPO_DIR/staging_dir...${NC}"
+    rm -f "$REPO_DIR/staging_dir"
+fi
+mkdir -p "$REPO_DIR/staging_dir"
+
+# Symlink toolchain into staging_dir
+TC_DIR="$(cd "$FOUND_TOOLCHAIN/.." && pwd)"
+TC_NAME="$(basename "$TC_DIR")"
+if [ -d "$TC_DIR" ] && [ ! -e "$REPO_DIR/staging_dir/$TC_NAME" ]; then
+    echo -e "${BLUE}[*] Linking MIPS toolchain: $REPO_DIR/staging_dir/$TC_NAME -> $TC_DIR${NC}"
+    ln -sfn "$TC_DIR" "$REPO_DIR/staging_dir/$TC_NAME"
 fi
 
-# 5. Check ImageBuilde
-echo -e "\n${BLUE}[*] Checking OpenWrt ImageBuilder...${NC}"
-if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ] && [ -d "$REPO_DIR/scripts" ]; then
-    echo -e "${GREEN}[+] ImageBuilder detected in: ${REPO_DIR}${NC}"
-else
-    echo -e "${YELLOW}[!] Note: Running inside standalone app directory: ${REPO_DIR}${NC}"
+# 5. Check OpenWrt ImageBuilder components
+echo -e "\n${BLUE}[*] Checking OpenWrt ImageBuilder components...${NC}"
+if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ]; then
+    NEED_IB_DOWNLOAD=0
+    if [ ! -f "$REPO_DIR/packages/Packages" ] || [ ! -x "$REPO_DIR/staging_dir/host/bin/mksquashfs4" ] || [ ! -f "$REPO_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin" ]; then
+        NEED_IB_DOWNLOAD=1
+    fi
+
+    if [ "$NEED_IB_DOWNLOAD" -eq 1 ]; then
+        echo -e "${YELLOW}[!] ImageBuilder host tools, packages, or kernel missing.${NC}"
+        IB_CACHE_CANDIDATES=(
+            "$OPENWRT_IB_TAR"
+            "/home/hor/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+            "$HOME/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+            "$REPO_DIR/../openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        )
+        IB_ARCHIVE=""
+        for c in "${IB_CACHE_CANDIDATES[@]}"; do
+            if [ -n "$c" ] && [ -f "$c" ]; then
+                IB_ARCHIVE="$c"
+                break
+            fi
+        done
+
+        if [ -z "$IB_ARCHIVE" ]; then
+            IB_ARCHIVE="/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+            IB_URL="https://archive.openwrt.org/releases/18.06.9/targets/ar71xx/generic/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+            echo -e "${BLUE}[*] Downloading OpenWrt 18.06.9 ImageBuilder components from archive mirror...${NC}"
+            wget -c --show-progress "$IB_URL" -O "$IB_ARCHIVE"
+        fi
+
+        echo -e "${BLUE}[*] Unpacking ImageBuilder host tools, packages, and Dragino kernels...${NC}"
+        mkdir -p "$REPO_DIR/staging_dir/host" "$REPO_DIR/packages" "$REPO_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic"
+        tar -xf "$IB_ARCHIVE" --strip-components=1 -C "$REPO_DIR" \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/staging_dir/host \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/packages \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf
+        [ "$IB_ARCHIVE" = "/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz" ] && rm -f "$IB_ARCHIVE"
+    fi
+    echo -e "${GREEN}[+] ImageBuilder host tools, packages, and Dragino kernels ready.${NC}"
 fi
 
 # 6. Generate scripts/env.sh for persistent configuration
@@ -164,7 +209,7 @@ ENV_FILE="$SCRIPT_DIR/env.sh"
 cat > "$ENV_FILE" <<EOF
 # Source this file to set up MIPS cross-compilation environment
 export TOOLCHAIN="${FOUND_TOOLCHAIN}"
-export STAGING_DIR="${STAGING_DIR_PARENT}"
+export STAGING_DIR="${REPO_DIR}/staging_dir"
 export PATH="${FOUND_TOOLCHAIN}:\$PATH"
 export CROSS_COMPILE="mips-openwrt-linux-musl-"
 EOF
@@ -181,6 +226,6 @@ echo -e "  ${YELLOW}source $(basename "$SCRIPT_DIR")/env.sh${NC} (or ${YELLOW}so
 echo -e ""
 echo -e "Or export manually:"
 echo -e "  export PATH=\"${FOUND_TOOLCHAIN}:\$PATH\""
-echo -e "  export STAGING_DIR=\"${STAGING_DIR_PARENT}\""
+echo -e "  export STAGING_DIR=\"${REPO_DIR}/staging_dir\""
 echo -e "  export CROSS_COMPILE=mips-openwrt-linux-musl-"
 echo ""
