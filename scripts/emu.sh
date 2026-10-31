@@ -199,16 +199,23 @@ run_system() {
         wget -c --show-progress "$KERNEL_URL" -O "$KERNEL_ELF"
     fi
 
+    local HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    [ -z "$HOST_IP" ] && HOST_IP="localhost"
+
     echo -e "${GREEN}==================================================================${NC}"
     echo -e "${GREEN}  Booting OpenWrt 18.06.9 MIPS 24Kc Virtual System in QEMU        ${NC}"
     echo -e "${GREEN}==================================================================${NC}"
-    echo -e "Host Port Forwarding:"
-    echo -e "  - ${YELLOW}HTTP Web GUI${NC}:  http://localhost:8080 -> guest:80"
-    echo -e "  - ${YELLOW}SSH Terminal${NC}:  ssh -p 2222 root@localhost"
-    echo -e "  - ${YELLOW}UDP LoRa UP${NC}:   port 5555"
-    echo -e "  - ${YELLOW}UDP LoRa DOWN${NC}: port 5556"
+    echo -e "Access from Windows:"
+    echo -e "  - ${YELLOW}Web GUI${NC}:      http://${HOST_IP}:8080 (or http://localhost:8080)"
+    echo -e "  - ${YELLOW}SSH Terminal${NC}: ssh root@${HOST_IP} -p 2222 (or ssh root@localhost -p 2222)"
+    echo -e "  - ${YELLOW}LoRa Uplink${NC}:  UDP port 5555"
+    echo -e "  - ${YELLOW}LoRa Downlink${NC}:UDP port 5556"
     echo -e ""
-    echo -e "${BOLD}Press Ctrl-A then X to exit QEMU anytime.${NC}"
+    echo -e "${BOLD}Tip: Inside OpenWrt prompt, run:${NC}"
+    echo -e "  ${YELLOW}/etc/init.d/firewall stop${NC}  (allows incoming browser/SSH traffic)"
+    echo -e "  ${YELLOW}/etc/init.d/uhttpd start${NC}   (starts web server if not started)"
+    echo -e ""
+    echo -e "${BOLD}Press Ctrl-A then X to exit QEMU.${NC}"
     echo -e "${GREEN}------------------------------------------------------------------${NC}"
 
     qemu-system-mips \
