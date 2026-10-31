@@ -99,6 +99,7 @@ start_service() {
 
 stop_service() {
     logger -t lora "Stopping LoRa gateway service"
+    killall lora_qemu_sim.sh raw_lora_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null || true
 }
 
 service_triggers() {

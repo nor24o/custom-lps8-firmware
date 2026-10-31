@@ -212,10 +212,9 @@ run_system() {
         cp -a "$REPO_DIR/scripts/qemu_kmods/"* "$ROOTFS/"
     fi
     rm -f "$ROOTFS/etc/init.d/lg02_pkt_fwd" "$ROOTFS/etc/init.d/raw_lora_app" "$ROOTFS/etc/init.d/sx1276_app"
-    rm -f "$ROOTFS/etc/rc.d/"*lg02_pkt_fwd "$ROOTFS/etc/rc.d/"*raw_lora_app "$ROOTFS/etc/rc.d/"*sx1276_app "$ROOTFS/etc/rc.d/S00sysfixtime"
-    rm -f "$ROOTFS/etc/rc.d/S10system" "$ROOTFS/etc/rc.d/S11sysctl" "$ROOTFS/etc/rc.d/S12rpcd" "$ROOTFS/etc/rc.d/S19dropbear" "$ROOTFS/etc/rc.d/S20network" "$ROOTFS/etc/rc.d/S20spi_init" "$ROOTFS/etc/rc.d/S50cron" "$ROOTFS/etc/rc.d/S50uhttpd" "$ROOTFS/etc/rc.d/S80ucitrack" "$ROOTFS/etc/rc.d/S94gpio_switch" "$ROOTFS/etc/rc.d/S96led" "$ROOTFS/etc/rc.d/S98sysntpd" "$ROOTFS/etc/rc.d/S99urandom_seed"
+    rm -f "$ROOTFS/etc/rc.d/"*
+    ln -sf "../init.d/boot" "$ROOTFS/etc/rc.d/S10boot"
     rm -f "$ROOTFS/lib/netifd/wireless/mac80211.sh" "$ROOTFS/etc/hotplug.d/net/"*
-    ln -sf "../init.d/dropbear" "$ROOTFS/etc/rc.d/S90dropbear"
     rm -f "$ROOTFS/etc/uci-defaults/"*
     chmod +x "$ROOTFS/etc/init.d/boot" "$ROOTFS/etc/init.d/network" "$ROOTFS/etc/init.d/uhttpd" "$ROOTFS/etc/init.d/lora_gateway" "$ROOTFS/etc/init.d/spi_init" "$ROOTFS/usr/bin/lora_qemu_sim.sh" "$ROOTFS/usr/bin/lora_sync_config.sh" 2>/dev/null || true
     chmod 600 "$ROOTFS/etc/urandom.seed" "$ROOTFS/etc/dropbear/dropbear_rsa_host_key" 2>/dev/null || true

@@ -13,23 +13,20 @@ logger -t lora "Starting LoRa Gateway Forwarder ($MODEL) [QEMU Emulation Mode]"
 logger -t lora "Gateway EUI: $GWID -> Upstream: $SERVER:$PORT_UP"
 logger -t lora "SX1302/SX1276 virtual radio initialized (8x Multi-SF channels active)"
 
-RX=0
+RX=1
 TX=0
 CRC=0
 
+logger -t lora "[RX] 23 bytes | SF7BW125 | 868.1 | RSSI -64 | SNR 9.8 | CRC_OK"
 cat <<EOF > /tmp/lora_stats.json
-{"rx":0,"tx":0,"crc_err":0,"ack_ratio":"100%"}
+{"rx":1,"tx":0,"crc_err":0,"ack_ratio":"100%"}
 EOF
 echo "[]" > /tmp/lora_packets.json
 
-FREQS="868.1 868.3 868.5 867.1 867.3 867.5 867.7 867.9"
-DATRS="SF7BW125 SF7BW125 SF8BW125 SF9BW125 SF10BW125 SF12BW125"
-
 while true; do
-    sleep 4
+    sleep 3
     RX=$((RX + 1))
 
-    # Pick pseudo-random parameters from RX counter
     case $((RX % 6)) in
         0) FREQ="868.1"; DATR="SF7BW125";  RSSI="-64"; SNR="9.8";  SZ=23; STAT="CRC_OK" ;;
         1) FREQ="868.3"; DATR="SF7BW125";  RSSI="-78"; SNR="7.2";  SZ=19; STAT="CRC_OK" ;;
@@ -43,7 +40,6 @@ while true; do
         CRC=$((CRC + 1))
     fi
 
-    TS=$(date +"%H:%M:%S")
     logger -t lora "[RX] $SZ bytes | $DATR | $FREQ | RSSI $RSSI | SNR $SNR | $STAT"
 
     cat <<EOF > /tmp/lora_stats.json
