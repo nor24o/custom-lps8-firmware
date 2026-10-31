@@ -20,6 +20,8 @@ boot() {
 	/usr/sbin/uhttpd -h /www -r dragino -x /cgi-bin -t 60 -T 30 -D -n 4 -p 0.0.0.0:80 >/dev/null 2>&1 &
 
 	ifconfig lo 127.0.0.1 netmask 255.0.0.0 up 2>/dev/null || true
+	insmod /lib/modules/4.14.206/mii.ko 2>/dev/null || true
+	insmod /lib/modules/4.14.206/pcnet32.ko 2>/dev/null || true
 	/sbin/kmodloader
 	ifconfig eth0 10.0.2.15 netmask 255.255.255.0 broadcast 10.0.2.255 up 2>/dev/null || true
 	route add default gw 10.0.2.2 2>/dev/null || true
