@@ -1,0 +1,17 @@
+#!/bin/sh
+echo "Content-Type: application/json"
+echo "Access-Control-Allow-Origin: *"
+echo ""
+
+# ?lines=N  — how many tail lines to return (default 200)
+case "$QUERY_STRING" in
+    lines=*) N="${QUERY_STRING#lines=}" ;;
+    *)       N=200 ;;
+esac
+# clamp to reasonable range
+[ "$N" -gt 1000 ] 2>/dev/null && N=1000
+[ "$N" -lt 1   ] 2>/dev/null && N=1
+
+logread 2>/dev/null | tail -n "$N" | \
+    sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | \
+    awk 'BEGIN{printf "["} NR>1{printf ","} {printf "\"%s\"", $0} END{printf "]\n"}'

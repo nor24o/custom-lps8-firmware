@@ -1,0 +1,14 @@
+#!/bin/sh /etc/rc.common
+
+START=20
+STOP=90
+
+start() {
+    rmmod spi-gpio-custom 2>/dev/null
+    # Dragino HE Module SPI Pinout: SCK=GPIO24, MOSI=GPIO18, MISO=GPIO20, CS0=GPIO19 -> /dev/spidev1.0
+    insmod spi-gpio-custom bus0=1,24,18,20,0,8000000,19 2>/dev/null || true
+}
+
+stop() {
+    rmmod spi-gpio-custom 2>/dev/null || true
+}

@@ -1,0 +1,9 @@
+# AR9331 WiFi radio — disabled by default, enabled when WiFi client is configured
+config wifi-device 'radio0'
+    option type     'mac80211'
+    option hwmode   '11g'
+    option channel  'auto'
+    option disabled '1'
+
+# WiFi STA client — configured by web UI (cgi-bin/network)
+# When enabled by UI: lgsta section is written here, radio0 disabled=0
