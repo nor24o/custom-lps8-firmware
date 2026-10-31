@@ -30,19 +30,19 @@ This branch/target contains the complete custom firmware, rootfs overlay, and ap
 ```
 .
 ├── build_app.sh           # Compiles lg01_pkt_fwd, lg02_pkt_fwd, and simple_spi_rw
-├── build_image.sh         # Generates OpenWrt sysupgrade.bin using ImageBuilder
+├── build_image.sh         # Generates OpenWrt sysupgrade.bin using ImageBuilde
 ├── build_all.sh           # Builds both apps and complete firmware image
 ├── src/                   # SX1276 C source code
 │   ├── lg01_pkt_fwd.c     # Single-channel forwarder (UCI / JSON)
 │   ├── lg02_pkt_fwd.c     # Dual-channel forwarder (mirrors LPS8 raw_lora_app wire format)
 │   ├── simple_spi_rw.c    # Hardware test & register probe utility
-│   ├── radio.c / radio.h  # SX1276 register configuration and SPI bitbang driver
+│   ├── radio.c / radio.h  # SX1276 register configuration and SPI bitbang drive
 │   ├── jitqueue.c / .h    # JIT packet queue for deterministic TX scheduling
-│   ├── parson.c / .h      # JSON parser
-│   └── base64.c / .h      # Base64 encoder/decoder
+│   ├── parson.c / .h      # JSON parse
+│   └── base64.c / .h      # Base64 encoder/decode
 └── files/                 # Target Rootfs Overlay (injected into SquashFS)
     ├── etc/
-    │   ├── config/        # network, wireless, system, uhttpd, dropbear
+    │   ├── config/        # network, wireless, system, uhttpd, dropbea
     │   ├── init.d/        # lg02_pkt_fwd, spi_init, sx1276_app
     │   ├── lora/          # config.json (radio_0 and radio_1 config)
     │   └── modules.d/     # 30-spi-gpio-custom
@@ -173,3 +173,43 @@ The firmware provides a web UI on port 80:
 - **Status Tab**: Packet reception, RSSI, SNR, daemon state, and gateway uptime.
 - **LoRa Config Tab**: Frequency, SF, bandwidth, sync word, and server IP/port settings.
 - **Device Tab**: Real-time WiFi scanning, station mode connection (WWAN), and LAN IP configuration.
+
+---
+
+## 7. QEMU MIPS Emulation (`emu.sh`)
+
+Test both the compiled MIPS applications and the full OpenWrt firmware directly on your PC without needing physical Dragino hardware:
+
+### A. Run Application Separately (QEMU User Emulation)
+Runs the compiled MIPS binary with full terminal input/output:
+```bash
+# Run LG02 dual-channel forwarder:
+./emu.sh app lg02_pkt_fwd
+
+# Run LG01 single-channel forwarder:
+./emu.sh app lg01_pkt_fwd
+
+# Run SPI hardware probe utility:
+./emu.sh app simple_spi_rw 23 1
+```
+
+### B. Run OpenWrt Shell / Rootfs Commands
+Execute commands inside the generated OpenWrt MIPS root filesystem:
+```bash
+# Interactive OpenWrt BusyBox shell:
+./emu.sh shell
+
+# Run specific command:
+./emu.sh shell uname -a
+```
+
+### C. Boot Full OpenWrt Firmware System (QEMU System Emulation)
+Boots a complete virtual OpenWrt MIPS 24Kc Linux system with virtual networking and port forwarding:
+```bash
+./emu.sh system
+# or: ./emu.sh firmware
+```
+- **Web Interface**: Open `http://localhost:8080` in your PC browser.
+- **SSH Console**: `ssh -p 2222 root@localhost`
+- **LoRa UDP Ports**: Forwarded on `5555` (uplink) and `5556` (downlink).
+- **Exit QEMU**: Press `Ctrl-A` then `X`.

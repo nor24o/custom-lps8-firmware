@@ -10,7 +10,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m' # No Colo
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -47,6 +47,8 @@ PACKAGES=(
     file
     sshpass
     tree
+    qemu-use
+    qemu-system-mips
 )
 
 echo -e "\n${BLUE}[*] Checking required host packages...${NC}"
@@ -149,7 +151,7 @@ if [ ! -e "$REPO_DIR/staging_dir" ] && [ -d "$STAGING_DIR_PARENT" ]; then
     ln -sfn "$STAGING_DIR_PARENT" "$REPO_DIR/staging_dir"
 fi
 
-# 5. Check ImageBuilder
+# 5. Check ImageBuilde
 echo -e "\n${BLUE}[*] Checking OpenWrt ImageBuilder...${NC}"
 if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ] && [ -d "$REPO_DIR/scripts" ]; then
     echo -e "${GREEN}[+] ImageBuilder detected in: ${REPO_DIR}${NC}"
