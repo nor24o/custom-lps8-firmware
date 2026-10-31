@@ -5,12 +5,10 @@ STOP=90
 
 start() {
     rmmod spi-gpio-custom 2>/dev/null
-    # RX radio: bus1  SCK=14 MOSI=16 MISO=26 CS=15 -> /dev/spidev1.0
-    # TX radio: bus2  SCK=18 MOSI=21 MISO=19 CS=24 -> /dev/spidev2.0
-    insmod spi-gpio-custom bus0=1,14,16,26,0,8000000,15 bus1=2,18,21,19,0,8000000,24
-    sleep 1
+    # Dragino HE Module SPI Pinout: SCK=GPIO24, MOSI=GPIO18, MISO=GPIO20, CS0=GPIO19 -> /dev/spidev1.0
+    insmod spi-gpio-custom bus0=1,24,18,20,0,8000000,19 2>/dev/null || true
 }
 
 stop() {
-    rmmod spi-gpio-custom 2>/dev/null
+    rmmod spi-gpio-custom 2>/dev/null || true
 }
