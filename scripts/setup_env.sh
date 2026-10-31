@@ -163,7 +163,7 @@ fi
 echo -e "\n${BLUE}[*] Checking OpenWrt ImageBuilder components...${NC}"
 if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ]; then
     NEED_IB_DOWNLOAD=0
-    if [ ! -f "$REPO_DIR/packages/Packages" ] || [ ! -x "$REPO_DIR/staging_dir/host/bin/mksquashfs4" ] || [ ! -f "$REPO_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin" ]; then
+    if [ ! -f "$REPO_DIR/packages/Packages" ] || [ ! -x "$REPO_DIR/staging_dir/host/bin/mksquashfs4" ] || [ ! -f "$REPO_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin" ] || [ ! -f "$REPO_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader-generic.elf" ]; then
         NEED_IB_DOWNLOAD=1
     fi
 
@@ -198,7 +198,8 @@ if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ]; then
             openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin \
             openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux \
             openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma \
-            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf \
+            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader-generic.elf
         [ "$IB_ARCHIVE" = "/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz" ] && rm -f "$IB_ARCHIVE"
     fi
     echo -e "${GREEN}[+] ImageBuilder host tools, packages, and Dragino kernels ready.${NC}"
