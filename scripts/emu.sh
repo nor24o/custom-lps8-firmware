@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# emu.sh — QEMU MIPS Emulator for Custom Dragino Firmware & Applications
+# Target Architecture: MIPS 24Kc (Atheros AR9331 / Malta)
+# ==============================================================================
+set -e
+
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ------------------------------------------------------------------------------
+# 1. Dependency Verification
+# ------------------------------------------------------------------------------
+check_qemu_user() {
+    if ! command -v qemu-mips >/dev/null 2>&1; then
+        echo -e "${YELLOW}[!] 'qemu-mips' (user-mode emulator) is not installed.${NC}"
+        echo -e "${BLUE}[*] Installing qemu-userr package (requires sudo)...${NC}"
+        sudo apt-get update && sudo apt-get install -y qemu-use
+    fi
+}
+
+check_qemu_system() {
+    if ! command -v qemu-system-mips >/dev/null 2>&1; then
+        echo -e "${YELLOW}[!] 'qemu-system-mips' (full system emulator) is not installed.${NC}"
+        echo -e "${BLUE}[*] Installing qemu-system-mips package (requires sudo)...${NC}"
+        sudo apt-get update && sudo apt-get install -y qemu-system-mips
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 2. Locate Library Search Path (for user-mode emulation)
+# ------------------------------------------------------------------------------
+get_lib_prefix() {
+    local CANDIDATES=(
+        "$REPO_DIR/build_dir/target-mips_24kc_musl/root-ar71xx"
+        "$HOME/.openwrt-sdk-mips_24kc/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl"
+        "$REPO_DIR/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl"
+        "/home/hor/openwrt/openwrt/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl"
+        "$HOME/openwrt/openwrt/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl"
+    )
+    for c in "${CANDIDATES[@]}"; do
+        if [ -d "$c/lib" ] && { [ -f "$c/lib/ld-musl-mips-sf.so.1" ] || [ -f "$c/lib/libc.so" ]; }; then
+            echo "$c"
+            return 0
+        fi
+    done
+    echo ""
+}
+
+# ------------------------------------------------------------------------------
+# 3. Mode: Run MIPS Application Directly (User-mode emulation)
+# ------------------------------------------------------------------------------
+run_app() {
+    check_qemu_use
+
+    local LIB_PREFIX="$(get_lib_prefix)"
+    if [ -z "$LIB_PREFIX" ]; then
+        echo -e "${RED}[ERROR] MIPS musl library directory not found!${NC}"
+        echo -e "Please run ${YELLOW}./setup_env.sh${NC} to download the SDK/toolchain libraries."
+        exit 1
+    fi
+
+    # Determine binary to execute
+    local APP_BIN="$1"
+    shift || true
+
+    if [ -z "$APP_BIN" ]; then
+        # Auto-detect built binary based on current branch or directory
+        local SEARCH_PATHS=(
+            "$REPO_DIR/src/raw_lora_app"
+            "$REPO_DIR/files/usr/bin/raw_lora_app"
+            "$REPO_DIR/targets/sx1302/src/raw_lora_app"
+            "$REPO_DIR/src/lg02_pkt_fwd"
+            "$REPO_DIR/files/usr/bin/lg02_pkt_fwd"
+            "$REPO_DIR/targets/sx1276_lg01_lg02/src/lg02_pkt_fwd"
+            "$REPO_DIR/src/lg01_pkt_fwd"
+            "$REPO_DIR/targets/sx1276_lg01_lg02/src/lg01_pkt_fwd"
+            "$REPO_DIR/src/simple_spi_rw"
+            "$REPO_DIR/targets/sx1276_lg01_lg02/src/simple_spi_rw"
+        )
+        for p in "${SEARCH_PATHS[@]}"; do
+            if [ -x "$p" ]; then
+                APP_BIN="$p"
+                break
+            fi
+        done
+    elif [ -f "$REPO_DIR/$APP_BIN" ]; then
+        APP_BIN="$REPO_DIR/$APP_BIN"
+    elif [ -f "$REPO_DIR/src/$APP_BIN" ]; then
+        APP_BIN="$REPO_DIR/src/$APP_BIN"
+    elif [ -f "$REPO_DIR/files/usr/bin/$APP_BIN" ]; then
+        APP_BIN="$REPO_DIR/files/usr/bin/$APP_BIN"
+    elif [ -f "$REPO_DIR/targets/sx1302/src/$APP_BIN" ]; then
+        APP_BIN="$REPO_DIR/targets/sx1302/src/$APP_BIN"
+    elif [ -f "$REPO_DIR/targets/sx1276_lg01_lg02/src/$APP_BIN" ]; then
+        APP_BIN="$REPO_DIR/targets/sx1276_lg01_lg02/src/$APP_BIN"
+    fi
+
+    if [ -z "$APP_BIN" ] || [ ! -x "$APP_BIN" ]; then
+        echo -e "${RED}[ERROR] Binary not found or not executable: ${APP_BIN}${NC}"
+        echo -e "Available compiled binaries can be built with: ${YELLOW}./build_app.sh${NC}"
+        exit 1
+    fi
+
+    echo -e "${BLUE}==================================================================${NC}"
+    echo -e "${BLUE}  Running MIPS Application under QEMU User Emulation              ${NC}"
+    echo -e "${BLUE}==================================================================${NC}"
+    echo -e "Target Binary:  ${GREEN}${APP_BIN}${NC}"
+    echo -e "Library Prefix: ${LIB_PREFIX}"
+    echo -e "Arguments:      $*"
+    echo -e "${BLUE}------------------------------------------------------------------${NC}"
+
+    # Setup temporary runtime environment for pidfiles and configs
+    sudo mkdir -p /var/run /var/lock /var/iot/channels /var/iot/receive /etc/lora 2>/dev/null || true
+    sudo chmod 777 /var/run /var/lock /var/iot /var/iot/* /etc/lora 2>/dev/null || true
+
+    # Provide default config if not present in /etc/lora/config.json
+    if [ ! -f /etc/lora/config.json ]; then
+        local CFG_SRC=""
+        if [ -f "$REPO_DIR/files/etc/lora/config.json" ]; then
+            CFG_SRC="$REPO_DIR/files/etc/lora/config.json"
+        elif [ -f "$REPO_DIR/targets/sx1302/files/etc/lora/config.json" ]; then
+            CFG_SRC="$REPO_DIR/targets/sx1302/files/etc/lora/config.json"
+        elif [ -f "$REPO_DIR/targets/sx1276_lg01_lg02/files/etc/lora/config.json" ]; then
+            CFG_SRC="$REPO_DIR/targets/sx1276_lg01_lg02/files/etc/lora/config.json"
+        fi
+        if [ -n "$CFG_SRC" ]; then
+            sudo cp "$CFG_SRC" /etc/lora/config.json 2>/dev/null || true
+            sudo chmod 666 /etc/lora/config.json 2>/dev/null || true
+        fi
+    fi
+
+    # Set library paths including staging/usr/lib if present
+    local EXTRA_LIB=""
+    if [ -d "$REPO_DIR/staging/usr/lib" ]; then
+        EXTRA_LIB=":$REPO_DIR/staging/usr/lib"
+    elif [ -d "$REPO_DIR/targets/sx1276_lg01_lg02/staging/usr/lib" ]; then
+        EXTRA_LIB=":$REPO_DIR/targets/sx1276_lg01_lg02/staging/usr/lib"
+    fi
+
+    # Execute binary under qemu-mips
+    QEMU_LD_PREFIX="$LIB_PREFIX" QEMU_SET_ENV="LD_LIBRARY_PATH=/lib:/usr/lib${EXTRA_LIB}" \
+        qemu-mips -L "$LIB_PREFIX" "$APP_BIN" "$@"
+}
+
+# ------------------------------------------------------------------------------
+# 4. Mode: Run MIPS Shell / Rootfs Command
+# ------------------------------------------------------------------------------
+run_shell() {
+    check_qemu_use
+
+    local ROOTFS="$REPO_DIR/build_dir/target-mips_24kc_musl/root-ar71xx"
+    if [ ! -f "$ROOTFS/bin/busybox" ]; then
+        echo -e "${YELLOW}[!] Full rootfs not found at ${ROOTFS}.${NC}"
+        echo -e "Building firmware image first to generate rootfs..."
+        if [ -x "$REPO_DIR/build_image.sh" ]; then
+            "$REPO_DIR/build_image.sh"
+        elif [ -x "$REPO_DIR/build.sh" ]; then
+            "$REPO_DIR/build.sh" sx1302
+        fi
+    fi
+
+    echo -e "${BLUE}==================================================================${NC}"
+    echo -e "${BLUE}  Running OpenWrt MIPS Shell Command (QEMU User Emulation)        ${NC}"
+    echo -e "${BLUE}==================================================================${NC}"
+
+    if [ $# -eq 0 ]; then
+        echo -e "Executing: ${GREEN}qemu-mips busybox ash (interactive shell)${NC}"
+        echo -e "Type 'exit' to return to host."
+        echo -e "${BLUE}------------------------------------------------------------------${NC}"
+        qemu-mips -L "$ROOTFS" "$ROOTFS/bin/busybox" ash
+    else
+        echo -e "Executing: ${GREEN}$*${NC}"
+        echo -e "${BLUE}------------------------------------------------------------------${NC}"
+        qemu-mips -L "$ROOTFS" "$ROOTFS/bin/busybox" "$@"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 5. Mode: Full OpenWrt MIPS System Emulation (qemu-system-mips)
+# ------------------------------------------------------------------------------
+run_system() {
+    check_qemu_system
+
+    local CACHE_DIR="$HOME/.openwrt-sdk-mips_24kc"
+    mkdir -p "$CACHE_DIR"
+    local KERNEL_ELF="$CACHE_DIR/openwrt-18.06.9-malta-be-vmlinux-initramfs.elf"
+    local KERNEL_URL="https://archive.openwrt.org/releases/18.06.9/targets/malta/be/openwrt-18.06.9-malta-be-vmlinux-initramfs.elf"
+
+    if [ ! -s "$KERNEL_ELF" ]; then
+        echo -e "${BLUE}[*] Downloading OpenWrt 18.06.9 MIPS Malta bootable kernel (~12 MB)...${NC}"
+        wget -c --show-progress "$KERNEL_URL" -O "$KERNEL_ELF"
+    fi
+
+    echo -e "${GREEN}==================================================================${NC}"
+    echo -e "${GREEN}  Booting OpenWrt 18.06.9 MIPS 24Kc Virtual System in QEMU        ${NC}"
+    echo -e "${GREEN}==================================================================${NC}"
+    echo -e "Host Port Forwarding:"
+    echo -e "  - ${YELLOW}HTTP Web GUI${NC}:  http://localhost:8080 -> guest:80"
+    echo -e "  - ${YELLOW}SSH Terminal${NC}:  ssh -p 2222 root@localhost"
+    echo -e "  - ${YELLOW}UDP LoRa UP${NC}:   port 5555"
+    echo -e "  - ${YELLOW}UDP LoRa DOWN${NC}: port 5556"
+    echo -e ""
+    echo -e "${BOLD}Press Ctrl-A then X to exit QEMU anytime.${NC}"
+    echo -e "${GREEN}------------------------------------------------------------------${NC}"
+
+    qemu-system-mips \
+        -M malta \
+        -m 256 \
+        -kernel "$KERNEL_ELF" \
+        -nographic \
+        -netdev user,id=net0,hostfwd=tcp::8080-:80,hostfwd=tcp::2222-:22,hostfwd=udp::5555-:5555,hostfwd=udp::5556-:5556 \
+        -device pcnet,netdev=net0
+}
+
+# ------------------------------------------------------------------------------
+# Main Dispatche
+# ------------------------------------------------------------------------------
+case "$1" in
+    app)
+        shift
+        run_app "$@"
+        ;;
+    shell|rootfs)
+        shift
+        run_shell "$@"
+        ;;
+    system|firmware)
+        shift
+        run_system "$@"
+        ;;
+    help|--help|-h|"")
+        echo -e "${BLUE}==================================================================${NC}"
+        echo -e "${BLUE}  Dragino Custom Firmware & App QEMU Emulator Launcher            ${NC}"
+        echo -e "${BLUE}==================================================================${NC}"
+        echo -e "Usage:"
+        echo -e "  ${GREEN}./emu.sh app [binary] [args...]${NC}"
+        echo -e "      Runs a compiled MIPS application directly in user-mode QEMU."
+        echo -e "      Example: ${YELLOW}./emu.sh app raw_lora_app${NC}"
+        echo -e "      Example: ${YELLOW}./emu.sh app lg02_pkt_fwd${NC}"
+        echo -e ""
+        echo -e "  ${GREEN}./emu.sh shell [cmd...]${NC}"
+        echo -e "      Runs an OpenWrt BusyBox command or enters an interactive shell."
+        echo -e "      Example: ${YELLOW}./emu.sh shell uname -a${NC}"
+        echo -e ""
+        echo -e "  ${GREEN}./emu.sh system${NC} (or ${GREEN}./emu.sh firmware${NC})"
+        echo -e "      Boots the full OpenWrt MIPS 24Kc Linux system with networking."
+        echo -e "      Exposes Web GUI on http://localhost:8080 and SSH on port 2222."
+        echo -e "      (Press Ctrl-A then X to exit QEMU)."
+        echo ""
+        ;;
+    *)
+        # Default: attempt to run as app
+        run_app "$@"
+        ;;
+esac

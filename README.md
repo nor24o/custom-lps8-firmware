@@ -19,18 +19,18 @@ This branch/target contains the complete custom firmware, rootfs overlay, and ap
 ```
 .
 ├── build_app.sh           # Cross-compiles libtools, libloragw.a, and raw_lora_app
-├── build_image.sh         # Generates OpenWrt sysupgrade.bin using ImageBuilder
+├── build_image.sh         # Generates OpenWrt sysupgrade.bin using ImageBuilde
 ├── build_all.sh           # Builds both app and complete firmware image
 ├── src/                   # SX1302 HAL library & application source code
 │   ├── libloragw/         # Semtech SX1302 hardware abstraction library
 │   ├── libtools/          # Auxiliary JSON (parson), base64, PRNG libraries
-│   ├── packet_forwarder/  # Standard Semtech forwarder
+│   ├── packet_forwarder/  # Standard Semtech forwarde
 │   ├── raw_lora_app.c     # Optimized custom UDP forwarder with PA control & heartbeat
 │   ├── run.py             # PC terminal monitor & injector (prompt_toolkit)
 │   └── config.json.example# Hardware configuration reference
 └── files/                 # Target Rootfs Overlay (injected into SquashFS)
     ├── etc/
-    │   ├── config/        # network, system, uhttpd, dropbear
+    │   ├── config/        # network, system, uhttpd, dropbea
     │   ├── init.d/        # raw_lora_app (procd service daemon)
     │   ├── lora/          # config.json (SX1302 8-channel plan + RF frontend)
     │   └── modules.d/     # 30-spi-gpio-custom (SX1302 SPI bus)
@@ -150,3 +150,40 @@ The firmware includes a web GUI on port 80:
 - **Status Tab**: Real-time daemon uptime, memory, CPU load, and system health.
 - **Configuration Tab**: Live 8-channel frequency plan and TX power LUT tables.
 - **Logs Tab**: Gateway system journal and packet reception stats.
+
+---
+
+## 7. QEMU MIPS Emulation (`emu.sh`)
+
+Test both the compiled MIPS applications and the full OpenWrt firmware directly on your PC without needing physical Dragino hardware:
+
+### A. Run Application Separately (QEMU User Emulation)
+Runs the compiled MIPS binary with full terminal input/output:
+```bash
+# Run SX1302 forwarder:
+./emu.sh app raw_lora_app
+
+# Run with custom arguments:
+./emu.sh app raw_lora_app --help
+```
+
+### B. Run OpenWrt Shell / Rootfs Commands
+Execute commands inside the generated OpenWrt MIPS root filesystem:
+```bash
+# Interactive OpenWrt BusyBox shell:
+./emu.sh shell
+
+# Run specific command:
+./emu.sh shell uname -a
+```
+
+### C. Boot Full OpenWrt Firmware System (QEMU System Emulation)
+Boots a complete virtual OpenWrt MIPS 24Kc Linux system with virtual networking and port forwarding:
+```bash
+./emu.sh system
+# or: ./emu.sh firmware
+```
+- **Web Interface**: Open `http://localhost:8080` in your PC browser.
+- **SSH Console**: `ssh -p 2222 root@localhost`
+- **LoRa UDP Ports**: Forwarded on `5555` (uplink) and `5556` (downlink).
+- **Exit QEMU**: Press `Ctrl-A` then `X`.
