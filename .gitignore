@@ -56,3 +56,4 @@ build_dir/target-mips_24kc_musl/linux-ar71xx_generic/*
 !build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux
 !build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma
 !build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf
+!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader*
