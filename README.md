@@ -169,6 +169,46 @@ A Python interactive console is included to monitor uplinks, send immediate down
 ```bash
 python3 run.py
 ```
+
+---
+
+## 6. QEMU MIPS Emulation (`emu.sh`)
+
+Test both the compiled MIPS applications and the full OpenWrt firmware directly on your PC without needing physical Dragino hardware:
+
+### A. Run Application Separately (QEMU User Emulation)
+Runs the compiled MIPS binary with full terminal input/output:
+```bash
+# Run SX1302 forwarder:
+./emu.sh app raw_lora_app
+
+# Run SX1276 dual-channel forwarder:
+./emu.sh app lg02_pkt_fwd
+
+# Pass arguments directly to any binary:
+./emu.sh app simple_spi_rw 23 1
+```
+
+### B. Run OpenWrt Shell / Rootfs Commands
+Execute commands inside the generated OpenWrt MIPS root filesystem:
+```bash
+# Interactive OpenWrt BusyBox shell:
+./emu.sh shell
+
+# Run specific command:
+./emu.sh shell uname -a
+```
+
+### C. Boot Full OpenWrt Firmware System (QEMU System Emulation)
+Boots a complete virtual OpenWrt MIPS 24Kc Linux system with virtual networking and port forwarding:
+```bash
+./emu.sh system
+# or: ./emu.sh firmware
+```
+- **Web Interface**: Open `http://localhost:8080` in your PC browser.
+- **SSH Console**: `ssh -p 2222 root@localhost`
+- **LoRa UDP Ports**: Forwarded on `5555` (uplink) and `5556` (downlink).
+- **Exit QEMU**: Press `Ctrl-A` then `X`.
 - **Listening on**: UDP `:5555` (uplink from gateway)
 - **Sending to**: UDP `:5556` (downlink to gateway)
 - Interactive commands: `/help`, `/tx <hex_payload>`, `/stat`, `/clear`.
