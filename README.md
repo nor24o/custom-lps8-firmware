@@ -73,7 +73,9 @@ sudo apt-get update && sudo apt-get install -y \
     xsltproc \
     rsync \
     wget \
+    curl \
     unzip \
+    xz-utils \
     file \
     sshpass \
     tree \
@@ -90,17 +92,23 @@ pip3 install prompt_toolkit
 ### Cross-Compilation Toolchain
 The applications are built for the Atheros AR9331 SoC (**MIPS 24Kc**, musl libc):
 - **Toolchain**: `mips-openwrt-linux-musl-gcc` (GCC 7.5.0 / musl)
-- **Default Path**: `/home/hor/openwrt/openwrt/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin`
-- Or specify via environment variable:
+- **Automatic Installation**: Automatically downloaded and installed by `./setup_env.sh` into `~/.openwrt-sdk-mips_24kc`.
+- Or specify an existing custom toolchain via environment variable:
   ```bash
   export TOOLCHAIN=/path/to/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin
   ```
 
 ### Automated One-Step Setup Script
-The repository includes an automated setup script that verifies the OS, installs missing apt packages, sets up Python dependencies, and confirms toolchain availability:
+The repository includes a complete self-contained setup script that:
+1. Detects OS and installs all required host `apt` packages.
+2. Configures Python dependencies (`prompt_toolkit`).
+3. **Automatically downloads and installs the official OpenWrt MIPS 24Kc cross-toolchain** (~73 MB) if not already present on the machine.
+4. Generates `scripts/env.sh` for easy environment loading (`source scripts/env.sh`).
+
+Run either from root or from `scripts/`:
 ```bash
-chmod +x scripts/setup_env.sh
-./scripts/setup_env.sh
+./setup_env.sh
+# or: ./scripts/setup_env.sh
 ```
 
 ---

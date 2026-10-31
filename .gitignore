@@ -37,3 +37,4 @@ src/spirw
 !Makefile
 !rules.mk
 !repositories.conf
+scripts/env.sh
