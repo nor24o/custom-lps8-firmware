@@ -217,14 +217,18 @@ run_system() {
     rm -f "$ROOTFS/lib/netifd/wireless/mac80211.sh" "$ROOTFS/etc/hotplug.d/net/"*
     ln -sf "../init.d/dropbear" "$ROOTFS/etc/rc.d/S90dropbear"
     rm -f "$ROOTFS/etc/uci-defaults/"*
-    chmod +x "$ROOTFS/etc/init.d/boot" "$ROOTFS/etc/init.d/network" "$ROOTFS/etc/init.d/uhttpd" "$ROOTFS/etc/init.d/lora_gateway" "$ROOTFS/etc/init.d/spi_init" 2>/dev/null || true
+    chmod +x "$ROOTFS/etc/init.d/boot" "$ROOTFS/etc/init.d/network" "$ROOTFS/etc/init.d/uhttpd" "$ROOTFS/etc/init.d/lora_gateway" "$ROOTFS/etc/init.d/spi_init" "$ROOTFS/usr/bin/lora_qemu_sim.sh" "$ROOTFS/usr/bin/lora_sync_config.sh" 2>/dev/null || true
     chmod 600 "$ROOTFS/etc/urandom.seed" "$ROOTFS/etc/dropbear/dropbear_rsa_host_key" 2>/dev/null || true
     touch "$ROOTFS/etc/config/wireless"
 
     local ROOTFS_IMG="$CACHE_DIR/custom_dragino_rootfs.ext4"
     echo -e "${BLUE}[*] Packaging custom Dragino firmware filesystem into virtual disk (ext4)...${NC}"
     rm -f "$ROOTFS_IMG"
-    fakeroot /sbin/mke2fs -t ext4 -d "$ROOTFS" "$ROOTFS_IMG" 64M >/dev/null 2>&1
+    if command -v fakeroot >/dev/null 2>&1; then
+        fakeroot /sbin/mke2fs -t ext4 -d "$ROOTFS" "$ROOTFS_IMG" 64M >/dev/null 2>&1
+    else
+        /sbin/mke2fs -t ext4 -d "$ROOTFS" "$ROOTFS_IMG" 64M >/dev/null 2>&1
+    fi
 
     local HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
     [ -z "$HOST_IP" ] && HOST_IP="localhost"
