@@ -211,12 +211,12 @@ run_system() {
     if [ -d "$REPO_DIR/scripts/qemu_kmods" ]; then
         cp -a "$REPO_DIR/scripts/qemu_kmods/"* "$ROOTFS/"
     fi
-    rm -f "$ROOTFS/etc/init.d/lg02_pkt_fwd" "$ROOTFS/etc/init.d/raw_lora_app" "$ROOTFS/etc/init.d/sx1276_app"
+    rm -f "$ROOTFS/etc/init.d/lg02_pkt_fwd" "$ROOTFS/etc/init.d/raw_lora_app" "$ROOTFS/etc/init.d/sx1276_app" "$ROOTFS/usr/bin/lora_qemu_sim.sh" "$ROOTFS/tmp/lora_stats.json" "$ROOTFS/tmp/lora_packets.json"
     rm -f "$ROOTFS/etc/rc.d/"*
     ln -sf "../init.d/boot" "$ROOTFS/etc/rc.d/S10boot"
     rm -f "$ROOTFS/lib/netifd/wireless/mac80211.sh" "$ROOTFS/etc/hotplug.d/net/"*
     rm -f "$ROOTFS/etc/uci-defaults/"*
-    chmod +x "$ROOTFS/etc/init.d/boot" "$ROOTFS/etc/init.d/network" "$ROOTFS/etc/init.d/uhttpd" "$ROOTFS/etc/init.d/lora_gateway" "$ROOTFS/etc/init.d/spi_init" "$ROOTFS/usr/bin/lora_qemu_sim.sh" "$ROOTFS/usr/bin/lora_sync_config.sh" 2>/dev/null || true
+    chmod +x "$ROOTFS/etc/init.d/boot" "$ROOTFS/etc/init.d/network" "$ROOTFS/etc/init.d/uhttpd" "$ROOTFS/etc/init.d/lora_gateway" "$ROOTFS/etc/init.d/spi_init" "$ROOTFS/usr/bin/raw_lora_app" "$ROOTFS/usr/bin/lora_sync_config.sh" 2>/dev/null || true
     chmod 600 "$ROOTFS/etc/urandom.seed" "$ROOTFS/etc/dropbear/dropbear_rsa_host_key" 2>/dev/null || true
     touch "$ROOTFS/etc/config/wireless"
 
