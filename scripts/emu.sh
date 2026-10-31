@@ -191,19 +191,31 @@ run_system() {
 
     local CACHE_DIR="$HOME/.openwrt-sdk-mips_24kc"
     mkdir -p "$CACHE_DIR"
-    local KERNEL_ELF="$CACHE_DIR/openwrt-18.06.9-malta-be-vmlinux-initramfs.elf"
-    local KERNEL_URL="https://archive.openwrt.org/releases/18.06.9/targets/malta/be/openwrt-18.06.9-malta-be-vmlinux-initramfs.elf"
+    local KERNEL_ELF="$CACHE_DIR/openwrt-18.06.9-malta-be-vmlinux.elf"
+    local KERNEL_URL="https://archive.openwrt.org/releases/18.06.9/targets/malta/be/openwrt-18.06.9-malta-be-vmlinux.elf"
 
     if [ ! -s "$KERNEL_ELF" ]; then
-        echo -e "${BLUE}[*] Downloading OpenWrt 18.06.9 MIPS Malta bootable kernel (~12 MB)...${NC}"
+        echo -e "${BLUE}[*] Downloading OpenWrt 18.06.9 MIPS Malta boot kernel (~5.8 MB)...${NC}"
         wget -c --show-progress "$KERNEL_URL" -O "$KERNEL_ELF"
     fi
+
+    local ROOTFS="$REPO_DIR/build_dir/target-mips_24kc_musl/root-ar71xx"
+    if [ ! -d "$ROOTFS/usr/bin" ]; then
+        echo -e "${YELLOW}[!] Root filesystem not found at $ROOTFS${NC}"
+        echo -e "${BLUE}[*] Building image first to generate custom rootfs...${NC}"
+        "$REPO_DIR/build.sh" image sx1302
+    fi
+
+    local ROOTFS_IMG="$CACHE_DIR/custom_dragino_rootfs.ext4"
+    echo -e "${BLUE}[*] Packaging custom Dragino firmware filesystem into virtual disk (ext4)...${NC}"
+    rm -f "$ROOTFS_IMG"
+    /sbin/mke2fs -t ext4 -d "$ROOTFS" "$ROOTFS_IMG" 64M >/dev/null 2>&1
 
     local HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
     [ -z "$HOST_IP" ] && HOST_IP="localhost"
 
     echo -e "${GREEN}==================================================================${NC}"
-    echo -e "${GREEN}  Booting OpenWrt 18.06.9 MIPS 24Kc Virtual System in QEMU        ${NC}"
+    echo -e "${GREEN}  Booting Custom Dragino OpenWrt Virtual System in QEMU           ${NC}"
     echo -e "${GREEN}==================================================================${NC}"
     echo -e "Access from Windows / Host:"
     echo -e "  - ${YELLOW}LuCI LoRa Web GUI${NC}: http://${HOST_IP}:8080 (or http://localhost:8080)"
@@ -211,7 +223,8 @@ run_system() {
     echo -e "  - ${YELLOW}LoRa Uplink${NC}:       UDP port 5555"
     echo -e "  - ${YELLOW}LoRa Downlink${NC}:     UDP port 5556"
     echo -e ""
-    echo -e "${BOLD}Firmware Features:${NC}"
+    echo -e "${BOLD}Firmware Components:${NC}"
+    echo -e "  * Custom apps: raw_lora_app, lg02_pkt_fwd, lg01_pkt_fwd in /usr/bin"
     echo -e "  * Native LuCI 'LoRa Gateway' tab (Realtime Status & Settings)"
     echo -e "  * Zero firewall / zero DHCP server / zero route bloat"
     echo -e ""
@@ -222,6 +235,8 @@ run_system() {
         -M malta \
         -m 256 \
         -kernel "$KERNEL_ELF" \
+        -drive file="$ROOTFS_IMG",format=raw,index=0 \
+        -append "root=/dev/sda console=ttyS0" \
         -nographic \
         -netdev user,id=net0,hostfwd=tcp::8080-:80,hostfwd=tcp::2222-:22,hostfwd=udp::5555-:5555,hostfwd=udp::5556-:5556 \
         -device pcnet,netdev=net0
