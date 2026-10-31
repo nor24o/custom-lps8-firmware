@@ -32,3 +32,4 @@ tags
 !Makefile
 !rules.mk
 !repositories.conf
+scripts/env.sh

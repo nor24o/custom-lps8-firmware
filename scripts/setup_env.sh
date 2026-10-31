@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# setup_env.sh — Environment Setup for Custom Dragino Firmware & Apps
+# setup_env.sh — Full Environment Setup for Custom Dragino Firmware & Apps
 # Supports: Dragino LPS8 (SX1302) & Dragino LG01 / LG02 (SX1276)
 # Target Architecture: MIPS 24Kc (Atheros AR9331 / ar71xx-generic)
 # ==============================================================================
@@ -12,19 +12,22 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 echo -e "${BLUE}==================================================================${NC}"
-echo -e "${BLUE}  Dragino Custom Firmware Environment Setup (Ubuntu / WSL)        ${NC}"
+echo -e "${BLUE}  Dragino Custom Firmware Environment Setup (Ubuntu / Debian / WSL)${NC}"
 echo -e "${BLUE}==================================================================${NC}"
 
 # 1. Verify OS
-if [ ! -f /etc/os-release ]; then
-    echo -e "${RED}[ERROR] Unsupported OS. Expected Ubuntu / Debian Linux.${NC}"
-    exit 1
+if [ -f /etc/os-release ]; then
+    source /etc/os-release
+    echo -e "${GREEN}[+] Detected OS: ${NAME} ${VERSION_ID}${NC}"
+else
+    echo -e "${YELLOW}[!] Warning: /etc/os-release not found. Proceeding with caution.${NC}"
 fi
-source /etc/os-release
-echo -e "${GREEN}[+] Detected OS: ${NAME} ${VERSION_ID}${NC}"
 
-# 2. Install required packages
+# 2. Required host packages
 PACKAGES=(
     build-essential
     gawk
@@ -36,7 +39,9 @@ PACKAGES=(
     xsltproc
     rsync
     wget
+    curl
     unzip
+    xz-utils
     python3
     python3-pip
     file
@@ -61,7 +66,7 @@ else
     echo -e "${GREEN}[+] All required apt packages are already installed.${NC}"
 fi
 
-# 3. Install Python dependencies for test console (run.py)
+# 3. Check / Install Python prompt_toolkit
 echo -e "\n${BLUE}[*] Checking Python dependencies (prompt_toolkit)...${NC}"
 if ! python3 -c "import prompt_toolkit" 2>/dev/null; then
     echo -e "${YELLOW}[!] Installing prompt_toolkit...${NC}"
@@ -70,47 +75,110 @@ else
     echo -e "${GREEN}[+] Python prompt_toolkit is installed.${NC}"
 fi
 
-# 4. Check OpenWrt Cross-Toolchain
+# 4. Check OpenWrt MIPS Cross-Toolchain
 echo -e "\n${BLUE}[*] Checking OpenWrt MIPS cross-toolchain...${NC}"
+SDK_INSTALL_DIR="$HOME/.openwrt-sdk-mips_24kc"
+
 CANDIDATE_TOOLCHAINS=(
+    "$TOOLCHAIN"
+    "$REPO_DIR/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin"
+    "$REPO_DIR/staging_dir/toolchain-mips_24kc_gcc-7.3.0_musl/bin"
+    "$SDK_INSTALL_DIR/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin"
+    "$HOME/.openwrt-toolchain/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin"
     "/home/hor/openwrt/openwrt/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin"
     "$HOME/openwrt/openwrt/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin"
     "/home/hor/giuthub/new/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin"
 )
 
+# Also check system PATH
+if command -v mips-openwrt-linux-musl-gcc >/dev/null 2>&1; then
+    CANDIDATE_TOOLCHAINS=($(dirname "$(command -v mips-openwrt-linux-musl-gcc)") "${CANDIDATE_TOOLCHAINS[@]}")
+fi
+
 FOUND_TOOLCHAIN=""
 for tc in "${CANDIDATE_TOOLCHAINS[@]}"; do
-    if [ -x "$tc/mips-openwrt-linux-musl-gcc" ] || [ -x "$tc/mips-openwrt-linux-gcc" ]; then
+    if [ -n "$tc" ] && { [ -x "$tc/mips-openwrt-linux-musl-gcc" ] || [ -x "$tc/mips-openwrt-linux-gcc" ]; }; then
         FOUND_TOOLCHAIN="$tc"
         break
     fi
 done
 
-if [ -n "$FOUND_TOOLCHAIN" ]; then
-    echo -e "${GREEN}[+] Found MIPS toolchain at: ${FOUND_TOOLCHAIN}${NC}"
-    GCC_BIN="$FOUND_TOOLCHAIN/mips-openwrt-linux-musl-gcc"
-    [ -x "$GCC_BIN" ] || GCC_BIN="$FOUND_TOOLCHAIN/mips-openwrt-linux-gcc"
-    echo -e "    GCC version: $($GCC_BIN --version | head -n 1)"
-else
-    echo -e "${RED}[ERROR] OpenWrt MIPS toolchain not found in candidate paths!${NC}"
-    echo -e "Please ensure OpenWrt SDK or buildroot toolchain is installed."
-    exit 1
+if [ -z "$FOUND_TOOLCHAIN" ]; then
+    echo -e "${YELLOW}[!] OpenWrt MIPS toolchain not detected in candidate paths.${NC}"
+    echo -e "${BLUE}[*] Automatically downloading official OpenWrt MIPS 24Kc SDK (~73 MB)...${NC}"
+    
+    mkdir -p "$SDK_INSTALL_DIR"
+    ARCHIVE_FILE="/tmp/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz"
+    URL1="https://downloads.openwrt.org/releases/19.07.10/targets/ar71xx/generic/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz"
+    URL2="https://archive.openwrt.org/releases/19.07.10/targets/ar71xx/generic/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz"
+    
+    # Check if local cached copy exists
+    if [ -f "/home/hor/giuthub/new/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz" ]; then
+        echo -e "${GREEN}[+] Using local cached SDK archive...${NC}"
+        cp "/home/hor/giuthub/new/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz" "$ARCHIVE_FILE"
+    else
+        echo -e "${BLUE}[*] Fetching from ${URL1}...${NC}"
+        if ! wget -c --show-progress "$URL1" -O "$ARCHIVE_FILE" 2>/dev/null; then
+            echo -e "${YELLOW}[!] Primary mirror failed, fetching from archive mirror...${NC}"
+            wget -c --show-progress "$URL2" -O "$ARCHIVE_FILE"
+        fi
+    fi
+    
+    echo -e "${BLUE}[*] Extracting MIPS 24Kc SDK & toolchain into ${SDK_INSTALL_DIR}...${NC}"
+    tar -xJf "$ARCHIVE_FILE" -C "$SDK_INSTALL_DIR" --strip-components=1
+    rm -f "$ARCHIVE_FILE"
+    
+    if [ -x "$SDK_INSTALL_DIR/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin/mips-openwrt-linux-musl-gcc" ]; then
+        FOUND_TOOLCHAIN="$SDK_INSTALL_DIR/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin"
+        echo -e "${GREEN}[+] Toolchain successfully installed to: ${FOUND_TOOLCHAIN}${NC}"
+    else
+        echo -e "${RED}[ERROR] Failed to extract toolchain from SDK archive.${NC}"
+        exit 1
+    fi
+fi
+
+echo -e "${GREEN}[+] Found MIPS toolchain at: ${FOUND_TOOLCHAIN}${NC}"
+GCC_BIN="$FOUND_TOOLCHAIN/mips-openwrt-linux-musl-gcc"
+[ -x "$GCC_BIN" ] || GCC_BIN="$FOUND_TOOLCHAIN/mips-openwrt-linux-gcc"
+echo -e "    GCC version: $($GCC_BIN --version | head -n 1)"
+
+# Symlink staging_dir into repo if not present
+STAGING_DIR_PARENT="$(cd "$FOUND_TOOLCHAIN/../.." && pwd)"
+if [ ! -e "$REPO_DIR/staging_dir" ] && [ -d "$STAGING_DIR_PARENT" ]; then
+    echo -e "${BLUE}[*] Creating convenience symlink $REPO_DIR/staging_dir -> $STAGING_DIR_PARENT${NC}"
+    ln -sfn "$STAGING_DIR_PARENT" "$REPO_DIR/staging_dir"
 fi
 
 # 5. Check ImageBuilder
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo -e "\n${BLUE}[*] Checking OpenWrt ImageBuilder...${NC}"
 if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ] && [ -d "$REPO_DIR/scripts" ]; then
     echo -e "${GREEN}[+] ImageBuilder detected in: ${REPO_DIR}${NC}"
 else
-    echo -e "${YELLOW}[!] Warning: ImageBuilder Makefile not found at: ${REPO_DIR}${NC}"
+    echo -e "${YELLOW}[!] Note: Running inside standalone app directory: ${REPO_DIR}${NC}"
 fi
+
+# 6. Generate scripts/env.sh for persistent configuration
+ENV_FILE="$SCRIPT_DIR/env.sh"
+cat > "$ENV_FILE" <<EOF
+# Source this file to set up MIPS cross-compilation environment
+export TOOLCHAIN="${FOUND_TOOLCHAIN}"
+export STAGING_DIR="${STAGING_DIR_PARENT}"
+export PATH="${FOUND_TOOLCHAIN}:\$PATH"
+export CROSS_COMPILE="mips-openwrt-linux-musl-"
+EOF
+chmod +x "$ENV_FILE"
 
 echo -e "\n${GREEN}==================================================================${NC}"
 echo -e "${GREEN}  Environment is fully configured and ready!                      ${NC}"
 echo -e "${GREEN}==================================================================${NC}"
-echo -e "To compile applications manually, set:"
+echo -e "Toolchain location: ${FOUND_TOOLCHAIN}"
+echo -e "Environment file:   ${ENV_FILE}"
+echo -e ""
+echo -e "To activate the cross-compiler in your current shell session, run:"
+echo -e "  ${YELLOW}source $(basename "$SCRIPT_DIR")/env.sh${NC} (or ${YELLOW}source scripts/env.sh${NC})"
+echo -e ""
+echo -e "Or export manually:"
 echo -e "  export PATH=\"${FOUND_TOOLCHAIN}:\$PATH\""
-echo -e "  export STAGING_DIR=\"$(dirname "$FOUND_TOOLCHAIN")\""
+echo -e "  export STAGING_DIR=\"${STAGING_DIR_PARENT}\""
 echo -e "  export CROSS_COMPILE=mips-openwrt-linux-musl-"
 echo ""
