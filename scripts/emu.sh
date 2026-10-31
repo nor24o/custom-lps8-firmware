@@ -206,10 +206,25 @@ run_system() {
         "$REPO_DIR/build.sh" image sx1302
     fi
 
+    # Sync latest overlay files and QEMU Malta virtual NIC modules (mii.ko + pcnet32.ko)
+    cp -a "$REPO_DIR/files/"* "$ROOTFS/"
+    if [ -d "$REPO_DIR/scripts/qemu_kmods" ]; then
+        cp -a "$REPO_DIR/scripts/qemu_kmods/"* "$ROOTFS/"
+    fi
+    rm -f "$ROOTFS/etc/init.d/lg02_pkt_fwd" "$ROOTFS/etc/init.d/raw_lora_app" "$ROOTFS/etc/init.d/sx1276_app"
+    rm -f "$ROOTFS/etc/rc.d/"*lg02_pkt_fwd "$ROOTFS/etc/rc.d/"*raw_lora_app "$ROOTFS/etc/rc.d/"*sx1276_app "$ROOTFS/etc/rc.d/S00sysfixtime"
+    rm -f "$ROOTFS/etc/rc.d/S10system" "$ROOTFS/etc/rc.d/S11sysctl" "$ROOTFS/etc/rc.d/S12rpcd" "$ROOTFS/etc/rc.d/S19dropbear" "$ROOTFS/etc/rc.d/S20network" "$ROOTFS/etc/rc.d/S20spi_init" "$ROOTFS/etc/rc.d/S50cron" "$ROOTFS/etc/rc.d/S50uhttpd" "$ROOTFS/etc/rc.d/S80ucitrack" "$ROOTFS/etc/rc.d/S94gpio_switch" "$ROOTFS/etc/rc.d/S96led" "$ROOTFS/etc/rc.d/S98sysntpd" "$ROOTFS/etc/rc.d/S99urandom_seed"
+    rm -f "$ROOTFS/lib/netifd/wireless/mac80211.sh" "$ROOTFS/etc/hotplug.d/net/"*
+    ln -sf "../init.d/dropbear" "$ROOTFS/etc/rc.d/S90dropbear"
+    rm -f "$ROOTFS/etc/uci-defaults/"*
+    chmod +x "$ROOTFS/etc/init.d/boot" "$ROOTFS/etc/init.d/network" "$ROOTFS/etc/init.d/uhttpd" "$ROOTFS/etc/init.d/lora_gateway" "$ROOTFS/etc/init.d/spi_init" 2>/dev/null || true
+    chmod 600 "$ROOTFS/etc/urandom.seed" "$ROOTFS/etc/dropbear/dropbear_rsa_host_key" 2>/dev/null || true
+    touch "$ROOTFS/etc/config/wireless"
+
     local ROOTFS_IMG="$CACHE_DIR/custom_dragino_rootfs.ext4"
     echo -e "${BLUE}[*] Packaging custom Dragino firmware filesystem into virtual disk (ext4)...${NC}"
     rm -f "$ROOTFS_IMG"
-    /sbin/mke2fs -t ext4 -d "$ROOTFS" "$ROOTFS_IMG" 64M >/dev/null 2>&1
+    fakeroot /sbin/mke2fs -t ext4 -d "$ROOTFS" "$ROOTFS_IMG" 64M >/dev/null 2>&1
 
     local HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
     [ -z "$HOST_IP" ] && HOST_IP="localhost"
@@ -219,6 +234,7 @@ run_system() {
     echo -e "${GREEN}==================================================================${NC}"
     echo -e "Access from Windows / Host:"
     echo -e "  - ${YELLOW}LuCI LoRa Web GUI${NC}: http://${HOST_IP}:8080 (or http://localhost:8080)"
+    echo -e "  - ${YELLOW}Credentials${NC}:       Username: ${BOLD}root${NC} | Password: ${BOLD}root${NC}"
     echo -e "  - ${YELLOW}SSH Terminal${NC}:      ssh root@${HOST_IP} -p 2222 (or ssh root@localhost -p 2222)"
     echo -e "  - ${YELLOW}LoRa Uplink${NC}:       UDP port 5555"
     echo -e "  - ${YELLOW}LoRa Downlink${NC}:     UDP port 5556"
