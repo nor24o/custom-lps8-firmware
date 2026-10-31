@@ -27,8 +27,8 @@ echo -e "${BLUE}================================================================
 echo "ImageBuilder: $IMAGEBUILDER_DIR"
 echo "Overlay:      $OVERLAY_DIR"
 
-# Ensure ImageBuilder precompiled tools & kernel exist
-if [ ! -x "$IMAGEBUILDER_DIR/staging_dir/host/bin/opkg" ] || [ ! -f "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf" ]; then
+# Ensure ImageBuilder precompiled tools, packages, & kernel exist
+if [ ! -f "$IMAGEBUILDER_DIR/packages/Packages" ] || [ ! -x "$IMAGEBUILDER_DIR/staging_dir/host/bin/mksquashfs4" ] || [ ! -f "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin" ]; then
     CANDIDATE_TARS=(
         "$OPENWRT_IB_TAR"
         "/home/hor/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
@@ -43,14 +43,24 @@ if [ ! -x "$IMAGEBUILDER_DIR/staging_dir/host/bin/opkg" ] || [ ! -f "$IMAGEBUILD
         fi
     done
 
-    if [ -n "$IB_TAR" ]; then
-        echo -e "${YELLOW}[*] Unpacking ImageBuilder precompiled host tools and kernel from $IB_TAR...${NC}"
-        mkdir -p "$IMAGEBUILDER_DIR"
-        tar -xf "$IB_TAR" --strip-components=1 -C "$IMAGEBUILDER_DIR" \
-            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/staging_dir \
-            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/packages \
-            openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic
+    if [ -z "$IB_TAR" ]; then
+        IB_TAR="/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        IB_URL="https://archive.openwrt.org/releases/18.06.9/targets/ar71xx/generic/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        echo -e "${YELLOW}[!] ImageBuilder host tools, packages, or kernel missing.${NC}"
+        echo -e "${BLUE}[*] Automatically downloading OpenWrt ImageBuilder components from archive mirror...${NC}"
+        wget -c --show-progress "$IB_URL" -O "$IB_TAR"
     fi
+
+    echo -e "${YELLOW}[*] Unpacking ImageBuilder precompiled host tools, packages, and Dragino kernels...${NC}"
+    mkdir -p "$IMAGEBUILDER_DIR/staging_dir/host" "$IMAGEBUILDER_DIR/packages" "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic"
+    tar -xf "$IB_TAR" --strip-components=1 -C "$IMAGEBUILDER_DIR" \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/staging_dir/host \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/packages \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma \
+        openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf
+    [ "$IB_TAR" = "/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz" ] && rm -f "$IB_TAR"
 fi
 
 # Ensure CGI and scripts are executable before bundling into squashfs
