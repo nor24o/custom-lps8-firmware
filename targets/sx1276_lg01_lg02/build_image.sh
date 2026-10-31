@@ -72,7 +72,7 @@ done
 # Package list for LG01/LG02:
 # LuCI web UI, LoRa hardware drivers, sysadmin tools.
 # Explicitly stripped: DHCP servers, firewall, iptables, ppp routing bloat
-PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap nano htop -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c -wpad-mini"
+PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap wpad-mini iwinfo nano htop -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c"
 
 cd "$IMAGEBUILDER_DIR"
 make image \

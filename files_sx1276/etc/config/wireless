@@ -1,9 +1,16 @@
-# AR9331 WiFi radio — disabled by default, enabled when WiFi client is configured
+# AR9331 2.4 GHz 802.11b/g/n WiFi radio (ath9k)
 config wifi-device 'radio0'
     option type     'mac80211'
     option hwmode   '11g'
+    option path     'platform/ar933x_wmac'
+    option htmode   'HT20'
     option channel  'auto'
-    option disabled '1'
+    option disabled '0'
 
-# WiFi STA client — configured by web UI (cgi-bin/network)
-# When enabled by UI: lgsta section is written here, radio0 disabled=0
+config wifi-iface 'default_radio0'
+    option device   'radio0'
+    option network  'lan'
+    option mode     'ap'
+    option ssid     'Dragino-LoRa-GW'
+    option encryption 'none'
+    option disabled '1'
