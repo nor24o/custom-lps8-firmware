@@ -58,7 +58,7 @@ get_lib_prefix() {
 # 3. Mode: Run MIPS Application Directly (User-mode emulation)
 # ------------------------------------------------------------------------------
 run_app() {
-    check_qemu_use
+    check_qemu_user
 
     local LIB_PREFIX="$(get_lib_prefix)"
     if [ -z "$LIB_PREFIX" ]; then
@@ -154,7 +154,7 @@ run_app() {
 # 4. Mode: Run MIPS Shell / Rootfs Command
 # ------------------------------------------------------------------------------
 run_shell() {
-    check_qemu_use
+    check_qemu_user
 
     local ROOTFS="$REPO_DIR/build_dir/target-mips_24kc_musl/root-ar71xx"
     if [ ! -f "$ROOTFS/bin/busybox" ]; then
