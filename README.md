@@ -66,7 +66,8 @@ Open [`docs/pinout.html`](docs/pinout.html) directly in any browser (or navigate
 | **Pins 1,2,4,5** | `eth0` | Primary RJ45 Port | `ag71xx MAC0` | Bridged into `br-lan` (DHCP client) |
 | **Pins 29,30,32,33** | `eth1` | Secondary RJ45 Port | `ag71xx MAC1` | Bridged into `br-lan` (LG01/LG02) |
 | **Internal RF** | `wlan0` | 2.4 GHz WiFi | `kmod-ath9k` | 802.11b/g/n Client (STA) or AP |
-| **Pins 35 & 36** | `GND / GPIO 12` | Disconnected | — | **Crossed out on PCB; do not use.** |
+| **Pin 35** | `GND` | Ground | Ground Plane | **Digital ground plane connection.** |
+| **Pin 36** | `GPIO 12` | Free Digital I/O | `/sys/class/gpio/gpio12/value` | **Free digital I/O for sensors, relays, or expansion.** |
 
 ---
 

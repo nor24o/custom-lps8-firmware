@@ -427,7 +427,7 @@
           <div class="img-card">
             <img src="images/dragino_he_pcb_cad_layout.png" alt="Factory PCB CAD 50-Pad Layout" />
             <div class="caption">Dragino HE 50-Pad Perimeter Footprint (Factory PCB CAD Layout)</div>
-            <div class="subcaption">Shows all 50 numbered perimeter pads, physical copper traces (SPI on Pins 3, 18, 19, 20; CS1 on Pin 38; Reset on Pin 21), and the yellow-crossed Pins 35 &amp; 36.</div>
+            <div class="subcaption">Shows all 50 numbered perimeter pads, physical copper traces (SPI on Pins 3, 18, 19, 20; CS1 on Pin 38; Reset on Pin 21), GND Pad 35, and GPIO12 Pad 36.</div>
           </div>
 
           <div class="img-card">
@@ -445,7 +445,7 @@
           <div class="img-card">
             <img src="images/dragino_lps8_hardware_schematic.png" alt="Dragino LPS8 Carrier Motherboard Schematic" />
             <div class="caption">Dragino LPS8 Motherboard Wiring &amp; Concentrator Interconnect</div>
-            <div class="subcaption">Highlights exact wiring: Pin 3 (SCK=24), Pin 18 (MOSI=18), Pin 20 (MISO=20), Pin 19 (CS0=19), Pin 21 (RESET=23), Pin 38 (CS1=15), and crossed-out disconnected Pins 35 &amp; 36.</div>
+            <div class="subcaption">Highlights exact wiring: Pin 3 (SCK=24), Pin 18 (MOSI=18), Pin 20 (MISO=20), Pin 19 (CS0=19), Pin 21 (RESET=23), Pin 38 (CS1=15), GND Pin 35, and GPIO12 Pin 36.</div>
           </div>
 
           <div class="img-card">
@@ -564,12 +564,20 @@
               <td>Supports Access Point (AP) or Client (STA) mode via <code>wpad-mini</code> &amp; <code>iwinfo</code>.</td>
             </tr>
             <tr>
-              <td><strong>Pins 35 &amp; 36</strong></td>
-              <td><code>GND / GPIO 12</code></td>
-              <td>Disconnected</td>
-              <td>—</td>
-              <td>—</td>
-              <td>Crossed out on baseboard layout; left floating / disconnected.</td>
+              <td><strong>Pin 35</strong></td>
+              <td><code>GND</code></td>
+              <td>Digital Ground</td>
+              <td>Baseboard Ground Plane</td>
+              <td>Common Ground</td>
+              <td>Direct connection to system ground plane.</td>
+            </tr>
+            <tr>
+              <td><strong>Pin 36</strong></td>
+              <td><code>GPIO 12</code></td>
+              <td>Free Digital I/O</td>
+              <td>Atheros AR9331 GPIO12</td>
+              <td><code>/sys/class/gpio/gpio12/value</code></td>
+              <td>Free digital I/O pin available for external sensors, relays, or actuators.</td>
             </tr>
           </tbody>
         </table>
@@ -711,11 +719,16 @@
         s18: '/dev/ttyATH0',
         s19: 'Dedicated Linux serial console TX/RX',
         desc: 'Dedicated Linux serial console TX (GPIO 10) and RX (GPIO 9) for low-level U-Boot and kernel debugging.' },
-      { side: 'R', pin: 'Pin 35/36', gpio: 'GND / GPIO 12', role: 'Disconnected (X on PCB)', cat: 'nc', tags: [],
-        cfg: 'Not connected on baseboard',
-        s18: 'Crossed out on PCB layout',
-        s19: 'Do not use / left floating',
-        desc: 'Crossed out on your Dragino baseboard schematic. Must not be connected.' }
+      { side: 'R', pin: 'Pin 35', gpio: 'GND', role: 'Digital Ground', cat: 'nc', tags: ['nc'],
+        cfg: 'Direct baseboard ground plane connection',
+        s18: 'Common system ground',
+        s19: 'Digital ground reference',
+        desc: 'Direct ground plane connection on the HE module.' },
+      { side: 'R', pin: 'Pin 36', gpio: 'GPIO 12', role: 'Free Digital I/O', cat: 'free', tags: ['free'],
+        cfg: 'Export via /sys/class/gpio/export',
+        s18: '/sys/class/gpio/gpio12/value',
+        s19: 'Unclaimed AR9331 GPIO12 for custom expansion',
+        desc: 'Unclaimed Atheros AR9331 GPIO12 available on the HE module for external sensors, relays, or actuators.' }
     ];
 
     const CAT_INFO = {
