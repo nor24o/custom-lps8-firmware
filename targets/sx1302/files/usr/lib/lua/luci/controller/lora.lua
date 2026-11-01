@@ -6,9 +6,9 @@ function index()
     page.dependent = false
 
     entry({"admin", "lora", "status"}, template("lora/status"), _("Realtime Status"), 10)
-    entry({"admin", "lora", "diag"}, template("lora/diag"), _("Pin & GPIO Diagnostics"), 15)
-    entry({"admin", "lora", "config"}, template("lora/config"), _("Settings & Config"), 20)
-    entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout & Map"), 25)
+    entry({"admin", "lora", "diag"}, template("lora/diag"), _("Pin and GPIO Diagnostics"), 15)
+    entry({"admin", "lora", "config"}, template("lora/config"), _("Settings and Config"), 20)
+    entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout and Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
 
     entry({"admin", "lora", "api_status"}, call("action_status")).leaf = true
