@@ -35,11 +35,14 @@ The Dragino gateway series is built upon a modular architecture consisting of th
 
 The **Dragino HE (Hardware Environment)** core module encapsulates the Atheros AR9331 SoC, 64 MB DDR2 RAM, 16 MB SPI Flash, and 2.4 GHz WiFi frontend. Because hardware SPI on the AR9331 SoC is dedicated to the onboard Flash memory, the LoRa radio concentrator is driven via Linux bit-banged SPI (`kmod-spi-gpio-custom`).
 
+![Dragino HE Factory PCB CAD Layout](docs/images/dragino_he_pcb_cad_layout.png)
+*Figure 3: Dragino HE 50-Pad Perimeter Footprint (Factory Altium / KiCad CAD Layout)*
+
 ![Dragino HE Module Pinout](docs/images/dragino_he_module_pinout.png)
-*Figure 3: Dragino HE (AR9331) 48-Pin Physical Layout*
+*Figure 4: Dragino HE (AR9331) 48-Pin Physical Layout*
 
 ![Dragino LPS8 Motherboard Schematic](docs/images/dragino_lps8_hardware_schematic.png)
-*Figure 4: Dragino LPS8 Carrier Motherboard Interconnect Schematic*
+*Figure 5: Dragino LPS8 Carrier Motherboard Interconnect Schematic*
 
 ### 2.1 Complete Pin Mapping Table
 

@@ -17,18 +17,25 @@ A lean, high-performance, and unified firmware build system and custom applicati
 
 ### Key Features:
 - **Zero Bloatware / Pure Client**: Completely excludes `dnsmasq`, `firewall`, `iptables`, `ip6tables`, `odhcpd`, `ppp`, and routing bloat. The device behaves as a transparent DHCP client on `br-lan` without offering routing or DHCP services.
+- **Real-Time Pin & GPIO Diagnostics Page**: Built directly into LuCI (**LoRa Gateway -> Pin & GPIO Diagnostics**) showing the live electrical logic level (HIGH/LOW/3.3V/GND/NC), direction (IN/OUT), and driver binding for all 50 physical pads of the Dragino HE module in real-time. Includes safe interactive controls to toggle or pulse free digital GPIOs.
 - **Interactive Pinout & Architecture Viewer**: Open [`docs/pinout.html`](docs/pinout.html) in your browser or through the LuCI web interface (**LoRa Gateway -> Hardware Pinout & Map**) for an interactive pin-by-pin inspector and schematic viewer.
 - **3-Layer Self-Healing Keepalive**:
   1. *Layer 1 (Procd)*: Instant process respawn supervision via `/etc/init.d/lora_gateway`.
   2. *Layer 2 (Supervisor)*: External background watchdog (`/usr/bin/lora_keepalive.sh` & `/usr/bin/net_watchdog.sh`).
   3. *Layer 3 (Hardware Watchdog)*: Concentrator hardware auto-reset after 10 consecutive HAL errors and UDP socket auto-reconnection upon network recovery.
 - **Full Semtech SX1302 HAL 2.1.0 Feature Set**: Concentrator temperature monitoring, 1-µs hardware timestamp counter, live radio status (`TX_STATUS`/`RX_STATUS`), extended RF metadata (channel noise floor `rssic`, SNR dynamic range `snr_min..snr_max`, frequency offset `foff` Hz, hex payload preview), microsecond timestamped downlinks, Continuous Wave RF tone generator (`MOD_CW`), instant transmission abort (`lgw_abort_tx`), and selective multi-SF mask (`sf_mask`).
-- **Native LuCI Web Interface**: Dedicated top-level navigation tab **"LoRa Gateway"** containing Realtime Status, Settings & Config, Hardware Pinout & Map, and Gateway Logs.
+- **Native LuCI Web Interface**: Dedicated top-level navigation tab **"LoRa Gateway"** containing Realtime Status, Pin & GPIO Diagnostics, Settings & Config, Hardware Pinout & Map, and Gateway Logs.
 - **2.4 GHz WiFi**: Powered by `kmod-ath9k`, `wpad-mini`, and `iwinfo` for Access Point or Client (STA) uplink backhaul.
 
 ---
 
-## Hardware Schematics & Interactive Pinout Viewer
+## Hardware Schematics, CAD Layout & Pinout Diagnostics
+
+<p align="center">
+  <img src="docs/images/dragino_he_pcb_cad_layout.png" alt="Dragino HE Factory PCB CAD Layout" width="700" />
+  <br>
+  <em>Dragino HE 50-Pad Perimeter Footprint (Factory Altium / KiCad CAD Layout)</em>
+</p>
 
 <p align="center">
   <img src="docs/images/dragino_he_module_pinout.png" alt="Dragino HE Module Pinout" width="380" />

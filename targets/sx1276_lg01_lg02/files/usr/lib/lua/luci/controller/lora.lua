@@ -6,6 +6,7 @@ function index()
     page.dependent = false
 
     entry({"admin", "lora", "status"}, template("lora/status"), _("Realtime Status"), 10)
+    entry({"admin", "lora", "diag"}, template("lora/diag"), _("Pin & GPIO Diagnostics"), 15)
     entry({"admin", "lora", "config"}, template("lora/config"), _("Settings & Config"), 20)
     entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout & Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
@@ -16,6 +17,8 @@ function index()
     entry({"admin", "lora", "api_log"}, call("action_log")).leaf = true
     entry({"admin", "lora", "action_service"}, call("action_service")).leaf = true
     entry({"admin", "lora", "api_tx_test"}, call("action_tx_test")).leaf = true
+    entry({"admin", "lora", "api_gpio_diag"}, call("action_gpio_diag")).leaf = true
+    entry({"admin", "lora", "api_gpio_set"}, call("action_gpio_set")).leaf = true
 end
 
 local function read_config_json()
@@ -264,4 +267,140 @@ function action_service()
     else
         http.status(400, "Invalid Command")
     end
+end
+
+function action_gpio_diag()
+    local sys = require "luci.sys"
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+
+    -- Ensure debugfs is mounted if possible
+    sys.call("grep -qs '/sys/kernel/debug' /proc/mounts || mount -t debugfs none /sys/kernel/debug 2>/dev/null")
+
+    local gpio_debug = {}
+    local pipe = io.popen("cat /sys/kernel/debug/gpio 2>/dev/null")
+    if pipe then
+        for line in pipe:lines() do
+            local g, label, dir, val = line:match("gpio%-(%d+)%s+%((.-)%)%s+(%a+)%s+(%a+)")
+            if g then
+                gpio_debug[tonumber(g)] = {
+                    label = label:gsub("^%s+", ""):gsub("%s+$", ""),
+                    dir = dir,
+                    val = (val == "hi" and 1 or 0)
+                }
+            end
+        end
+        pipe:close()
+    end
+
+    -- Query sysfs gpio exports
+    local sysfs_gpio = {}
+    for g = 0, 29 do
+        local val_f = io.open("/sys/class/gpio/gpio" .. g .. "/value", "r")
+        if val_f then
+            local v = val_f:read("*l") or "0"
+            val_f:close()
+            local dir_f = io.open("/sys/class/gpio/gpio" .. g .. "/direction", "r")
+            local d = dir_f and (dir_f:read("*l") or "in") or "in"
+            if dir_f then dir_f:close() end
+            sysfs_gpio[g] = {
+                val = tonumber(v:match("(%d+)") or 0),
+                dir = d:match("(%a+)") or "in"
+            }
+        end
+    end
+
+    -- Query LEDs
+    local leds = {}
+    local led_names = {"dragino2:red:wan", "dragino2:red:wlan", "dragino2:red:lan", "dragino2:red:system"}
+    for _, name in ipairs(led_names) do
+        local f = io.open("/sys/class/leds/" .. name .. "/brightness", "r")
+        if f then
+            local b = f:read("*l") or "0"
+            f:close()
+            leds[name] = tonumber(b:match("(%d+)") or 0)
+        end
+    end
+
+    -- Query Ethernet carriers & statistics
+    local eth = {}
+    for _, iface in ipairs({"eth0", "eth1"}) do
+        local cf = io.open("/sys/class/net/" .. iface .. "/carrier", "r")
+        local carrier = cf and (tonumber(cf:read("*l") or 0) or 0) or 0
+        if cf then cf:close() end
+
+        local rxf = io.open("/sys/class/net/" .. iface .. "/statistics/rx_packets", "r")
+        local rx_pkts = rxf and tonumber(rxf:read("*l") or 0) or 0
+        if rxf then rxf:close() end
+
+        local txf = io.open("/sys/class/net/" .. iface .. "/statistics/tx_packets", "r")
+        local tx_pkts = txf and tonumber(txf:read("*l") or 0) or 0
+        if txf then txf:close() end
+
+        eth[iface] = {
+            carrier = carrier,
+            rx_packets = rx_pkts,
+            tx_packets = tx_pkts
+        }
+    end
+
+    -- Query raw_lora_app live status via TCP 5557
+    local live_hal = {}
+    local raw_stat = sys.exec("nc 127.0.0.1 5557 2>/dev/null")
+    if raw_stat and raw_stat ~= "" then
+        live_hal = jsonc.parse(raw_stat) or {}
+    end
+
+    local res = {
+        timestamp = os.time(),
+        gpio_debug = gpio_debug,
+        sysfs_gpio = sysfs_gpio,
+        leds = leds,
+        eth = eth,
+        hal = live_hal
+    }
+
+    http.prepare_content("application/json")
+    http.write_json(res)
+end
+
+function action_gpio_set()
+    local sys = require "luci.sys"
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+
+    local body = http.content()
+    local parsed = body and jsonc.parse(body)
+    if not parsed or type(parsed) ~= "table" then
+        http.status(400, "Invalid JSON")
+        http.prepare_content("application/json")
+        http.write_json({ error = "Invalid payload" })
+        return
+    end
+
+    local pin = tonumber(parsed.gpio)
+    -- Protect vital SPI lines (24, 18, 20, 19, 15) and reset (23) from accidental manual overwrite while daemon runs
+    local allowed = { [6]=true, [7]=true, [8]=true, [11]=true, [12]=true, [16]=true, [21]=true, [22]=true, [26]=true, [27]=true, [28]=true }
+    if not pin or not allowed[pin] then
+        http.status(403, "Forbidden")
+        http.prepare_content("application/json")
+        http.write_json({ error = "Pin is protected or invalid for manual override" })
+        return
+    end
+
+    local act = parsed.action or "set"
+    local val = tonumber(parsed.value) == 1 and 1 or 0
+
+    -- Export if needed
+    sys.call("test -d /sys/class/gpio/gpio" .. pin .. " || echo " .. pin .. " > /sys/class/gpio/export 2>/dev/null")
+    sys.call("echo out > /sys/class/gpio/gpio" .. pin .. "/direction 2>/dev/null")
+
+    if act == "pulse" then
+        sys.call("echo 1 > /sys/class/gpio/gpio" .. pin .. "/value; usleep 100000; echo 0 > /sys/class/gpio/gpio" .. pin .. "/value")
+    else
+        sys.call("echo " .. val .. " > /sys/class/gpio/gpio" .. pin .. "/value")
+    end
+
+    http.prepare_content("application/json")
+    http.write_json({ success = true, gpio = pin, action = act, value = val })
 end
