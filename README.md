@@ -1,215 +1,151 @@
-# Dragino LG01 / LG02 Custom Firmware & SX1276 Applications
+# Custom Dragino LoRa Gateway Firmware & Applications
 
-This branch/target contains the complete custom firmware, rootfs overlay, and application stack for the **Dragino LG01** (single-channel) and **Dragino LG02** (dual-channel) LoRa gateways powered by the Qualcomm Atheros AR9331 SoC and Semtech SX1276 transceiver(s).
-
----
-
-## 1. Hardware Architecture & Interfaces
-
-- **SoC**: Atheros AR9331 (MIPS 24Kc @ 400 MHz, 64 MB RAM, 16 MB Flash)
-- **Radios**: Semtech SX1276/78
-  - **Radio 1 (RX)**: Bitbang SPI bus 1 (`/dev/spidev1.0`)
-    - SCK: GPIO 14
-    - MOSI: GPIO 16
-    - MISO: GPIO 26
-    - NSS (CS): GPIO 15
-    - Reset: GPIO 8
-    - DIO0: GPIO 7
-  - **Radio 2 (TX / RX on LG01)**: Bitbang SPI bus 2 (`/dev/spidev2.0`)
-    - SCK: GPIO 18
-    - MOSI: GPIO 21
-    - MISO: GPIO 19
-    - NSS (CS): GPIO 24
-    - Reset: GPIO 23
-- **Auto-Detection**: The boot script uses `/usr/bin/simple_spi_rw` to test SPI communication. If both radios respond, it starts `lg02_pkt_fwd` in dual mode. If only Radio 2 responds, it operates in single mode (LG01).
+A lean, high-performance, and unified firmware build system and custom application stack for **Dragino LoRa Gateways** based on the Qualcomm Atheros AR9331 SoC (`ar71xx-generic`):
+- **Dragino LPS8**: 8-Channel Multi-SF LoRaWAN Concentrator (Semtech SX1302 + 2x SX1250)
+- **Dragino LG02**: Dual-Channel LoRa Gateway (2x Semtech SX1276/78)
+- **Dragino LG01**: Single-Channel LoRa Gateway (1x Semtech SX1276/78)
 
 ---
 
-## 2. Directory Structure
+## Real Hardware Overview
 
-```
-.
-├── build_app.sh           # Compiles lg01_pkt_fwd, lg02_pkt_fwd, and simple_spi_rw
-├── build_image.sh         # Generates OpenWrt sysupgrade.bin using ImageBuilde
-├── build_all.sh           # Builds both apps and complete firmware image
-├── src/                   # SX1276 C source code
-│   ├── lg01_pkt_fwd.c     # Single-channel forwarder (UCI / JSON)
-│   ├── lg02_pkt_fwd.c     # Dual-channel forwarder (mirrors LPS8 raw_lora_app wire format)
-│   ├── simple_spi_rw.c    # Hardware test & register probe utility
-│   ├── radio.c / radio.h  # SX1276 register configuration and SPI bitbang drive
-│   ├── jitqueue.c / .h    # JIT packet queue for deterministic TX scheduling
-│   ├── parson.c / .h      # JSON parse
-│   └── base64.c / .h      # Base64 encoder/decode
-└── files/                 # Target Rootfs Overlay (injected into SquashFS)
-    ├── etc/
-    │   ├── config/        # network, wireless, system, uhttpd, dropbea
-    │   ├── init.d/        # lg02_pkt_fwd, spi_init, sx1276_app
-    │   ├── lora/          # config.json (radio_0 and radio_1 config)
-    │   └── modules.d/     # 30-spi-gpio-custom
-    ├── usr/bin/           # lg01_pkt_fwd, lg02_pkt_fwd, simple_spi_rw, sx1276_app, net_watchdog.sh
-    └── www/               # Custom Dark Web GUI (Status, LoRa Config, WiFi Scan & Station Setup)
-```
+<p align="center">
+  <img src="docs/images/dragino_lps8_device.jpg" alt="Dragino LPS8 Indoor Gateway" width="420" />
+  <br>
+  <em>Dragino LPS8 Indoor LoRaWAN Gateway (Atheros AR9331 + Semtech SX1302)</em>
+</p>
+
+### Key Features:
+- **Zero Bloatware / Pure Client**: Completely excludes `dnsmasq`, `firewall`, `iptables`, `ip6tables`, `odhcpd`, `ppp`, and routing bloat. The device behaves as a transparent DHCP client on `br-lan` without offering routing or DHCP services.
+- **Interactive Pinout & Architecture Viewer**: Open [`docs/pinout.html`](docs/pinout.html) in your browser or through the LuCI web interface (**LoRa Gateway -> Hardware Pinout & Map**) for an interactive pin-by-pin inspector and schematic viewer.
+- **3-Layer Self-Healing Keepalive**:
+  1. *Layer 1 (Procd)*: Instant process respawn supervision via `/etc/init.d/lora_gateway`.
+  2. *Layer 2 (Supervisor)*: External background watchdog (`/usr/bin/lora_keepalive.sh` & `/usr/bin/net_watchdog.sh`).
+  3. *Layer 3 (Hardware Watchdog)*: Concentrator hardware auto-reset after 10 consecutive HAL errors and UDP socket auto-reconnection upon network recovery.
+- **Full Semtech SX1302 HAL 2.1.0 Feature Set**: Concentrator temperature monitoring, 1-µs hardware timestamp counter, live radio status (`TX_STATUS`/`RX_STATUS`), extended RF metadata (channel noise floor `rssic`, SNR dynamic range `snr_min..snr_max`, frequency offset `foff` Hz, hex payload preview), microsecond timestamped downlinks, Continuous Wave RF tone generator (`MOD_CW`), instant transmission abort (`lgw_abort_tx`), and selective multi-SF mask (`sf_mask`).
+- **Native LuCI Web Interface**: Dedicated top-level navigation tab **"LoRa Gateway"** containing Realtime Status, Settings & Config, Hardware Pinout & Map, and Gateway Logs.
+- **2.4 GHz WiFi**: Powered by `kmod-ath9k`, `wpad-mini`, and `iwinfo` for Access Point or Client (STA) uplink backhaul.
 
 ---
 
-## 3. Operating System & Tool Requirements
+## Hardware Schematics & Interactive Pinout Viewer
 
-### Supported Host OS
-- **Recommended**: **Ubuntu 18.04 LTS (Bionic Beaver)** 64-bit (Native Linux or WSL / WSL2)
-- **Compatible**: **Ubuntu 20.04 LTS (Focal Fossa)** 64-bit
-- *Note:* Ubuntu 18.04/20.04 is recommended because OpenWrt 18.06.9 ImageBuilder uses host-compiled utilities (`mksquashfs4`, `opkg`, `mkimage`) linked against glibc 2.27/2.31.
+<p align="center">
+  <img src="docs/images/dragino_he_module_pinout.png" alt="Dragino HE Module Pinout" width="380" />
+  &nbsp;&nbsp;
+  <img src="docs/images/dragino_lps8_hardware_schematic.png" alt="Dragino LPS8 Motherboard Schematic" width="480" />
+  <br>
+  <em>Left: Dragino HE Core Module Pinout | Right: LPS8 Motherboard Carrier Schematic</em>
+</p>
 
-### Required Host Tools & Packages
-Run the following command to install all necessary packages via `apt`:
-```bash
-sudo apt-get update && sudo apt-get install -y \
-    build-essential \
-    gawk \
-    git \
-    subversion \
-    libncurses5-dev \
-    zlib1g-dev \
-    libssl-dev \
-    xsltproc \
-    rsync \
-    wget \
-    curl \
-    unzip \
-    xz-utils \
-    file \
-    sshpass \
-    tree \
-    python3 \
-    python3-pip \
-    python3-distutils
+### Launch Interactive Pinout Viewer
+Open [`docs/pinout.html`](docs/pinout.html) directly in any browser (or navigate to `/pinout.html` on your running gateway) to explore:
+- Interactive click-to-inspect pin mapping.
+- High-resolution board photos and schematics.
+- Linux driver commands (`spi-gpio-custom`, `/dev/spidev1.0`, `/dev/spidev1.1`).
+- Subsystem filtering (SX1302, SX1276, Ethernet/WiFi, LEDs, Free GPIOs).
+
+### Core Pinout Reference
+
+| HE Pin | Signal | Subsystem | Linux Node / Driver | Notes |
+|:---:|:---:|:---|:---|:---|
+| **Pin 3** | `GPIO 24` | SPI SCK (Clock) | `kmod-spi-gpio-custom` | 8 MHz bit-banged SPI clock |
+| **Pin 18** | `GPIO 18` | SPI MOSI | `kmod-spi-gpio-custom` | Master Out Slave In |
+| **Pin 20** | `GPIO 20` | SPI MISO | `kmod-spi-gpio-custom` | Master In Slave Out |
+| **Pin 19** | `GPIO 19` | Radio 1 CS0 (NSS) | `/dev/spidev1.0` | Concentrator Chip Select 0 |
+| **Pin 38** | `GPIO 15` | Radio 2 CS1 (NSS) | `/dev/spidev1.1` | LG02 Dual-Radio Chip Select 1 |
+| **Pin 21** | `GPIO 23` | Hardware RESET | `/sys/class/gpio/gpio23` | Active-high reset pulse |
+| **Pin 23** | `GPIO 17` | PA/LNA RF Switch | `/sys/class/leds/dragino2:red:wan` | Driven LOW during TX, HIGH during RX |
+| **Pins 1,2,4,5** | `eth0` | Primary RJ45 Port | `ag71xx MAC0` | Bridged into `br-lan` (DHCP client) |
+| **Pins 29,30,32,33** | `eth1` | Secondary RJ45 Port | `ag71xx MAC1` | Bridged into `br-lan` (LG01/LG02) |
+| **Internal RF** | `wlan0` | 2.4 GHz WiFi | `kmod-ath9k` | 802.11b/g/n Client (STA) or AP |
+| **Pins 35 & 36** | `GND / GPIO 12` | Disconnected | — | **Crossed out on PCB; do not use.** |
+
+---
+
+## Repository & Branch Structure
+
+```
+                      ┌────────────────────────────────────────┐
+                      │              main branch               │
+                      │  - Unified Build Dispatcher (build.sh) │
+                      │  - Environment Setup (setup_env.sh)    │
+                      │  - Master Documentation & Pinout App   │
+                      │  - PC Test Console (run.py)            │
+                      │  - Both Targets in targets/            │
+                      └──────────────────┬─────────────────────┘
+                                         │
+                 ┌───────────────────────┴───────────────────────┐
+                 ▼                                               ▼
+┌───────────────────────────────────┐           ┌───────────────────────────────────┐
+│           sx1302 branch           │           │     sx1276-lg01-lg02 branch       │
+│  - Dragino LPS8 (8-Channel SX1302)│           │  - Dragino LG01 & LG02 (SX1276)   │
+│  - libloragw HAL + raw_lora_app   │           │  - lg01_pkt_fwd & lg02_pkt_fwd    │
+│  - 8-Channel Web GUI (Dark Mode)  │           │  - WiFi STA Web GUI (Dark Mode)   │
+│  - Dedicated LPS8 Overlay & Image │           │  - Auto-probe SPI & Dual Bitbang  │
+└───────────────────────────────────┘           └───────────────────────────────────┘
 ```
 
-### Python Dependencies (for PC Test Console)
-```bash
-pip3 install prompt_toolkit
-```
+### Switching Branches:
+- **LPS8 (SX1302)**: `git checkout sx1302`
+- **LG01 / LG02 (SX1276)**: `git checkout sx1276-lg01-lg02`
+- **Main Unified**: `git checkout main`
 
-### Cross-Compilation Toolchain
-The applications are built for the Atheros AR9331 SoC (**MIPS 24Kc**, musl libc):
-- **Toolchain**: `mips-openwrt-linux-musl-gcc` (GCC 7.5.0 / musl)
-- **Automatic Installation**: Automatically downloaded and installed by `./setup_env.sh` into `~/.openwrt-sdk-mips_24kc`.
-- Or specify an existing custom toolchain via environment variable:
-  ```bash
-  export TOOLCHAIN=/path/to/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin
-  ```
+---
 
-### Automated One-Step Setup Script
-The repository includes a complete self-contained setup script that:
-1. Detects OS and installs all required host `apt` packages.
-2. Configures Python dependencies (`prompt_toolkit`).
-3. **Automatically downloads and installs the official OpenWrt MIPS 24Kc cross-toolchain** (~73 MB) if not already present on the machine.
-4. Generates `scripts/env.sh` for easy environment loading (`source scripts/env.sh`).
+## Building the Firmware & Applications
 
-Run either from root or from `scripts/`:
+### Automated Environment Setup
+Installs required host tools and downloads the official OpenWrt MIPS 24Kc cross-compilation toolchain:
 ```bash
 ./setup_env.sh
-# or: ./scripts/setup_env.sh
 ```
 
----
-
-## 4. How to Build
-
-### Quick Build (Apps + Firmware Image)
+### Building Images & Apps (from `main` branch)
 ```bash
-chmod +x build_all.sh build_app.sh build_image.sh
-./build_all.sh
+# Build complete LPS8 (SX1302) apps and firmware image:
+./build.sh sx1302
+
+# Build complete LG01 / LG02 (SX1276) apps and firmware image:
+./build.sh lg02
+
+# Build both targets sequentially:
+./build.sh all
+
+# Compile only applications without rebuilding firmware image:
+./build.sh app sx1302
+./build.sh app lg02
+
+# Generate only the OpenWrt sysupgrade image:
+./build.sh image sx1302
+./build.sh image lg02
 ```
 
-### Build Only Applications
-```bash
-./build_app.sh
-```
-Compiles `lg01_pkt_fwd`, `lg02_pkt_fwd`, `simple_spi_rw`, and stages them into `files/usr/bin/`.
-
-### Build Only OpenWrt Image
-```bash
-./build_image.sh
-```
-The resulting firmware is generated in:
+Firmware output:
 `bin/targets/ar71xx/generic/openwrt-18.06.9-ar71xx-generic-dragino2-squashfs-sysupgrade.bin`
 
 ---
 
-## 5. Configuration (`/etc/lora/config.json`)
+## QEMU MIPS Emulation (`emu.sh`)
 
-```json
-{
-    "target_ip": "192.168.1.8",
-    "port_up": 5555,
-    "port_down": 5556,
-    "status_port": 5557,
-    "heartbeat_interval_s": 10,
-    "radio_0": {
-        "enabled": true,
-        "spi_path": "/dev/spidev1.0",
-        "freq": 868100000,
-        "sf": 7,
-        "bw": 125,
-        "tx_enable": false
-    },
-    "radio_1": {
-        "enabled": true,
-        "spi_path": "/dev/spidev2.0",
-        "freq": 868300000,
-        "sf": 7,
-        "bw": 125,
-        "tx_enable": true,
-        "tx_power": 14
-    }
-}
-```
+Test binaries and the complete OpenWrt system on PC without physical Dragino hardware:
 
----
-
-## 6. Web Interface
-
-The firmware provides a web UI on port 80:
-- **Status Tab**: Packet reception, RSSI, SNR, daemon state, and gateway uptime.
-- **LoRa Config Tab**: Frequency, SF, bandwidth, sync word, and server IP/port settings.
-- **Device Tab**: Real-time WiFi scanning, station mode connection (WWAN), and LAN IP configuration.
-
----
-
-## 7. QEMU MIPS Emulation (`emu.sh`)
-
-Test both the compiled MIPS applications and the full OpenWrt firmware directly on your PC without needing physical Dragino hardware:
-
-### A. Run Application Separately (QEMU User Emulation)
-Runs the compiled MIPS binary with full terminal input/output:
 ```bash
-# Run LG02 dual-channel forwarder:
-./emu.sh app lg02_pkt_fwd
+# 1. User-mode emulation: Run MIPS binary directly on PC
+./emu.sh app raw_lora_app
 
-# Run LG01 single-channel forwarder:
-./emu.sh app lg01_pkt_fwd
-
-# Run SPI hardware probe utility:
-./emu.sh app simple_spi_rw 23 1
-```
-
-### B. Run OpenWrt Shell / Rootfs Commands
-Execute commands inside the generated OpenWrt MIPS root filesystem:
-```bash
-# Interactive OpenWrt BusyBox shell:
+# 2. Interactive BusyBox shell inside rootfs:
 ./emu.sh shell
 
-# Run specific command:
-./emu.sh shell uname -a
-```
-
-### C. Boot Full OpenWrt Firmware System (QEMU System Emulation)
-Boots a complete virtual OpenWrt MIPS 24Kc Linux system with virtual networking and port forwarding:
-```bash
+# 3. Full virtual machine system boot:
 ./emu.sh system
-# or: ./emu.sh firmware
 ```
-- **Web Interface**: Open `http://localhost:8080` in your PC browser.
-- **SSH Console**: `ssh -p 2222 root@localhost`
+- **Web UI**: Open `http://localhost:8080` in your PC browser.
+- **SSH Access**: `ssh -p 2222 root@localhost`
 - **LoRa UDP Ports**: Forwarded on `5555` (uplink) and `5556` (downlink).
-- **Exit QEMU**: Press `Ctrl-A` then `X`.
+
+---
+
+## Technical Specifications
+
+For full internal daemon flowcharts, wire protocol byte layouts, and hardware timing diagrams, see [ARCHITECTURE.md](ARCHITECTURE.md).
