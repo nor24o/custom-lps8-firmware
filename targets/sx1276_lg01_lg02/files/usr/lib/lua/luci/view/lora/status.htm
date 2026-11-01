@@ -1,8 +1,31 @@
 <%+header%>
+<script type="text/javascript" src="<%=resource%>/lora_decoder.js"></script>
 
 <style type="text/css">
 .lora-container {
     margin-top: 15px;
+}
+.pkt-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.pkt-modal-content {
+    background: #fff;
+    border-radius: 8px;
+    max-width: 680px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 20px;
+    box-shadow: 0 5px 25px rgba(0,0,0,0.25);
+    box-sizing: border-box;
 }
 .lora-card {
     background: #ffffff;
@@ -208,13 +231,17 @@
 
     <!-- LIVE PACKET STREAM TABLE -->
     <div class="lora-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
             <h3 style="margin: 0;"><span class="live-dot"></span><%:Live Packet Stream%></h3>
-            <div>
-                <label style="cursor: pointer; font-size: 13px; margin-right: 15px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <label style="cursor: pointer; font-size: 13px;">
                     <input type="checkbox" id="chk-autorefresh" checked="checked" /> <%:Auto-refresh (1.5s)%>
                 </label>
+                <label style="cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" id="chk-decode-payloads" checked="checked" onchange="toggleDecodePayloads()" /> <%:Decode Payloads%>
+                </label>
                 <button type="button" class="cbi-button" onclick="clearPacketTable()"><%:Clear Feed%></button>
+                <a href="<%=luci.dispatcher.build_url('admin/lora/decoder')%>" class="cbi-button cbi-button-action" style="font-size: 12px; padding: 4px 10px; text-decoration: none;">⚙ <%:Payload Decoders%> (<span id="span-decoders-count">...</span>)</a>
             </div>
         </div>
 
@@ -222,14 +249,14 @@
             <table class="table-lora" id="tbl-packets">
                 <thead>
                     <tr>
-                        <th style="width: 90px;"><%:Time%></th>
-                        <th style="width: 130px;"><%:Freq / Offset%></th>
-                        <th style="width: 105px;"><%:Modulation%></th>
-                        <th style="width: 135px;"><%:RSSI (Sig / Ch)%></th>
-                        <th style="width: 130px;"><%:SNR (Min..Max)%></th>
-                        <th style="width: 70px;"><%:Size%></th>
-                        <th><%:Payload (Hex)%></th>
-                        <th style="width: 90px;"><%:Status%></th>
+                        <th style="width: 85px;"><%:Time%></th>
+                        <th style="width: 125px;"><%:Freq / Offset%></th>
+                        <th style="width: 100px;"><%:Modulation%></th>
+                        <th style="width: 130px;"><%:RSSI (Sig / Ch)%></th>
+                        <th style="width: 125px;"><%:SNR (Min..Max)%></th>
+                        <th style="width: 65px;"><%:Size%></th>
+                        <th style="min-width: 230px;"><%:Payload (Hex & Decoded)%></th>
+                        <th style="width: 85px;"><%:Status%></th>
                     </tr>
                 </thead>
                 <tbody id="tbody-packets">
@@ -240,6 +267,62 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- PACKET INSPECTOR MODAL -->
+    <div class="pkt-modal-overlay" id="pkt-modal">
+        <div class="pkt-modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 14px;">
+                <h3 style="margin: 0; font-size: 17px;"><%:LoRa Packet Inspector%></h3>
+                <button type="button" class="cbi-button" onclick="closePacketModal()">✕</button>
+            </div>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; background: #f8fafc; padding: 10px; border-radius: 4px;">
+                <div><strong><%:Time:%></strong> <span id="pm-time"></span></div>
+                <div><strong><%:Freq:%></strong> <span id="pm-freq"></span></div>
+                <div><strong><%:DataRate:%></strong> <span id="pm-datr"></span></div>
+                <div><strong><%:RSSI:%></strong> <span id="pm-rssi"></span></div>
+                <div><strong><%:SNR:%></strong> <span id="pm-snr"></span></div>
+                <div><strong><%:Size:%></strong> <span id="pm-size"></span></div>
+                <div><strong><%:CRC:%></strong> <span id="pm-crc"></span></div>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Payload (HEX)%></label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="pm-hex" readonly="readonly" style="flex: 1; padding: 6px; font-family: monospace; font-size: 12px; background: #edf2f7; border: 1px solid #cbd5e0; border-radius: 4px;" />
+                    <button type="button" class="cbi-button" onclick="copyModalHex()"><%:Copy%></button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label style="font-size: 12px; font-weight: 600; margin: 0;"><%:Decoded Interpretation%></label>
+                    <span id="pm-scheme-badge" style="background: #28a745; color: #fff; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600;"></span>
+                </div>
+                <div style="overflow-x: auto; max-height: 180px;">
+                    <table class="cbi-section-table" style="width: 100%; font-size: 12px;">
+                        <thead>
+                            <tr class="cbi-section-table-titles">
+                                <th style="width: 35%;"><%:Field%></th>
+                                <th><%:Value%></th>
+                            </tr>
+                        </thead>
+                        <tbody id="pm-decoded-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <details style="margin-bottom: 14px;">
+                <summary style="font-size: 11px; color: #4a5568; cursor: pointer; font-weight: 600;"><%:View Raw JSON%></summary>
+                <pre id="pm-json" style="background: #2d3748; color: #edf2f7; padding: 8px; border-radius: 4px; font-size: 11px; margin-top: 6px; max-height: 120px; overflow-y: auto;"></pre>
+            </details>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                <a id="pm-decoder-link" href="#" class="cbi-button cbi-button-action" style="text-decoration: none;"><%:Open in Decoder Studio ➔%></a>
+                <button type="button" class="cbi-button" onclick="closePacketModal()"><%:Close%></button>
+            </div>
         </div>
     </div>
 
@@ -307,6 +390,7 @@
 <script type="text/javascript">//<![CDATA[
 var pollTimer = null;
 var seenPacketIds = {};
+var g_storedPackets = [];
 
 function formatRssi(rssi) {
     var val = parseFloat(rssi);
@@ -393,7 +477,28 @@ function updatePackets() {
                     var snrRange = (p.snr_min !== undefined && p.snr_max !== undefined)
                         ? ' <span style="color:#6c757d;font-size:11px;">[' + Number(p.snr_min).toFixed(1) + '..' + Number(p.snr_max).toFixed(1) + ']</span>'
                         : '';
-                    var hexPreview = p.hex ? '<span style="color:#0366d6;font-size:11px;">' + p.hex + '</span>' : '—';
+
+                    var showDecoded = document.getElementById("chk-decode-payloads") ? document.getElementById("chk-decode-payloads").checked : true;
+                    var dec = (window.LoraDecoder && p.hex && showDecoded) ? LoraDecoder.decodePacket(p) : null;
+                    var decHtml = "";
+                    if (dec && dec.schemeId !== "none") {
+                        var bColor = (dec.schemeId === "fallback_ascii" ? "#00b894" : (dec.success ? "#28a745" : "#e74c3c"));
+                        var sumText = dec.error ? ('<span style="color:red">Error: ' + dec.error + '</span>') : dec.summary;
+                        decHtml = '<div class="payload-dec-box" style="margin-top: 3px; font-size: 11px; background: #f0f7ff; border: 1px solid #d0e3ff; border-radius: 3px; padding: 2px 6px;">' +
+                            '<span style="background: ' + bColor + '; color: #fff; padding: 1px 4px; border-radius: 2px; font-weight: 600; font-size: 9px; margin-right: 4px;">' + (dec.schemeName || "Decoded") + '</span>' +
+                            '<span style="color: #24292e;">' + sumText + '</span>' +
+                        '</div>';
+                    }
+
+                    p._decoded = dec;
+                    var pIdx = g_storedPackets.length;
+                    g_storedPackets.push(p);
+
+                    var hexPreview = p.hex ? 
+                        '<div style="cursor: pointer;" onclick="openPacketModal(' + pIdx + ')" title="Click to Inspect">' +
+                            '<span style="color:#0366d6;font-family:monospace;font-size:11px;font-weight:600;word-break:break-all;">' + p.hex + '</span>' +
+                            decHtml +
+                        '</div>' : '—';
 
                     tr.innerHTML =
                         '<td>' + (p.time || "") + '</td>' +
@@ -483,10 +588,88 @@ function refreshLog() {
     xhr.send();
 }
 
+function toggleDecodePayloads() {
+    var on = document.getElementById("chk-decode-payloads").checked;
+    var boxes = document.querySelectorAll(".payload-dec-box");
+    for (var i = 0; i < boxes.length; i++) {
+        boxes[i].style.display = on ? "block" : "none";
+    }
+}
+
+function openPacketModal(idx) {
+    var p = g_storedPackets[idx];
+    if (!p) return;
+
+    document.getElementById("pm-time").innerText = p.time || "—";
+    document.getElementById("pm-freq").innerText = (p.freq || "") + " MHz";
+    document.getElementById("pm-datr").innerText = p.datr || "—";
+    document.getElementById("pm-rssi").innerText = (p.rssi || "") + " dBm";
+    document.getElementById("pm-snr").innerText = (p.snr !== undefined ? p.snr : "") + " dB";
+    document.getElementById("pm-size").innerText = (p.size || "") + " B";
+    document.getElementById("pm-crc").innerText = p.status || "CRC_OK";
+    document.getElementById("pm-hex").value = p.hex || "";
+
+    var dec = p._decoded;
+    var badge = document.getElementById("pm-scheme-badge");
+    var tbody = document.getElementById("pm-decoded-tbody");
+    tbody.innerHTML = "";
+
+    if (dec && dec.schemeId !== "none") {
+        badge.innerText = dec.schemeName || "Decoded";
+        badge.style.display = "inline-block";
+        badge.style.background = (dec.schemeId === "fallback_ascii" ? "#00b894" : (dec.success ? "#28a745" : "#e74c3c"));
+
+        if (dec.error) {
+            var tr = document.createElement("tr");
+            tr.innerHTML = '<td colspan="2" style="color:red; font-weight:bold;">Decoder Error: ' + dec.error + '</td>';
+            tbody.appendChild(tr);
+        } else if (dec.data) {
+            for (var k in dec.data) {
+                if (!dec.data.hasOwnProperty(k)) continue;
+                var val = dec.data[k];
+                var tr = document.createElement("tr");
+                tr.innerHTML = '<td><strong>' + k + '</strong></td><td>' + (typeof val === "object" ? JSON.stringify(val) : val) + '</td>';
+                tbody.appendChild(tr);
+            }
+        }
+        document.getElementById("pm-json").innerText = JSON.stringify(dec.data || {}, null, 2);
+    } else {
+        badge.innerText = "Raw / No Match";
+        badge.style.background = "#7f8c8d";
+        var tr = document.createElement("tr");
+        tr.innerHTML = '<td><strong>hex</strong></td><td>' + (p.hex || "") + '</td>';
+        tbody.appendChild(tr);
+        document.getElementById("pm-json").innerText = JSON.stringify({ hex: p.hex }, null, 2);
+    }
+
+    document.getElementById("pm-decoder-link").href = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>';
+    document.getElementById("pkt-modal").style.display = "flex";
+}
+
+function closePacketModal() {
+    document.getElementById("pkt-modal").style.display = "none";
+}
+
+function copyModalHex() {
+    var hexVal = document.getElementById("pm-hex").value;
+    if (!hexVal) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(hexVal).then(function() {
+            alert("Copied to clipboard: " + hexVal);
+        });
+    } else {
+        var input = document.getElementById("pm-hex");
+        input.select();
+        document.execCommand("copy");
+        alert("Copied: " + hexVal);
+    }
+}
+
 function clearPacketTable() {
     var tbody = document.getElementById("tbody-packets");
-    tbody.innerHTML = '<tr id="row-empty"><td colspan="7" style="text-align: center; color: #888; padding: 25px;"><%:Feed cleared. Waiting for next packet...%></td></tr>';
+    tbody.innerHTML = '<tr id="row-empty"><td colspan="8" style="text-align: center; color: #888; padding: 25px;"><%:Feed cleared. Waiting for next packet...%></td></tr>';
     seenPacketIds = {};
+    g_storedPackets = [];
 }
 
 function serviceAction(action) {
@@ -505,6 +688,15 @@ function serviceAction(action) {
 }
 
 function startPolling() {
+    if (window.LoraDecoder) {
+        LoraDecoder.loadSchemes('<%=luci.dispatcher.build_url("admin/lora/api_decoders")%>', function(err, schemes) {
+            var cntEl = document.getElementById("span-decoders-count");
+            if (cntEl && schemes) {
+                cntEl.innerText = schemes.length;
+            }
+        });
+    }
+
     updateStatus();
     updatePackets();
     refreshLog();

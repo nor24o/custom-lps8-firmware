@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "updated": "2026-11-01T18:00:00Z",
+  "schemes": [
+    {
+      "id": "scheme_aa0b",
+      "name": "Sensor Node AA0B (Temp / Volt / Seq)",
+      "description": "Matches incoming payloads starting with AA0B header",
+      "enabled": true,
+      "matchType": "prefix",
+      "matchValue": "aa0b",
+      "type": "js",
+      "jsCode": "// Decoder for AA0B packets (e.g. aa0b64370111084002050fac)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar temp_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    temperature: +(temp_raw / 10).toFixed(1) + \" °C\",\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+    },
+    {
+      "id": "scheme_aa0c",
+      "name": "Sensor Node AA0C (Telemetry / Battery)",
+      "description": "Matches incoming payloads starting with AA0C header",
+      "enabled": true,
+      "matchType": "prefix",
+      "matchValue": "aa0c",
+      "type": "js",
+      "jsCode": "// Decoder for AA0C packets (e.g. aa0c6401011107c302051067)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar sensor_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    sensor_val: sensor_raw,\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+    },
+    {
+      "id": "scheme_ascii_ping",
+      "name": "ASCII Text & Test Pings",
+      "description": "Auto-decodes printable text strings (e.g. PING_FROM_LPS8)",
+      "enabled": true,
+      "matchType": "condition",
+      "matchCondition": "// Match if all bytes are printable ASCII chars\nif (bytes.length < 2) return false;\nreturn bytes.every(function(b) {\n    return (b >= 32 && b <= 126) || b === 10 || b === 13;\n});",
+      "type": "ascii"
+    },
+    {
+      "id": "scheme_cayenne_lpp",
+      "name": "Cayenne LPP Standard Sensors",
+      "description": "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
+      "enabled": true,
+      "matchType": "default",
+      "type": "cayenne_lpp"
+    }
+  ]
+}

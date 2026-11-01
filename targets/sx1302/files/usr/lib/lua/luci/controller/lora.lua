@@ -8,12 +8,14 @@ function index()
     entry({"admin", "lora", "status"}, template("lora/status"), _("Realtime Status"), 10)
     entry({"admin", "lora", "diag"}, template("lora/diag"), _("Pin and GPIO Diagnostics"), 15)
     entry({"admin", "lora", "config"}, template("lora/config"), _("Settings and Config"), 20)
+    entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoder"), 22)
     entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout and Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
 
     entry({"admin", "lora", "api_status"}, call("action_status")).leaf = true
     entry({"admin", "lora", "api_config"}, call("action_config")).leaf = true
     entry({"admin", "lora", "api_packets"}, call("action_packets")).leaf = true
+    entry({"admin", "lora", "api_decoders"}, call("action_decoders")).leaf = true
     entry({"admin", "lora", "api_log"}, call("action_log")).leaf = true
     entry({"admin", "lora", "action_service"}, call("action_service")).leaf = true
     entry({"admin", "lora", "api_tx_test"}, call("action_tx_test")).leaf = true
@@ -190,6 +192,91 @@ function action_packets()
 
     http.prepare_content("application/json")
     http.write_json(packets)
+end
+
+function action_decoders()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local nfs = require "nixio.fs"
+
+    if http.getenv("REQUEST_METHOD") == "POST" then
+        local body = http.content()
+        local parsed = body and jsonc.parse(body)
+        if not parsed or type(parsed) ~= "table" then
+            http.status(400, "Invalid JSON")
+            http.prepare_content("application/json")
+            http.write_json({ error = "Invalid JSON payload" })
+            return
+        end
+
+        nfs.mkdirr("/etc/lora")
+        local f = io.open("/etc/lora/decoders.json", "w")
+        if f then
+            f:write(jsonc.stringify(parsed, true))
+            f:close()
+            http.prepare_content("application/json")
+            http.write_json({ status = "saved", count = #(parsed.schemes or {}) })
+        else
+            http.status(500, "Write Error")
+            http.prepare_content("application/json")
+            http.write_json({ error = "Failed to write /etc/lora/decoders.json" })
+        end
+    else
+        -- GET
+        local f = io.open("/etc/lora/decoders.json", "r")
+        local content = f and f:read("*a") or nil
+        if f then f:close() end
+
+        local data = content and jsonc.parse(content)
+        if not data then
+            data = {
+                version = 1,
+                updated = "2026-11-01T18:00:00Z",
+                schemes = {
+                    {
+                        id = "scheme_aa0b",
+                        name = "Sensor Node AA0B (Temp / Volt / Seq)",
+                        description = "Matches incoming payloads starting with AA0B header",
+                        enabled = true,
+                        matchType = "prefix",
+                        matchValue = "aa0b",
+                        type = "js",
+                        jsCode = "// Decoder for AA0B packets (e.g. aa0b64370111084002050fac)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar temp_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    temperature: +(temp_raw / 10).toFixed(1) + \" °C\",\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+                    },
+                    {
+                        id = "scheme_aa0c",
+                        name = "Sensor Node AA0C (Telemetry / Battery)",
+                        description = "Matches incoming payloads starting with AA0C header",
+                        enabled = true,
+                        matchType = "prefix",
+                        matchValue = "aa0c",
+                        type = "js",
+                        jsCode = "// Decoder for AA0C packets (e.g. aa0c6401011107c302051067)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar sensor_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    sensor_val: sensor_raw,\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+                    },
+                    {
+                        id = "scheme_ascii_ping",
+                        name = "ASCII Text & Test Pings",
+                        description = "Auto-decodes printable text strings (e.g. PING_FROM_LPS8)",
+                        enabled = true,
+                        matchType = "condition",
+                        matchCondition = "// Match if all bytes are printable ASCII chars\nif (bytes.length < 2) return false;\nreturn bytes.every(function(b) {\n    return (b >= 32 && b <= 126) || b === 10 || b === 13;\n});",
+                        type = "ascii"
+                    },
+                    {
+                        id = "scheme_cayenne_lpp",
+                        name = "Cayenne LPP Standard Sensors",
+                        description = "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
+                        enabled = true,
+                        matchType = "default",
+                        type = "cayenne_lpp"
+                    }
+                }
+            }
+        end
+
+        http.prepare_content("application/json")
+        http.write_json(data)
+    end
 end
 
 function action_tx_test()
