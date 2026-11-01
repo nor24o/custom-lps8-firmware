@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dragino LoRa Gateway — Hardware Pinout, Schematic & Architecture Viewer</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --card-border: #30363d;
+      --text-main: #c9d1d9;
+      --text-muted: #8b949e;
+      --text-heading: #f0f6fc;
+      --primary: #238636;
+      --primary-fg: #ffffff;
+      --blue: #58a6ff;
+      --blue-bg: rgba(56, 139, 253, 0.15);
+      --green: #3fb950;
+      --green-bg: rgba(63, 185, 80, 0.15);
+      --amber: #d29922;
+      --amber-bg: rgba(210, 153, 34, 0.15);
+      --cyan: #39c5cf;
+      --cyan-bg: rgba(57, 197, 207, 0.15);
+      --purple: #bc8cff;
+      --purple-bg: rgba(188, 140, 255, 0.15);
+      --rose: #f85149;
+      --rose-bg: rgba(248, 81, 73, 0.15);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-heading);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      color: var(--text-heading);
+    }
+    .tab-btn.active {
+      color: var(--text-heading);
+      border-bottom-color: #f78166;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 20px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    }
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .flt-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--card-border);
+      background-color: #21262d;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .flt-btn:hover {
+      background-color: #30363d;
+      color: var(--text-heading);
+    }
+    .flt-btn.active {
+      background-color: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+    .grid-interactive {
+      display: grid;
+      grid-template-columns: 7fr 5fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .grid-interactive {
+        grid-template-columns: 1fr;
+      }
+    }
+    .pins-column-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 580px) {
+      .pins-column-wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+    .pin-btn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background-color: #0d1117;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      transition: all 0.15s;
+      margin-bottom: 6px;
+    }
+    .pin-btn:hover {
+      border-color: #8b949e;
+      background-color: #161b22;
+    }
+    .pin-btn.selected {
+      border-color: var(--blue);
+      background-color: #1f242c;
+      box-shadow: 0 0 0 1px var(--blue);
+    }
+    .pin-btn.dimmed {
+      opacity: 0.25;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-spi { background-color: var(--blue); }
+    .dot-rst { background-color: var(--green); }
+    .dot-led { background-color: var(--amber); }
+    .dot-net { background-color: var(--cyan); }
+    .dot-free { background-color: var(--purple); }
+    .dot-nc { background-color: var(--rose); }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .badge-spi { background-color: var(--blue-bg); color: var(--blue); border-color: rgba(88,166,255,0.3); }
+    .badge-rst { background-color: var(--green-bg); color: var(--green); border-color: rgba(63,185,80,0.3); }
+    .badge-led { background-color: var(--amber-bg); color: var(--amber); border-color: rgba(210,153,34,0.3); }
+    .badge-net { background-color: var(--cyan-bg); color: var(--cyan); border-color: rgba(57,197,207,0.3); }
+    .badge-free { background-color: var(--purple-bg); color: var(--purple); border-color: rgba(188,140,255,0.3); }
+    .badge-nc { background-color: var(--rose-bg); color: var(--rose); border-color: rgba(248,81,73,0.3); }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding-top: 12px;
+      margin-top: 12px;
+      border-top: 1px solid var(--card-border);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .inspector {
+      background-color: #0d1117;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .insp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .insp-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 6px;
+    }
+    .insp-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.45;
+    }
+    .insp-block {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .insp-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+    .insp-code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: #7ee787;
+      word-break: break-all;
+    }
+
+    .img-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .img-card {
+      background-color: #0d1117;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .img-card img {
+      width: 100%;
+      height: auto;
+      display: block;
+      background-color: #000;
+    }
+    .img-card .caption {
+      padding: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-heading);
+      border-top: 1px solid var(--card-border);
+    }
+    .img-card .subcaption {
+      padding: 0 12px 12px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    table.data-table th {
+      background-color: #21262d;
+      color: var(--text-heading);
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    table.data-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    table.data-table tr:hover {
+      background-color: #161b22;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      background: rgba(110,118,129,0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #79c0ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>
+          <span>⚡</span> Dragino LoRa Gateway — Hardware &amp; Pinout Architecture
+        </h1>
+        <div class="subtitle">
+          Complete Pin Mapping, Schematics, Real Photos &amp; Driver Architecture for Dragino LPS8 (SX1302) &amp; LG01/LG02 (SX1276)
+        </div>
+      </div>
+      <div>
+        <a href="https://github.com/nor24o/custom-lps8-firmware" target="_blank" class="flt-btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+          <span>📦</span> View on GitHub
+        </a>
+      </div>
+    </header>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="showTab('tab-interactive', this)">1. Interactive Pinout Shower</button>
+      <button class="tab-btn" onclick="showTab('tab-gallery', this)">2. Real Hardware Photos &amp; Schematics</button>
+      <button class="tab-btn" onclick="showTab('tab-table', this)">3. Pinout Reference Matrix</button>
+      <button class="tab-btn" onclick="showTab('tab-hal', this)">4. SX1302 HAL 2.1.0 Features</button>
+    </div>
+
+    <!-- TAB 1: INTERACTIVE PINOUT SHOWER -->
+    <div id="tab-interactive" class="tab-content active">
+      <div class="card">
+        <div class="filter-bar">
+          <span style="font-size: 12px; font-weight:600; color:var(--text-muted); align-self:center; margin-right:4px;">Filter by Subsystem:</span>
+          <button onclick="setFilter('all')" data-f="all" class="flt-btn active">All Pins (48)</button>
+          <button onclick="setFilter('sx1302')" data-f="sx1302" class="flt-btn">LPS8 (SX1302 Concentrator)</button>
+          <button onclick="setFilter('sx1276')" data-f="sx1276" class="flt-btn">LG01 / LG02 (SX1276)</button>
+          <button onclick="setFilter('net')" data-f="net" class="flt-btn">Ethernet &amp; 2.4GHz WiFi</button>
+          <button onclick="setFilter('led')" data-f="led" class="flt-btn">PA / Status LEDs</button>
+          <button onclick="setFilter('free')" data-f="free" class="flt-btn">Free GPIOs</button>
+        </div>
+
+        <div class="grid-interactive">
+          <!-- Left side: pins -->
+          <div>
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-heading); margin-bottom: 8px;">
+              Dragino HE (Atheros AR9331) Dual-Row Pins:
+            </div>
+            <div class="pins-column-wrap">
+              <div id="left-pins"></div>
+              <div id="right-pins"></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><span class="dot dot-spi"></span> SPI Bus</div>
+              <div class="legend-item"><span class="dot dot-rst"></span> Reset / IRQ</div>
+              <div class="legend-item"><span class="dot dot-led"></span> PA / LEDs</div>
+              <div class="legend-item"><span class="dot dot-net"></span> Ethernet / WiFi</div>
+              <div class="legend-item"><span class="dot dot-free"></span> Free GPIO</div>
+              <div class="legend-item"><span class="dot dot-nc"></span> Disconnected / Console</div>
+            </div>
+          </div>
+
+          <!-- Right side: inspector -->
+          <div>
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-heading); margin-bottom: 8px;">
+              Pin Detail &amp; OpenWrt Interface Inspector:
+            </div>
+            <div class="inspector" id="inspector">
+              <div class="insp-header">
+                <span id="insp-badge" class="badge badge-spi">SPI Bus</span>
+                <span id="insp-pin" style="font-family: monospace; font-size: 12px; color: var(--text-muted);">Pin 3</span>
+              </div>
+              <div class="insp-title" id="insp-title">GPIO 24 — SPI SCK (Clock)</div>
+              <div class="insp-desc" id="insp-desc">Primary bit-banged SPI clock line from Dragino HE module to SX1302 / SX1276 radio board.</div>
+
+              <div class="insp-block">
+                <div class="insp-label">OpenWrt Kernel Driver / insmod:</div>
+                <div class="insp-code" id="insp-cfg">spi-gpio-custom bus0=1,24,18,20,0,8000000,19,0,8000000,15</div>
+              </div>
+              <div class="insp-block">
+                <div class="insp-label">Linux Character Device / Node:</div>
+                <div class="insp-code" id="insp-sysfs18">/dev/spidev1.0 (Clock = GPIO 24)</div>
+              </div>
+              <div class="insp-block">
+                <div class="insp-label">Hardware Target &amp; Wiring:</div>
+                <div class="insp-code" id="insp-sysfs19">LPS8 SX1302 Concentrator &amp; LG01/LG02 SPI Clock</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: REAL HARDWARE PHOTOS & SCHEMATICS -->
+    <div id="tab-gallery" class="tab-content">
+      <div class="card">
+        <h2 style="font-size: 18px; color: var(--text-heading); margin-bottom: 8px;">Real Hardware Photos, PCB Schematics &amp; Wiring Maps</h2>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          High-resolution captures of the actual hardware, factory PCB schematics, and system block diagrams.
+        </p>
+
+        <div class="img-grid">
+          <div class="img-card">
+            <img src="images/dragino_lps8_device.jpg" alt="Dragino LPS8 Indoor Gateway" />
+            <div class="caption">Dragino LPS8 Indoor LoRaWAN Gateway (Real Hardware Photo)</div>
+            <div class="subcaption">Features Qualcomm Atheros AR9331 SoC, Semtech SX1302 8-channel concentrator, RJ45 Ethernet, 2.4 GHz WiFi, and external SMA LoRa antenna.</div>
+          </div>
+
+          <div class="img-card">
+            <img src="images/dragino_he_module_pinout.png" alt="Dragino HE Module Pinout Diagram" />
+            <div class="caption">Dragino HE Core Module Pinout (Atheros AR9331)</div>
+            <div class="subcaption">Shows all 48 physical pins of the HE CPU module, including Ethernet PHY lines, USB 2.0 host, UART serial console, and multiplexed GPIOs.</div>
+          </div>
+
+          <div class="img-card">
+            <img src="images/dragino_lps8_hardware_schematic.png" alt="Dragino LPS8 Carrier Motherboard Schematic" />
+            <div class="caption">Dragino LPS8 Motherboard Wiring &amp; Concentrator Interconnect</div>
+            <div class="subcaption">Highlights exact wiring: Pin 3 (SCK=24), Pin 18 (MOSI=18), Pin 20 (MISO=20), Pin 19 (CS0=19), Pin 21 (RESET=23), Pin 38 (CS1=15), and crossed-out disconnected Pins 35 &amp; 36.</div>
+          </div>
+
+          <div class="img-card">
+            <img src="images/dragino_system_architecture.png" alt="Dragino Gateway System Architecture" />
+            <div class="caption">System Architecture &amp; Hardware Block Diagram</div>
+            <div class="subcaption">Visualizes the interaction between the AR9331 Linux kernel, SPI bit-banged driver, SX1302 packet forwarder daemon, and the LuCI web interface.</div>
+          </div>
+
+          <div class="img-card">
+            <img src="images/dragino_concentrator_detail.png" alt="Concentrator Architecture Detail" />
+            <div class="caption">Semtech SX1302 Concentrator + Dual SX1250 RF Front-End</div>
+            <div class="subcaption">Shows the 8 parallel multi-SF demodulators, LoRa Service channel, FSK modem, and the TCXO 32 MHz clock distribution.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: PINOUT REFERENCE MATRIX -->
+    <div id="tab-table" class="tab-content">
+      <div class="card">
+        <h2 style="font-size: 18px; color: var(--text-heading); margin-bottom: 8px;">Hardware Pinout &amp; Kernel Mapping Matrix</h2>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          Reference table mapping Dragino HE physical pins to Linux GPIOs, kernel drivers, and configuration JSON keys.
+        </p>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>HE Pin</th>
+              <th>Atheros Signal</th>
+              <th>Function / Subsystem</th>
+              <th>Kernel Driver / Node</th>
+              <th>Config Key (/etc/lora/config.json)</th>
+              <th>Notes / Behavior</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Pin 3</strong></td>
+              <td><code>GPIO 24</code></td>
+              <td>SPI SCK (Clock)</td>
+              <td><code>kmod-spi-gpio-custom</code> (bus0)</td>
+              <td>—</td>
+              <td>Bit-banged SPI clock generated by AR9331 at 8 MHz.</td>
+            </tr>
+            <tr>
+              <td><strong>Pin 18</strong></td>
+              <td><code>GPIO 18</code></td>
+              <td>SPI MOSI</td>
+              <td><code>kmod-spi-gpio-custom</code> (bus0)</td>
+              <td>—</td>
+              <td>Master Out Slave In data line to LoRa concentrator.</td>
+            </tr>
+            <tr>
+              <td><strong>Pin 20</strong></td>
+              <td><code>GPIO 20</code></td>
+              <td>SPI MISO</td>
+              <td><code>kmod-spi-gpio-custom</code> (bus0)</td>
+              <td>—</td>
+              <td>Master In Slave Out data line from LoRa concentrator.</td>
+            </tr>
+            <tr>
+              <td><strong>Pin 19</strong></td>
+              <td><code>GPIO 19</code></td>
+              <td>Radio 1 CS0 (NSS)</td>
+              <td><code>/dev/spidev1.0</code></td>
+              <td><code>"spi_path": "/dev/spidev1.0"</code></td>
+              <td>Active-low Chip Select for SX1302 on LPS8 or Radio 1 on LG01/LG02.</td>
+            </tr>
+            <tr>
+              <td><strong>Pin 38</strong></td>
+              <td><code>GPIO 15</code></td>
+              <td>Radio 2 CS1 (NSS)</td>
+              <td><code>/dev/spidev1.1</code></td>
+              <td><code>"spi_path": "/dev/spidev1.1"</code></td>
+              <td>Second Chip Select on bus0 for LG02 dual-channel radio 2.</td>
+            </tr>
+            <tr>
+              <td><strong>Pin 21</strong></td>
+              <td><code>GPIO 23</code></td>
+              <td>Hardware RESET</td>
+              <td><code>/sys/class/gpio/gpio23</code></td>
+              <td><code>"reset_gpio": "23"</code></td>
+              <td>Pulsed HIGH (100ms) then LOW (100ms) by daemon before SPI init.</td>
+            </tr>
+            <tr>
+              <td><strong>Pin 23</strong></td>
+              <td><code>GPIO 17</code></td>
+              <td>PA/LNA RF Switch</td>
+              <td><code>/sys/class/leds/dragino2:red:wan</code></td>
+              <td><code>"pa_gpio": "dragino2:red:wan"</code></td>
+              <td>Controls external Skyworks PA/LNA RF switch on LPS8.</td>
+            </tr>
+            <tr>
+              <td><strong>Pins 1,2,4,5</strong></td>
+              <td><code>eth0</code></td>
+              <td>Primary RJ45 Port</td>
+              <td><code>ag71xx MAC0 (Port 4)</code></td>
+              <td><code>/etc/config/network</code> (br-lan)</td>
+              <td>Bridged into <code>br-lan</code> as a DHCP client. No firewall bloat.</td>
+            </tr>
+            <tr>
+              <td><strong>Pins 29,30,32,33</strong></td>
+              <td><code>eth1</code></td>
+              <td>Secondary RJ45 Port</td>
+              <td><code>ag71xx MAC1 (Port 0)</code></td>
+              <td><code>/etc/config/network</code> (br-lan)</td>
+              <td>Populated on LG01/LG02. Bridged into <code>br-lan</code> so both ports act as LAN.</td>
+            </tr>
+            <tr>
+              <td><strong>Internal RF</strong></td>
+              <td><code>wlan0</code></td>
+              <td>2.4GHz 802.11b/g/n WiFi</td>
+              <td><code>kmod-ath9k</code> (wmac)</td>
+              <td><code>/etc/config/wireless</code></td>
+              <td>Supports Access Point (AP) or Client (STA) mode via <code>wpad-mini</code> &amp; <code>iwinfo</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>Pins 35 &amp; 36</strong></td>
+              <td><code>GND / GPIO 12</code></td>
+              <td>Disconnected</td>
+              <td>—</td>
+              <td>—</td>
+              <td>Crossed out on baseboard layout; left floating / disconnected.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 4: SX1302 HAL 2.1.0 FEATURES -->
+    <div id="tab-hal" class="tab-content">
+      <div class="card">
+        <h2 style="font-size: 18px; color: var(--text-heading); margin-bottom: 8px;">Semtech SX1302 HAL 2.1.0 Features Integrated in raw_lora_app</h2>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          All Semtech SX1302 HAL capabilities have been integrated into <code>raw_lora_app</code> and LuCI as optional, non-breaking features:
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="insp-block">
+            <div style="font-weight: 700; color: var(--blue); margin-bottom: 4px;">1. Concentrator Thermal Telemetry</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              Queries on-chip thermal sensor via <code>lgw_get_temperature()</code> during heartbeat loops. Reported on TCP status port 5557 and displayed in live °C badge on LuCI Realtime Status.
+            </div>
+          </div>
+
+          <div class="insp-block">
+            <div style="font-weight: 700; color: var(--green); margin-bottom: 4px;">2. Hardware 1-µs Clock &amp; PPS Trigger</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              Reads internal hardware counter via <code>lgw_get_instcnt()</code> and last PPS trigger via <code>lgw_get_trigcnt()</code>. Enables microsecond-accurate timekeeping for Class B downlinks.
+            </div>
+          </div>
+
+          <div class="insp-block">
+            <div style="font-weight: 700; color: var(--amber); margin-bottom: 4px;">3. Realtime Radio Status &amp; ARB Stats</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              Queries live radio state via <code>lgw_status()</code> (<code>TX_FREE</code>, <code>TX_SCHEDULED</code>, <code>TX_EMITTING</code>, <code>RX_ON</code>) and per-channel preamble detect stats via <code>sx1302_arb_get_debug_stats_detect()</code>.
+            </div>
+          </div>
+
+          <div class="insp-block">
+            <div style="font-weight: 700; color: var(--cyan); margin-bottom: 4px;">4. Extended RX RF Metadata &amp; Packet Feed</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              Captures channel noise floor (<code>rssic</code>), SNR dynamic range (<code>snr_min..snr_max</code>), frequency offset (<code>foff</code> Hz), and hex payload preview into <code>/tmp/lora_packets.json</code> for LuCI live stream.
+            </div>
+          </div>
+
+          <div class="insp-block">
+            <div style="font-weight: 700; color: var(--purple); margin-bottom: 4px;">5. Timestamped Downlink &amp; CW Tone Generator</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              Supports microsecond-scheduled downlinks (<code>TIMESTAMPED</code> / <code>ON_GPS</code>), Continuous Wave RF tone generator (<code>MOD_CW</code>), and instant transmission abort (<code>lgw_abort_tx()</code>).
+            </div>
+          </div>
+
+          <div class="insp-block">
+            <div style="font-weight: 700; color: var(--rose); margin-bottom: 4px;">6. Selective Multi-SF Demodulator Mask</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              Allows selectively enabling or disabling individual spreading factors (SF5–SF12) via <code>sf_mask</code> bitmask in <code>/etc/lora/config.json</code> or LuCI settings form.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const PINS = [
+      // Left Column
+      { side: 'L', pin: 'Pin 3',  gpio: 'GPIO 24', role: 'SPI SCK (Clock)', cat: 'spi', tags: ['sx1302','sx1276'],
+        cfg: 'spi-gpio-custom bus0=1,24,18,20,0,8000000,19,0,8000000,15',
+        s18: '/dev/spidev1.0 & /dev/spidev1.1 (SCK = GPIO 24)',
+        s19: 'LPS8 & LG01/LG02 SPI Clock (8 MHz)',
+        desc: 'Primary bit-banged SPI clock line from Dragino HE module to SX1302 / SX1276 radio board.' },
+      { side: 'L', pin: 'Pin 18', gpio: 'GPIO 18', role: 'SPI MOSI', cat: 'spi', tags: ['sx1302','sx1276'],
+        cfg: 'spi-gpio-custom bus0 MOSI=18',
+        s18: '/dev/spidev1.0 & /dev/spidev1.1 (MOSI = GPIO 18)',
+        s19: 'LPS8 & LG01/LG02 SPI MOSI Data Line',
+        desc: 'SPI Master-Out Slave-In data line driving configuration and downlink frames to the LoRa concentrator.' },
+      { side: 'L', pin: 'Pin 20', gpio: 'GPIO 20', role: 'SPI MISO', cat: 'spi', tags: ['sx1302','sx1276'],
+        cfg: 'spi-gpio-custom bus0 MISO=20',
+        s18: '/dev/spidev1.0 & /dev/spidev1.1 (MISO = GPIO 20)',
+        s19: 'LPS8 & LG01/LG02 SPI MISO Data Line',
+        desc: 'SPI Master-In Slave-Out data line reading received LoRa frames and registers from the concentrator.' },
+      { side: 'L', pin: 'Pin 19', gpio: 'GPIO 19', role: 'Radio 1 CS0 (NSS)', cat: 'spi', tags: ['sx1302','sx1276'],
+        cfg: '"spi_path": "/dev/spidev1.0"',
+        s18: '/dev/spidev1.0 (CS0 = GPIO 19)',
+        s19: 'LPS8 SX1302 CS0 / LG02 Radio 1 CS0',
+        desc: 'Active-low Chip Select 0 for the primary LoRa concentrator (SX1302 on LPS8 or Radio 1 on LG01/LG02).' },
+      { side: 'L', pin: 'Pin 38', gpio: 'GPIO 15', role: 'Radio 2 CS1 (NSS)', cat: 'spi', tags: ['sx1276'],
+        cfg: '"spi_path": "/dev/spidev1.1"',
+        s18: '/dev/spidev1.1 (CS1 = GPIO 15)',
+        s19: 'LG02 Dual-Radio Second Chip Select (CS1)',
+        desc: 'Registered as second chip select on bus0 in 30-spi-gpio-custom -> /dev/spidev1.1 for dual-channel LG02.' },
+      { side: 'L', pin: 'Pin 21', gpio: 'GPIO 23', role: 'LoRa Hardware RESET', cat: 'rst', tags: ['sx1302','sx1276'],
+        cfg: '"reset_gpio": "23"',
+        s18: '/sys/class/gpio/gpio23/value',
+        s19: 'LPS8 SX1302 Reset / LG01/LG02 Reset',
+        desc: 'Toggled HIGH (100ms) then LOW (100ms) by reset_sx1302() in raw_lora_app before opening the SPI interface.' },
+      { side: 'L', pin: 'Pin 23', gpio: 'GPIO 17', role: 'PA/LNA Switch (WAN LED)', cat: 'led', tags: ['sx1302','led'],
+        cfg: '"pa_gpio": "dragino2:red:wan"',
+        s18: '/sys/class/leds/dragino2:red:wan/brightness',
+        s19: 'Controls external PA/LNA RF switch on LPS8',
+        desc: 'Claimed by kernel leds-gpio as dragino2:red:wan. Driven LOW during TX to enable external Skyworks PA.' },
+      { side: 'L', pin: 'Pin 12/26', gpio: 'GPIO 0 / 13', role: 'WLAN & LAN LEDs', cat: 'led', tags: ['led'],
+        cfg: '"led_rx": "dragino2:red:wlan", "led_tx": "dragino2:red:lan"',
+        s18: '/sys/class/leds/dragino2:red:{wlan,lan}/brightness',
+        s19: 'Available for RX/TX packet blink indicators',
+        desc: 'Onboard status LEDs available for led_rx and led_tx visual packet activity blinking.' },
+
+      // Right Column
+      { side: 'R', pin: 'Pins 1,2,4,5', gpio: 'eth0', role: 'RJ45 Port 1 (LPS8 & LG01/02)', cat: 'net', tags: ['net','sx1302','sx1276'],
+        cfg: '/etc/config/network: option ifname "eth0 eth1" (br-lan, proto dhcp)',
+        s18: 'eth0 (AR9331 MAC0 -> Bridged into br-lan)',
+        s19: 'LPS8: Single RJ45 LAN port | LG01/LG02: RJ45 Port 1 (LAN)',
+        desc: 'Wired to the single RJ45 port on LPS8 and Port 1 on LG01/LG02. Bridged into br-lan as a DHCP client.' },
+      { side: 'R', pin: 'Pins 29,30,32,33', gpio: 'eth1', role: 'RJ45 Port 2 (LG01/LG02)', cat: 'net', tags: ['net','sx1276'],
+        cfg: '/etc/config/network: option ifname "eth0 eth1" (br-lan, proto dhcp)',
+        s18: 'eth1 (AR9331 MAC1 Switch -> Bridged into br-lan)',
+        s19: 'LPS8: Unpopulated | LG01/LG02: RJ45 Port 2 (Bridged LAN)',
+        desc: 'Second RJ45 port on LG01/LG02. Bridged together with eth0 in br-lan so both ports act as a flat LAN switch.' },
+      { side: 'R', pin: 'Internal RF', gpio: 'wlan0 (radio0)', role: '2.4 GHz 802.11b/g/n WiFi', cat: 'net', tags: ['net','sx1302','sx1276'],
+        cfg: '/etc/config/wireless + packages: kmod-ath9k, wpad-mini, iwinfo',
+        s18: 'platform/ar933x_wmac (LuCI -> Network -> Wireless)',
+        s19: 'Supports WiFi Client (STA) + Access Point (AP) bridged to lan',
+        desc: 'Built-in AR9331 2.4 GHz WiFi radio managed natively under LuCI Network Wireless.' },
+      { side: 'R', pin: 'Pin 15', gpio: 'GPIO 7',  role: 'SX1276 DIO0 / Free GPIO', cat: 'rst', tags: ['sx1276'],
+        cfg: '"dio0_gpio": "7" (SX1276) or free on LPS8',
+        s18: '/sys/class/gpio/gpio7/value',
+        s19: 'SX1276 DIO0 packet interrupt line',
+        desc: 'Used as DIO0 packet interrupt on SX1276 (LG01/LG02); unclaimed free GPIO on LPS8.' },
+      { side: 'R', pin: 'Pin 16', gpio: 'GPIO 8',  role: 'Radio 1 Reset / Free GPIO', cat: 'rst', tags: ['sx1276'],
+        cfg: 'Radio 1 Reset (LG02) or free on LPS8',
+        s18: '/sys/class/gpio/gpio8/value',
+        s19: 'SX1276 Radio 1 Reset line',
+        desc: 'Used on LG02 to reset primary SX1276; unclaimed free GPIO on LPS8.' },
+      { side: 'R', pin: 'Pins 13,14,22,27', gpio: 'GPIO 6,21,22,27', role: 'Free Digital I/O Pins', cat: 'free', tags: ['free'],
+        cfg: 'Export via /sys/class/gpio/export',
+        s18: '/sys/class/gpio/gpio{6,21,22,27}/value',
+        s19: 'Unclaimed AR9331 GPIOs for custom expansion',
+        desc: 'Unclaimed AR9331 GPIOs available on the HE header for custom hardware sensors or control switches.' },
+      { side: 'R', pin: 'Pin 7/8', gpio: 'GPIO 10/9', role: 'Hardware UART (ttyATH0)', cat: 'nc', tags: [],
+        cfg: 'Serial Console (115200 8N1)',
+        s18: '/dev/ttyATH0',
+        s19: 'Dedicated Linux serial console TX/RX',
+        desc: 'Dedicated Linux serial console TX (GPIO 10) and RX (GPIO 9) for low-level U-Boot and kernel debugging.' },
+      { side: 'R', pin: 'Pin 35/36', gpio: 'GND / GPIO 12', role: 'Disconnected (X on PCB)', cat: 'nc', tags: [],
+        cfg: 'Not connected on baseboard',
+        s18: 'Crossed out on PCB layout',
+        s19: 'Do not use / left floating',
+        desc: 'Crossed out on your Dragino baseboard schematic. Must not be connected.' }
+    ];
+
+    const CAT_INFO = {
+      spi:  { badge: 'badge-spi',  label: 'SPI Bus' },
+      rst:  { badge: 'badge-rst',  label: 'Reset / IRQ' },
+      led:  { badge: 'badge-led',  label: 'PA / Kernel LED' },
+      net:  { badge: 'badge-net',  label: 'Ethernet / WiFi' },
+      free: { badge: 'badge-free', label: 'Free GPIO' },
+      nc:   { badge: 'badge-nc',   label: 'Reserved / Disconnected' }
+    };
+
+    let currentFilter = 'all';
+    let selectedPin = PINS[0];
+
+    function showTab(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    function selectPin(p) {
+      selectedPin = p;
+      const ci = CAT_INFO[p.cat];
+      const badge = document.getElementById('insp-badge');
+      badge.className = 'badge ' + ci.badge;
+      badge.textContent = ci.label;
+      document.getElementById('insp-pin').textContent = 'HE ' + p.pin;
+      document.getElementById('insp-title').textContent = p.gpio + ' — ' + p.role;
+      document.getElementById('insp-desc').textContent = p.desc;
+      document.getElementById('insp-cfg').textContent = p.cfg;
+      document.getElementById('insp-sysfs18').textContent = p.s18;
+      document.getElementById('insp-sysfs19').textContent = p.s19;
+      renderPins();
+    }
+
+    function setFilter(f) {
+      currentFilter = f;
+      document.querySelectorAll('.flt-btn').forEach(btn => {
+        if (btn.dataset.f === f) btn.classList.add('active');
+        else btn.classList.remove('active');
+      });
+      renderPins();
+    }
+
+    function renderPins() {
+      const leftEl = document.getElementById('left-pins');
+      const rightEl = document.getElementById('right-pins');
+      leftEl.innerHTML = '';
+      rightEl.innerHTML = '';
+
+      PINS.forEach(p => {
+        const match = (currentFilter === 'all') || p.tags.includes(currentFilter) || (p.cat === currentFilter);
+        const isSel = (p === selectedPin);
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.onclick = () => selectPin(p);
+        btn.className = 'pin-btn' + (isSel ? ' selected' : '') + (!match ? ' dimmed' : '');
+
+        btn.innerHTML =
+          '<span class="dot dot-' + p.cat + '"></span>' +
+          '<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' +
+            '<div style="font-weight:600; color:var(--text-heading); font-size:12px;">' + p.gpio + ' <span style="color:var(--text-muted); font-weight:normal;">(' + p.pin + ')</span></div>' +
+            '<div style="font-size:11px; color:var(--text-muted);">' + p.role + '</div>' +
+          '</div>';
+
+        if (p.side === 'L') leftEl.appendChild(btn);
+        else rightEl.appendChild(btn);
+      });
+    }
+
+    renderPins();
+  </script>
+</body>
+</html>
