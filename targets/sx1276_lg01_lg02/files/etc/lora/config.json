@@ -13,7 +13,7 @@
         "enabled":     true,
         "spi_path":    "/dev/spidev1.0",
         "dio0_gpio":   "7",
-        "reset_gpio":  "23",
+        "reset_gpio":  "8",
         "freq":        868100000,
         "sf":          7,
         "bw":          125,

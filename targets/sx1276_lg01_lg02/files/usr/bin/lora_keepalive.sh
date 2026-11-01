@@ -31,12 +31,14 @@ while true; do
             /etc/init.d/spi_init start >/dev/null 2>&1
         fi
 
-        if [ -x /usr/bin/raw_lora_app ]; then
+        if [ -x /usr/bin/lg02_pkt_fwd ]; then
+            /usr/bin/lg02_pkt_fwd >> "$LOGFILE" 2>&1 &
+        elif [ -x /usr/bin/lg01_pkt_fwd ]; then
+            /usr/bin/lg01_pkt_fwd >> "$LOGFILE" 2>&1 &
+        elif [ -x /usr/bin/raw_lora_app ]; then
             /usr/bin/raw_lora_app >> "$LOGFILE" 2>&1 &
         elif [ -x /usr/bin/sx1276_app ]; then
             /usr/bin/sx1276_app -c /etc/lora/config.json >> "$LOGFILE" 2>&1 &
-        elif [ -x /usr/bin/lg02_pkt_fwd ]; then
-            /usr/bin/lg02_pkt_fwd >> "$LOGFILE" 2>&1 &
         fi
         fail_tcp_cnt=0
         sleep 5

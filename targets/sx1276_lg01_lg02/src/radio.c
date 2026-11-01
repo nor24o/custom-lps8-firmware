@@ -24,34 +24,31 @@ static const uint8_t rxlorairqmask[] = {
  * @return true if the reservation was successful.
  */
 static bool gpio_reserve(int gpio) {
-    int fd; /* File descriptor for GPIO controller class */
-    char buf[3]; /* Write buffer */
+    char path[64];
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d", gpio);
+    if (access(path, F_OK) == 0) {
+        return true; /* Already exported */
+    }
 
-    /* Try to open GPIO controller class */
-    fd = open("/sys/class/gpio/export", O_WRONLY);
+    int fd = open("/sys/class/gpio/export", O_WRONLY);
     if (fd < 0) {
-        /* The file could not be opened */
         fprintf(stderr, "ERROR~ gpio_reserve: could not open /sys/class/gpio/export\r\n");
         return false;
     }
 
-    /* Prepare buffer */
-    snprintf(buf, 3, "%d", gpio);
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d", gpio);
 
-    /* Try to reserve GPIO */
     if (write(fd, buf, strlen(buf)) < 0) {
         close(fd);
+        if (errno == EBUSY) {
+            return true; /* Already exported by another process */
+        }
         fprintf(stderr, "ERROR~ gpio_reserve: could not write '%s' to /sys/class/gpio/export\r\n", buf);
         return false;
     }
 
-    /* Close the GPIO controller class */
-    if (close(fd) < 0) {
-        fprintf(stderr, "ERROR~ gpio_reserve: could not close /sys/class/gpio/export\r\n");
-        return false;
-    }
-
-    /* Success */
+    close(fd);
     return true;
 }
 
@@ -61,33 +58,31 @@ static bool gpio_reserve(int gpio) {
  * @return true if the release was successful.
  */
 static bool gpio_release(int gpio) {
-    int fd; /* File descriptor for GPIO controller class */
-    char buf[3]; /* Write buffer */
+    char path[64];
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d", gpio);
+    if (access(path, F_OK) != 0) {
+        return true; /* Already released */
+    }
 
-    /* Try to open GPIO controller class */
-    fd = open("/sys/class/gpio/unexport", O_WRONLY);
+    int fd = open("/sys/class/gpio/unexport", O_WRONLY);
     if (fd < 0) {
-        /* The file could not be opened */
        fprintf(stderr, "ERROR~ gpio_release: could not open /sys/class/gpio/unexport\r\n");
        return false;
     }
 
-    /* Prepare buffer */
-    snprintf(buf, 3, "%d", gpio);
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d", gpio);
 
-    /* Try to release GPIO */
     if (write(fd, buf, strlen(buf)) < 0) {
+        close(fd);
+        if (errno == EINVAL) {
+            return true;
+        }
         fprintf(stderr, "ERROR~ gpio_release: could not write /sys/class/gpio/unexport\r\n");
         return false;
     }
 
-    /* Close the GPIO controller class */
-    if (close(fd) < 0) {
-        fprintf(stderr, "ERROR~ gpio_release: could not close /sys/class/gpio/unexport\r\n");
-        return false;
-    }
-
-    /* Success */
+    close(fd);
     return true;
 }
 
@@ -519,8 +514,12 @@ int lgw_spi_open(char *spi_path) {
     int a = 0, b = 0;
     int i, spidev = 0;
 
-    /* open SPI device */
+    /* open SPI device - with fallback from spidev2.0 to spidev1.1 */
     spidev = open(spi_path, O_RDWR);
+    if (spidev < 0 && strcmp(spi_path, "/dev/spidev2.0") == 0) {
+        spi_path = "/dev/spidev1.1";
+        spidev = open(spi_path, O_RDWR);
+    }
     if (spidev < 0) {
         fprintf(stderr, "ERROR~ failed to open SPI device %s\n", spi_path);
         return -1;
@@ -590,10 +589,10 @@ bool get_radio_version(radiodev *dev)
         fprintf(stderr, "INFO~ %s: SX1276 detected, starting.\n", dev->desc);
         return true;
     } else {
-        //fprintf(stderr, "ERROR~ %s: SX1276 Not Detected.\n", dev->desc);
+        fprintf(stderr, "DEBUG~ %s: REG_VERSION read = 0x%02x (expected 0x12, spiport=%d, rst=%d)\n",
+                dev->desc, version, dev->spiport, dev->rst);
         return false;
     }
-
 }
 
 void setup_channel(radiodev *dev)
