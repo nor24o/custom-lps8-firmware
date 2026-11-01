@@ -14,6 +14,7 @@ function index()
     entry({"admin", "lora", "api_packets"}, call("action_packets")).leaf = true
     entry({"admin", "lora", "api_log"}, call("action_log")).leaf = true
     entry({"admin", "lora", "action_service"}, call("action_service")).leaf = true
+    entry({"admin", "lora", "api_tx_test"}, call("action_tx_test")).leaf = true
 end
 
 local function read_config_json()
@@ -88,7 +89,15 @@ function action_status()
         crc_err = tonumber(live.crc_err) or 0,
         tx_err = tonumber(live.tx_err) or 0,
         q_depth = tonumber(live.q_depth) or 0,
-        q_drop = tonumber(live.q_drop) or 0
+        q_drop = tonumber(live.q_drop) or 0,
+        temp_c = tonumber(live.temp_c) or 0,
+        temp_ok = (live.temp_ok == true),
+        inst_cnt_us = tonumber(live.inst_cnt_us) or 0,
+        trig_cnt_us = tonumber(live.trig_cnt_us) or 0,
+        tx_status = live.tx_status or "TX_OFF",
+        rx_status = live.rx_status or "RX_OFF",
+        sf_mask = tonumber(live.sf_mask) or tonumber(cfg.sf_mask) or 255,
+        ch_detect = live.ch_detect or {0,0,0,0,0,0,0,0}
     }
 
     http.prepare_content("application/json")
@@ -137,7 +146,20 @@ end
 
 function action_packets()
     local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
     local packets = {}
+
+    local f = io.open("/tmp/lora_packets.json", "r")
+    if f then
+        local raw = f:read("*a")
+        f:close()
+        local parsed = raw and jsonc.parse(raw)
+        if parsed and type(parsed) == "table" and #parsed > 0 then
+            http.prepare_content("application/json")
+            http.write_json(parsed)
+            return
+        end
+    end
 
     local pipe = io.popen("(cat /var/log/lora.log 2>/dev/null; logread 2>/dev/null) | grep -F '[RX]' | tail -n 30")
     if pipe then
@@ -164,6 +186,39 @@ function action_packets()
 
     http.prepare_content("application/json")
     http.write_json(packets)
+end
+
+function action_tx_test()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local nixio = require "nixio"
+
+    local body = http.content()
+    local parsed = body and jsonc.parse(body)
+    if not parsed or type(parsed) ~= "table" then
+        http.status(400, "Invalid JSON")
+        http.prepare_content("application/json")
+        http.write_json({ error = "Invalid JSON payload" })
+        return
+    end
+
+    local cfg = read_config_json()
+    local port_down = tonumber(cfg.port_down) or 5556
+
+    local sock = nixio.socket("inet", "dgram")
+    if not sock then
+        http.status(500, "Socket Error")
+        http.prepare_content("application/json")
+        http.write_json({ error = "Failed to create UDP socket" })
+        return
+    end
+
+    local payload_str = jsonc.stringify(parsed)
+    sock:sendto(payload_str, "127.0.0.1", port_down)
+    sock:close()
+
+    http.prepare_content("application/json")
+    http.write_json({ status = "sent", port = port_down })
 end
 
 function action_log()

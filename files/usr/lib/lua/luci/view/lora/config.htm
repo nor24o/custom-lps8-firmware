@@ -428,6 +428,68 @@
         </div>
     </div>
 
+    <!-- 8. Advanced HAL Features (Optional) -->
+    <div class="cfg-section">
+        <div class="cfg-hdr" onclick="toggleSec(this)">
+            <h3><%:8. Advanced SX1302 HAL Features (Optional)%></h3><span>▾</span>
+        </div>
+        <div class="cfg-body cfg-grid hidden">
+            <div>
+                <div class="sub-hdr"><%:Demodulator & Health Telemetry%></div>
+                <div class="cfg-field">
+                    <label><%:Multi-SF Demodulator Bitmask (sf_mask: 1=SF5 .. 128=SF12)%></label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px;">
+                        <label><input type="checkbox" id="sfm_0" checked="checked" /> SF5</label>
+                        <label><input type="checkbox" id="sfm_1" checked="checked" /> SF6</label>
+                        <label><input type="checkbox" id="sfm_2" checked="checked" /> SF7</label>
+                        <label><input type="checkbox" id="sfm_3" checked="checked" /> SF8</label>
+                        <label><input type="checkbox" id="sfm_4" checked="checked" /> SF9</label>
+                        <label><input type="checkbox" id="sfm_5" checked="checked" /> SF10</label>
+                        <label><input type="checkbox" id="sfm_6" checked="checked" /> SF11</label>
+                        <label><input type="checkbox" id="sfm_7" checked="checked" /> SF12</label>
+                    </div>
+                    <div class="cfg-hint">Default: 255 (all SF5–SF12 enabled on Multi-SF channels 0–7)</div>
+                </div>
+                <div class="cfg-field">
+                    <label><input type="checkbox" id="c_mcu_health_check" checked="checked" /> <%:AGC/ARB MCU Health Check (sx1302_update)%></label>
+                </div>
+                <div class="cfg-field">
+                    <label><input type="checkbox" id="c_temp_monitor_enable" checked="checked" /> <%:Thermal Sensor Telemetry (lgw_get_temperature)%></label>
+                </div>
+                <div class="cfg-field">
+                    <label><input type="checkbox" id="c_ext_rx_metadata" checked="checked" /> <%:Extended RX Metadata (snr_min/max, crc, ftime)%></label>
+                </div>
+                <div class="cfg-field">
+                    <label><input type="checkbox" id="c_ftime_enable" /> <%:Fine Timestamping (ftime_enable — SX1303 only)%></label>
+                </div>
+            </div>
+            <div>
+                <div class="sub-hdr"><%:LoRa Std Implicit Header & FSK Sync%></div>
+                <div class="cfg-field">
+                    <label><input type="checkbox" id="c_chan_lora_std_implicit_hdr" /> <%:LoRa Std Implicit Header Mode (chan_lora_std_implicit_hdr)%></label>
+                </div>
+                <div class="cfg-field">
+                    <label><%:Implicit Payload Length Bytes (chan_lora_std_implicit_len)%></label>
+                    <input id="c_chan_lora_std_implicit_len" type="number" placeholder="0" />
+                </div>
+                <div class="cfg-field">
+                    <label><input type="checkbox" id="c_chan_lora_std_implicit_crc" /> <%:Implicit Header CRC Enable (chan_lora_std_implicit_crc)%></label>
+                </div>
+                <div class="cfg-field">
+                    <label><%:Implicit Header Coding Rate (chan_lora_std_implicit_cr)%></label>
+                    <select id="c_chan_lora_std_implicit_cr">
+                        <option value="4/5">4/5</option><option value="4/6">4/6</option>
+                        <option value="4/7">4/7</option><option value="4/8">4/8</option>
+                    </select>
+                </div>
+                <div class="cfg-field">
+                    <label><%:FSK Sync Word Size Bytes (chan_fsk_sync_size, 1–8)%></label>
+                    <input id="c_chan_fsk_sync_size" type="number" placeholder="3" />
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="cfg-actions">
         <button type="button" class="cbi-button cbi-button-apply" onclick="saveConfig()"><%:Save & Restart raw_lora_app%></button>
         <button type="button" class="cbi-button cbi-button-reset" onclick="loadConfig()"><%:Reload from /etc/lora/config.json%></button>
@@ -585,6 +647,21 @@ function loadConfig() {
                 sv('c_tx_default_invert', d.tx_default_invert);
                 sv('c_tx_free_timeout_ms', d.tx_free_timeout_ms);
 
+                // Optional HAL features (with backward-compatible defaults)
+                var sfm = (d.sf_mask !== undefined && d.sf_mask !== null) ? parseInt(d.sf_mask, 10) : 255;
+                for (var b = 0; b < 8; b++) {
+                    sv('sfm_' + b, (sfm & (1 << b)) !== 0);
+                }
+                sv('c_mcu_health_check', d.mcu_health_check !== undefined ? d.mcu_health_check : true);
+                sv('c_temp_monitor_enable', d.temp_monitor_enable !== undefined ? d.temp_monitor_enable : true);
+                sv('c_ext_rx_metadata', d.ext_rx_metadata !== undefined ? d.ext_rx_metadata : true);
+                sv('c_ftime_enable', d.ftime_enable !== undefined ? d.ftime_enable : false);
+                sv('c_chan_lora_std_implicit_hdr', d.chan_lora_std_implicit_hdr !== undefined ? d.chan_lora_std_implicit_hdr : false);
+                sv('c_chan_lora_std_implicit_len', d.chan_lora_std_implicit_len !== undefined ? d.chan_lora_std_implicit_len : 0);
+                sv('c_chan_lora_std_implicit_crc', d.chan_lora_std_implicit_crc !== undefined ? d.chan_lora_std_implicit_crc : false);
+                sv('c_chan_lora_std_implicit_cr', d.chan_lora_std_implicit_cr || "4/5");
+                sv('c_chan_fsk_sync_size', d.chan_fsk_sync_size !== undefined ? d.chan_fsk_sync_size : 3);
+
                 var tb = document.getElementById("lut-tbody");
                 tb.innerHTML = "";
                 if (d.tx_gain_lut && d.tx_gain_lut.length) {
@@ -617,6 +694,12 @@ function saveConfig() {
             dig_gain: gi('lut_diggain_' + j)
         });
     }
+
+    var sfmVal = 0;
+    for (var b = 0; b < 8; b++) {
+        if (gb('sfm_' + b)) sfmVal |= (1 << b);
+    }
+    if (sfmVal === 0) sfmVal = 255;
 
     var obj = {
         target_ip: gv('c_target_ip'),
@@ -663,7 +746,17 @@ function saveConfig() {
         tx_default_preamble: gi('c_tx_default_preamble'),
         tx_default_invert: gb('c_tx_default_invert'),
         tx_free_timeout_ms: gi('c_tx_free_timeout_ms'),
-        tx_gain_lut: lutOut
+        tx_gain_lut: lutOut,
+        sf_mask: sfmVal,
+        mcu_health_check: gb('c_mcu_health_check'),
+        temp_monitor_enable: gb('c_temp_monitor_enable'),
+        ext_rx_metadata: gb('c_ext_rx_metadata'),
+        ftime_enable: gb('c_ftime_enable'),
+        chan_lora_std_implicit_hdr: gb('c_chan_lora_std_implicit_hdr'),
+        chan_lora_std_implicit_len: gi('c_chan_lora_std_implicit_len'),
+        chan_lora_std_implicit_crc: gb('c_chan_lora_std_implicit_crc'),
+        chan_lora_std_implicit_cr: gv('c_chan_lora_std_implicit_cr') || "4/5",
+        chan_fsk_sync_size: gi('c_chan_fsk_sync_size') || 3
     };
 
     var msg = document.getElementById("save-msg");
