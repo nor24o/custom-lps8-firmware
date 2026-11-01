@@ -7,6 +7,7 @@ function index()
 
     entry({"admin", "lora", "status"}, template("lora/status"), _("Realtime Status"), 10)
     entry({"admin", "lora", "config"}, template("lora/config"), _("Settings & Config"), 20)
+    entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout & Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
 
     entry({"admin", "lora", "api_status"}, call("action_status")).leaf = true
