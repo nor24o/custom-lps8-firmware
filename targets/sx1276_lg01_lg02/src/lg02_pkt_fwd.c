@@ -167,6 +167,47 @@ static void load_config(const char *path)
     CFG_STR ("led_rx",               g_cfg.led_rx)
     CFG_STR ("led_tx",               g_cfg.led_tx)
 
+    /* Also support nested radio_0 and radio_1 if defined */
+    JSON_Object *r0 = json_object_get_object(obj, "radio_0");
+    if (r0) {
+        if ((val = json_object_get_value(r0, "freq")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.rx_freq = (uint32_t)json_value_get_number(val);
+        if ((val = json_object_get_value(r0, "sf")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.rx_sf = (uint8_t)json_value_get_number(val);
+        if ((val = json_object_get_value(r0, "bw")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.rx_bw = (uint32_t)json_value_get_number(val);
+        if ((val = json_object_get_value(r0, "preamble")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.rx_prlen = (uint8_t)json_value_get_number(val);
+        if ((str = json_object_get_string(r0, "sync_word"))) {
+            if (strcmp(str, "public") == 0 || strcmp(str, "0x34") == 0) g_cfg.rx_syncword = 52;
+            else if (strcmp(str, "private") == 0 || strcmp(str, "0x12") == 0) g_cfg.rx_syncword = 18;
+        }
+    }
+    JSON_Object *r1 = json_object_get_object(obj, "radio_1");
+    if (r1) {
+        if ((val = json_object_get_value(r1, "freq")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.tx_freq = (uint32_t)json_value_get_number(val);
+        if ((val = json_object_get_value(r1, "sf")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.tx_sf = (uint8_t)json_value_get_number(val);
+        if ((val = json_object_get_value(r1, "bw")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.tx_bw = (uint32_t)json_value_get_number(val);
+        if ((val = json_object_get_value(r1, "tx_power")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.tx_power = (uint8_t)json_value_get_number(val);
+        if ((val = json_object_get_value(r1, "preamble")) && json_value_get_type(val) == JSONNumber)
+            g_cfg.tx_prlen = (uint8_t)json_value_get_number(val);
+        if ((str = json_object_get_string(r1, "sync_word"))) {
+            if (strcmp(str, "public") == 0 || strcmp(str, "0x34") == 0) g_cfg.tx_syncword = 52;
+            else if (strcmp(str, "private") == 0 || strcmp(str, "0x12") == 0) g_cfg.tx_syncword = 18;
+        }
+    }
+
+    /* Auto-scale MHz inputs to Hz */
+    if (g_cfg.rx_freq > 0 && g_cfg.rx_freq < 1000000) g_cfg.rx_freq *= 1000000;
+    if (g_cfg.tx_freq > 0 && g_cfg.tx_freq < 1000000) g_cfg.tx_freq *= 1000000;
+    /* Auto-scale Hz bandwidth to kHz */
+    if (g_cfg.rx_bw > 1000) g_cfg.rx_bw /= 1000;
+    if (g_cfg.tx_bw > 1000) g_cfg.tx_bw /= 1000;
+
 #undef CFG_STR
 #undef CFG_U32
 #undef CFG_U16
@@ -783,12 +824,25 @@ static void *thread_status_server(void *arg)
             "\"rx\":%u,\"tx\":%u,"
             "\"tx_err\":%u,"
             "\"q_depth\":%u,\"q_drop\":%u,"
-            "\"rx_mhz\":%.6f,\"tx_mhz\":%.6f}\n",
+            "\"rx_mhz\":%.6f,\"tx_mhz\":%.6f,"
+            "\"rx_sf\":%u,\"tx_sf\":%u,"
+            "\"rx_bw\":%u,\"tx_bw\":%u,"
+            "\"rx_cr\":%u,\"tx_cr\":%u,"
+            "\"syncword\":%u,\"tx_power\":%u}\n",
             (unsigned long long)g_gateway_eui,
             (uint32_t)(time(NULL) - g_start_time),
             rx, tx, txerr,
             (uint32_t)txq_count(&txq), qdrop,
-            rxdev->freq / 1e6, txdev->freq / 1e6);
+            rxdev ? (rxdev->freq / 1e6) : 0.0,
+            txdev ? (txdev->freq / 1e6) : 0.0,
+            rxdev ? rxdev->sf : 0,
+            txdev ? txdev->sf : 0,
+            rxdev ? (rxdev->bw / 1000) : 0,
+            txdev ? (txdev->bw / 1000) : 0,
+            rxdev ? rxdev->cr : 0,
+            txdev ? txdev->cr : 0,
+            rxdev ? rxdev->syncword : 0,
+            txdev ? txdev->power : 0);
         write(cli_fd, buf, n);
         close(cli_fd);
     }

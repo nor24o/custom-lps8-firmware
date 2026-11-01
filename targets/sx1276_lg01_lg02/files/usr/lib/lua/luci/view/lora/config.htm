@@ -30,9 +30,6 @@
 .cfg-body {
     padding: 16px 18px;
 }
-.cfg-body.hidden {
-    display: none;
-}
 .cfg-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -55,7 +52,7 @@
 .cfg-field input[type="number"],
 .cfg-field select {
     width: 100%;
-    padding: 6px 10px;
+    padding: 7px 10px;
     font-size: 13px;
     border: 1px solid #d1d5da;
     border-radius: 4px;
@@ -68,29 +65,16 @@
     color: #6a737d;
     margin-top: 3px;
 }
-.cfg-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-}
-.cfg-table th {
-    background: #f6f8fa;
-    padding: 8px;
-    text-align: left;
-    border-bottom: 2px solid #e1e4e8;
-    font-size: 11px;
-    text-transform: uppercase;
-    color: #586069;
-}
-.cfg-table td {
-    padding: 6px 8px;
-    border-bottom: 1px solid #eaecef;
-}
-.cfg-table input, .cfg-table select {
-    padding: 4px 6px;
-    font-size: 12px;
-    border: 1px solid #d1d5da;
+.badge-pin {
+    background: #e1f5fe;
+    color: #0277bd;
+    border: 1px solid #b3e5fc;
     border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-family: monospace;
+    margin-top: 6px;
+    display: inline-block;
 }
 .cfg-actions {
     background: #f6f8fa;
@@ -102,689 +86,412 @@
     gap: 12px;
     margin-top: 16px;
 }
-.sub-hdr {
+.preset-btn {
+    background: #eef2f5;
+    border: 1px solid #cfd8dc;
+    border-radius: 4px;
+    padding: 6px 12px;
     font-size: 12px;
-    font-weight: 700;
-    color: #586069;
-    text-transform: uppercase;
-    margin-bottom: 10px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #eaecef;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    display: inline-block;
+    transition: background 0.15s;
+}
+.preset-btn:hover {
+    background: #0366d6;
+    color: #fff;
+    border-color: #0366d6;
+}
+.toast-msg {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
 }
 </style>
 
 <div>
-    <h2><%:raw_lora_app Settings and Configuration (/etc/lora/config.json)%></h2>
-    <p class="description"><%:Directly configure all parameters for /usr/bin/raw_lora_app. Saving writes /etc/lora/config.json and restarts raw_lora_app.%></p>
+    <h2><%:Dragino LG01 / LG02 LoRa Configuration (/etc/lora/config.json)%></h2>
+    <p class="description"><%:Configure the primary and secondary SX1276 transceivers with exact frequencies, spreading factors, and LoRaWAN gateway settings.%></p>
 
-    <!-- 1. Network -->
+    <!-- QUICK PRESETS -->
+    <div class="cfg-section" style="margin-bottom: 14px;">
+        <div style="padding: 12px 18px; background: #fff;">
+            <div style="font-size: 12px; font-weight: 700; color: #586069; text-transform: uppercase; margin-bottom: 8px;">
+                <%:Quick Regional Band Presets: Click to Auto-Fill Radios%>
+            </div>
+            <div>
+                <button type="button" class="preset-btn" onclick="applyPreset('EU868', 868.1, 7, 868.3, 9)">EU868 (RX: 868.1 SF7 | TX: 868.3 SF9)</button>
+                <button type="button" class="preset-btn" onclick="applyPreset('US915', 902.32, 7, 923.3, 9)">US915 (RX: 902.32 SF7 | TX: 923.3 SF9)</button>
+                <button type="button" class="preset-btn" onclick="applyPreset('AS923', 923.2, 7, 923.4, 9)">AS923 (RX: 923.2 SF7 | TX: 923.4 SF9)</button>
+                <button type="button" class="preset-btn" onclick="applyPreset('AU915', 915.2, 7, 923.3, 9)">AU915 (RX: 915.2 SF7 | TX: 923.3 SF9)</button>
+                <button type="button" class="preset-btn" onclick="applyPreset('IN865', 865.0625, 7, 865.4025, 9)">IN865 (RX: 865.06 SF7 | TX: 865.40 SF9)</button>
+                <button type="button" class="preset-btn" onclick="applyPreset('RU864', 868.9, 7, 869.1, 9)">RU864 (RX: 868.9 SF7 | TX: 869.1 SF9)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. SERVER & NETWORK -->
     <div class="cfg-section">
-        <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:1. Network and Upstream Target%></h3><span>▾</span>
+        <div class="cfg-hdr">
+            <h3><%:1. LoRaWAN Server and Network Settings%></h3>
         </div>
         <div class="cfg-body cfg-grid">
             <div>
                 <div class="cfg-field">
                     <label><%:Target Server IP / Hostname (target_ip)%></label>
-                    <input id="c_target_ip" type="text" placeholder="192.168.1.8" />
+                    <input id="c_target_ip" type="text" placeholder="192.168.1.8 or eu1.cloud.thethings.network" />
+                    <div class="cfg-hint"><%:IP or DNS address of your LoRaWAN Network Server (TTN, ChirpStack, AWS IoT Core, or local listener).%></div>
+                </div>
+                <div class="cfg-field">
+                    <label><%:Gateway EUI (gateway_id)%></label>
+                    <input id="c_gateway_id" type="text" placeholder="A84041FFFF16C21C" maxlength="16" />
+                    <div class="cfg-hint"><%:16-character hexadecimal gateway identifier registered on your Network Server.%></div>
                 </div>
                 <div class="cfg-field">
                     <label><%:UDP Uplink Port (port_up)%></label>
                     <input id="c_port_up" type="number" min="1" max="65535" value="5555" />
+                    <div class="cfg-hint"><%:Standard Semtech UDP packet forwarder uplink port (usually 1700 or 5555).%></div>
                 </div>
+            </div>
+            <div>
                 <div class="cfg-field">
                     <label><%:UDP Downlink Port (port_down)%></label>
                     <input id="c_port_down" type="number" min="1" max="65535" value="5556" />
-                </div>
-            </div>
-            <div>
-                <div class="cfg-field">
-                    <label><%:TCP Status Server Port (status_port, 0 = off)%></label>
-                    <input id="c_status_port" type="number" min="0" max="65535" value="5557" />
+                    <div class="cfg-hint"><%:Standard Semtech UDP packet forwarder downlink port (usually 1700 or 5556).%></div>
                 </div>
                 <div class="cfg-field">
-                    <label><%:Heartbeat Interval in Seconds (heartbeat_interval_s)%></label>
+                    <label><%:Heartbeat Interval (heartbeat_interval_s)%></label>
                     <input id="c_heartbeat_interval_s" type="number" min="1" max="3600" value="10" />
+                    <div class="cfg-hint"><%:Interval in seconds for periodic gateway PUSH_DATA status telemetry to server.%></div>
+                </div>
+                <div class="cfg-field">
+                    <label><%:Local TCP Status Server Port (status_port)%></label>
+                    <input id="c_status_port" type="number" min="0" max="65535" value="5557" />
+                    <div class="cfg-hint"><%:Local TCP port queryable by LuCI web status for realtime packet counters (default: 5557).%></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 2. Hardware -->
+    <!-- 2. RADIO 1 (PRIMARY / RX TRANSCEIVER) -->
     <div class="cfg-section">
-        <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:2. Hardware, SPI and GPIO%></h3><span>▾</span>
-        </div>
-        <div class="cfg-body cfg-grid">
-            <div>
-                <div class="cfg-field">
-                    <label><%:SPI Device Path (spi_path)%></label>
-                    <input id="c_spi_path" type="text" placeholder="/dev/spidev1.0" />
-                </div>
-                <div class="cfg-field">
-                    <label><%:SX1302 Reset GPIO (reset_gpio)%></label>
-                    <input id="c_reset_gpio" type="text" placeholder="23" />
-                </div>
-                <div class="cfg-field">
-                    <label><%:PA/LNA Switch GPIO or LED (pa_gpio)%></label>
-                    <input id="c_pa_gpio" type="text" placeholder="dragino2:red:wan" />
-                    <div class="cfg-hint"><%:Numeric sysfs GPIO (e.g. 17) or OpenWrt LED name (e.g. dragino2:red:wan).%></div>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Clock Source (clksrc)%></label>
-                    <select id="c_clksrc">
-                        <option value="0">0 — RF Chain 0</option>
-                        <option value="1">1 — RF Chain 1</option>
-                    </select>
-                </div>
-            </div>
-            <div>
-                <div class="cfg-field">
-                    <label><%:Sync Word (sync_word)%></label>
-                    <select id="c_sync_word">
-                        <option value="private">private (0x12)</option>
-                        <option value="public">public / LoRaWAN (0x34)</option>
-                    </select>
-                </div>
-                <div class="cfg-field">
-                    <label>
-                        <input type="checkbox" id="c_full_duplex" /> <%:Full Duplex (full_duplex)%>
-                    </label>
-                </div>
-                <div class="cfg-field">
-                    <label><%:RX Activity LED (led_rx)%></label>
-                    <input id="c_led_rx" type="text" placeholder="" />
-                </div>
-                <div class="cfg-field">
-                    <label><%:TX Activity LED (led_tx)%></label>
-                    <input id="c_led_tx" type="text" placeholder="" />
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 3. RF Chains -->
-    <div class="cfg-section">
-        <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:3. RF Chains (RF0 and RF1)%></h3><span>▾</span>
-        </div>
-        <div class="cfg-body cfg-grid">
-            <div>
-                <div class="sub-hdr"><%:RF Chain 0%></div>
-                <div class="cfg-field">
-                    <label><%:Radio Type (rf0_type)%></label>
-                    <select id="c_rf0_type">
-                        <option value="SX1250">SX1250</option>
-                        <option value="SX1255">SX1255</option>
-                        <option value="SX1257">SX1257</option>
-                    </select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Center Frequency Hz (rf0_freq)%></label>
-                    <input id="c_rf0_freq" type="number" placeholder="867500000" oninput="updateFreqPreviews()" />
-                    <div class="cfg-hint" id="rf0-mhz"></div>
-                </div>
-                <div class="cfg-field">
-                    <label><%:RSSI Offset dB (rf0_rssi_offset)%></label>
-                    <input id="c_rf0_rssi_offset" type="number" step="0.1" placeholder="-215.4" />
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_rf0_tx_enable" checked="checked" /> <%:TX Enable (rf0_tx_enable)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_rf0_single_input" /> <%:Single Input Mode (rf0_single_input)%></label>
-                </div>
-            </div>
-            <div>
-                <div class="sub-hdr"><%:RF Chain 1%></div>
-                <div class="cfg-field">
-                    <label><%:Radio Type (rf1_type)%></label>
-                    <select id="c_rf1_type">
-                        <option value="SX1250">SX1250</option>
-                        <option value="SX1255">SX1255</option>
-                        <option value="SX1257">SX1257</option>
-                    </select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Center Frequency Hz (rf1_freq)%></label>
-                    <input id="c_rf1_freq" type="number" placeholder="868500000" oninput="updateFreqPreviews()" />
-                    <div class="cfg-hint" id="rf1-mhz"></div>
-                </div>
-                <div class="cfg-field">
-                    <label><%:RSSI Offset dB (rf1_rssi_offset)%></label>
-                    <input id="c_rf1_rssi_offset" type="number" step="0.1" placeholder="-215.4" />
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_rf1_tx_enable" /> <%:TX Enable (rf1_tx_enable)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_rf1_single_input" /> <%:Single Input Mode (rf1_single_input)%></label>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 4. Channel Plan -->
-    <div class="cfg-section">
-        <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:4. Channel Plan (8 MultiSF Channels)%></h3><span>▾</span>
+        <div class="cfg-hdr">
+            <h3><%:2. Radio 1 — Primary / RX Transceiver (SX1276)%></h3>
         </div>
         <div class="cfg-body">
-            <table class="cfg-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th><%:Radio Chain (chan_radio)%></th>
-                        <th><%:IF Offset Hz (chan_if)%></th>
-                        <th><%:Absolute Frequency%></th>
-                    </tr>
-                </thead>
-                <tbody id="ch-tbody"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- 5. LoRa Std and FSK -->
-    <div class="cfg-section">
-        <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:5. LoRa Std (Ch 8) and FSK (Ch 9)%></h3><span>▾</span>
-        </div>
-        <div class="cfg-body cfg-grid">
-            <div>
-                <div class="sub-hdr"><%:LoRa Std Channel (Ch 8)%></div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_chan_lora_std_enable" /> <%:Enable (chan_lora_std_enable)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Radio Chain (0 or 1)%></label>
-                    <select id="c_chan_lora_std_radio"><option value="0">0</option><option value="1">1</option></select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:IF Offset Hz%></label>
-                    <input id="c_chan_lora_std_if" type="number" placeholder="-200000" />
-                </div>
-                <div class="cfg-field">
-                    <label><%:Bandwidth kHz%></label>
-                    <select id="c_chan_lora_std_bw">
-                        <option value="125">125</option><option value="250">250</option><option value="500">500</option>
-                    </select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Spreading Factor%></label>
-                    <select id="c_chan_lora_std_sf">
-                        <option value="5">SF5</option><option value="6">SF6</option><option value="7">SF7</option>
-                        <option value="8">SF8</option><option value="9">SF9</option><option value="10">SF10</option>
-                        <option value="11">SF11</option><option value="12">SF12</option>
-                    </select>
-                </div>
+            <div class="badge-pin">
+                <%:Hardware: /dev/spidev1.0 | SCK: GPIO14 | MOSI: GPIO16 | MISO: GPIO26 | CS: GPIO15 | RST: GPIO8 | DIO0: GPIO7 | DIO1: GPIO6%>
             </div>
-            <div>
-                <div class="sub-hdr"><%:FSK Channel (Ch 9)%></div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_chan_fsk_enable" /> <%:Enable (chan_fsk_enable)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Radio Chain (0 or 1)%></label>
-                    <select id="c_chan_fsk_radio"><option value="0">0</option><option value="1">1</option></select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:IF Offset Hz%></label>
-                    <input id="c_chan_fsk_if" type="number" placeholder="300000" />
-                </div>
-                <div class="cfg-field">
-                    <label><%:Bandwidth kHz%></label>
-                    <input id="c_chan_fsk_bw" type="number" placeholder="125" />
-                </div>
-                <div class="cfg-field">
-                    <label><%:Data Rate bps%></label>
-                    <input id="c_chan_fsk_datarate" type="number" placeholder="50000" />
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 6. TX Defaults -->
-    <div class="cfg-section">
-        <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:6. TX Defaults%></h3><span>▾</span>
-        </div>
-        <div class="cfg-body cfg-grid">
-            <div>
-                <div class="cfg-field">
-                    <label><%:Default TX Frequency Hz (tx_default_freq)%></label>
-                    <input id="c_tx_default_freq" type="number" placeholder="868100000" oninput="updateFreqPreviews()" />
-                    <div class="cfg-hint" id="txd-mhz"></div>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Default Spreading Factor (tx_default_sf)%></label>
-                    <select id="c_tx_default_sf">
-                        <option value="5">SF5</option><option value="6">SF6</option><option value="7" selected="selected">SF7</option>
-                        <option value="8">SF8</option><option value="9">SF9</option><option value="10">SF10</option>
-                        <option value="11">SF11</option><option value="12">SF12</option>
-                    </select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Default TX Power dBm (tx_default_power)%></label>
-                    <input id="c_tx_default_power" type="number" placeholder="14" />
-                </div>
-                <div class="cfg-field">
-                    <label><%:Default TX RF Chain (tx_default_rfch)%></label>
-                    <select id="c_tx_default_rfch"><option value="0">0</option><option value="1">1</option></select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Default Code Rate (tx_default_coderate)%></label>
-                    <select id="c_tx_default_coderate">
-                        <option value="4/5">4/5</option><option value="4/6">4/6</option>
-                        <option value="4/7">4/7</option><option value="4/8">4/8</option>
-                    </select>
-                </div>
-            </div>
-            <div>
-                <div class="cfg-field">
-                    <label><%:Default Bandwidth kHz (tx_default_bandwidth)%></label>
-                    <select id="c_tx_default_bandwidth">
-                        <option value="125">125</option><option value="250">250</option><option value="500">500</option>
-                    </select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Preamble Length (tx_default_preamble)%></label>
-                    <input id="c_tx_default_preamble" type="number" placeholder="8" />
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_tx_default_invert" /> <%:Invert IQ (tx_default_invert)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><%:TX Free Timeout ms (tx_free_timeout_ms)%></label>
-                    <input id="c_tx_free_timeout_ms" type="number" placeholder="2000" />
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 7. TX Gain LUT -->
-    <div class="cfg-section">
-        <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:7. TX Gain LUT (tx_gain_lut)%></h3><span>▾</span>
-        </div>
-        <div class="cfg-body">
-            <table class="cfg-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>rf_power (dBm)</th>
-                        <th>pa_gain</th>
-                        <th>pwr_idx</th>
-                        <th>dac_gain</th>
-                        <th>mix_gain</th>
-                        <th>dig_gain</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="lut-tbody"></tbody>
-            </table>
-            <div style="margin-top: 10px;">
-                <button type="button" class="cbi-button cbi-button-add" onclick="lutAddRow()"><%:+ Add LUT Entry%></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 8. Advanced HAL Features (Optional) -->
-    <div class="cfg-section">
-        <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:8. Advanced SX1302 HAL Features (Optional)%></h3><span>▾</span>
-        </div>
-        <div class="cfg-body cfg-grid hidden">
-            <div>
-                <div class="sub-hdr"><%:Demodulator and Health Telemetry%></div>
-                <div class="cfg-field">
-                    <label><%:Multi-SF Demodulator Bitmask (sf_mask: 1=SF5 .. 128=SF12)%></label>
-                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px;">
-                        <label><input type="checkbox" id="sfm_0" checked="checked" /> SF5</label>
-                        <label><input type="checkbox" id="sfm_1" checked="checked" /> SF6</label>
-                        <label><input type="checkbox" id="sfm_2" checked="checked" /> SF7</label>
-                        <label><input type="checkbox" id="sfm_3" checked="checked" /> SF8</label>
-                        <label><input type="checkbox" id="sfm_4" checked="checked" /> SF9</label>
-                        <label><input type="checkbox" id="sfm_5" checked="checked" /> SF10</label>
-                        <label><input type="checkbox" id="sfm_6" checked="checked" /> SF11</label>
-                        <label><input type="checkbox" id="sfm_7" checked="checked" /> SF12</label>
+            <div class="cfg-grid" style="margin-top: 14px;">
+                <div>
+                    <div class="cfg-field">
+                        <label><%:Radio 1 Frequency in MHz (rx_freq)%></label>
+                        <input id="c_rx_freq_mhz" type="text" placeholder="868.100" />
+                        <div class="cfg-hint"><%:Uplink listening frequency in MHz (e.g. 868.100 for EU868, 902.320 for US915).%></div>
                     </div>
-                    <div class="cfg-hint">Default: 255 (all SF5–SF12 enabled on Multi-SF channels 0–7)</div>
+                    <div class="cfg-field">
+                        <label><%:Radio 1 Spreading Factor (rx_sf)%></label>
+                        <select id="c_rx_sf">
+                            <option value="6">SF6 — 64 chips/symbol (Fastest)</option>
+                            <option value="7" selected="selected">SF7 — 128 chips/symbol (DR5 — Recommended Standard)</option>
+                            <option value="8">SF8 — 256 chips/symbol (DR4)</option>
+                            <option value="9">SF9 — 512 chips/symbol (DR3)</option>
+                            <option value="10">SF10 — 1024 chips/symbol (DR2)</option>
+                            <option value="11">SF11 — 2048 chips/symbol (DR1)</option>
+                            <option value="12">SF12 — 4096 chips/symbol (DR0 — Longest Range)</option>
+                        </select>
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 1 Bandwidth (rx_bw)%></label>
+                        <select id="c_rx_bw">
+                            <option value="125" selected="selected">125 kHz (Standard LoRaWAN)</option>
+                            <option value="250">250 kHz</option>
+                            <option value="500">500 kHz</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_mcu_health_check" checked="checked" /> <%:AGC/ARB MCU Health Check (sx1302_update)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_temp_monitor_enable" checked="checked" /> <%:Thermal Sensor Telemetry (lgw_get_temperature)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_ext_rx_metadata" checked="checked" /> <%:Extended RX Metadata (snr_min/max, crc, ftime)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_ftime_enable" /> <%:Fine Timestamping (ftime_enable — SX1303 only)%></label>
-                </div>
-            </div>
-            <div>
-                <div class="sub-hdr"><%:LoRa Std Implicit Header and FSK Sync%></div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_chan_lora_std_implicit_hdr" /> <%:LoRa Std Implicit Header Mode (chan_lora_std_implicit_hdr)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Implicit Payload Length Bytes (chan_lora_std_implicit_len)%></label>
-                    <input id="c_chan_lora_std_implicit_len" type="number" placeholder="0" />
-                </div>
-                <div class="cfg-field">
-                    <label><input type="checkbox" id="c_chan_lora_std_implicit_crc" /> <%:Implicit Header CRC Enable (chan_lora_std_implicit_crc)%></label>
-                </div>
-                <div class="cfg-field">
-                    <label><%:Implicit Header Coding Rate (chan_lora_std_implicit_cr)%></label>
-                    <select id="c_chan_lora_std_implicit_cr">
-                        <option value="4/5">4/5</option><option value="4/6">4/6</option>
-                        <option value="4/7">4/7</option><option value="4/8">4/8</option>
-                    </select>
-                </div>
-                <div class="cfg-field">
-                    <label><%:FSK Sync Word Size Bytes (chan_fsk_sync_size, 1–8)%></label>
-                    <input id="c_chan_fsk_sync_size" type="number" placeholder="3" />
+                <div>
+                    <div class="cfg-field">
+                        <label><%:Radio 1 Coding Rate (rx_cr)%></label>
+                        <select id="c_rx_cr">
+                            <option value="5" selected="selected">4/5 (CR1 — Standard)</option>
+                            <option value="6">4/6 (CR2)</option>
+                            <option value="7">4/7 (CR3)</option>
+                            <option value="8">4/8 (CR4)</option>
+                        </select>
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 1 Preamble Length (rx_prlen)%></label>
+                        <input id="c_rx_prlen" type="number" min="6" max="65535" value="8" />
+                        <div class="cfg-hint"><%:LoRa preamble symbol length (standard is 8).%></div>
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 1 Sync Word (rx_syncword)%></label>
+                        <select id="c_rx_syncword">
+                            <option value="52" selected="selected">0x34 (52) — LoRaWAN Public Network (Standard)</option>
+                            <option value="18">0x12 (18) — Private LoRa Network</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- 3. RADIO 2 (SECONDARY / TX TRANSCEIVER) -->
+    <div class="cfg-section">
+        <div class="cfg-hdr">
+            <h3><%:3. Radio 2 — Secondary / TX Transceiver (SX1276 on LG02)%></h3>
+        </div>
+        <div class="cfg-body">
+            <div class="badge-pin">
+                <%:Hardware: /dev/spidev2.0 | SCK: GPIO18 | MOSI: GPIO21 | MISO: GPIO19 | CS: GPIO24 | RST: GPIO23 | DIO0: GPIO22 | DIO1: GPIO20%>
+            </div>
+            <div class="cfg-grid" style="margin-top: 14px;">
+                <div>
+                    <div class="cfg-field">
+                        <label><%:Radio 2 Frequency in MHz (tx_freq)%></label>
+                        <input id="c_tx_freq_mhz" type="text" placeholder="868.300" />
+                        <div class="cfg-hint"><%:Downlink transmission / second channel frequency in MHz (e.g. 868.300, 923.300).%></div>
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 2 Spreading Factor (tx_sf)%></label>
+                        <select id="c_tx_sf">
+                            <option value="6">SF6 — 64 chips/symbol</option>
+                            <option value="7">SF7 — 128 chips/symbol (DR5)</option>
+                            <option value="8">SF8 — 256 chips/symbol (DR4)</option>
+                            <option value="9" selected="selected">SF9 — 512 chips/symbol (DR3 — Recommended Downlink)</option>
+                            <option value="10">SF10 — 1024 chips/symbol (DR2)</option>
+                            <option value="11">SF11 — 2048 chips/symbol (DR1)</option>
+                            <option value="12">SF12 — 4096 chips/symbol (DR0)</option>
+                        </select>
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 2 Bandwidth (tx_bw)%></label>
+                        <select id="c_tx_bw">
+                            <option value="125" selected="selected">125 kHz (Standard LoRaWAN)</option>
+                            <option value="250">250 kHz</option>
+                            <option value="500">500 kHz</option>
+                        </select>
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 2 Coding Rate (tx_cr)%></label>
+                        <select id="c_tx_cr">
+                            <option value="5" selected="selected">4/5 (CR1 — Standard)</option>
+                            <option value="6">4/6 (CR2)</option>
+                            <option value="7">4/7 (CR3)</option>
+                            <option value="8">4/8 (CR4)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <div class="cfg-field">
+                        <label><%:Radio 2 Output Power (tx_power in dBm)%></label>
+                        <input id="c_tx_power" type="number" min="5" max="20" value="16" />
+                        <div class="cfg-hint"><%:RF output power in dBm (range: 5 to 20 dBm, default: 16 dBm).%></div>
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 2 Preamble Length (tx_prlen)%></label>
+                        <input id="c_tx_prlen" type="number" min="6" max="65535" value="8" />
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 2 Sync Word (tx_syncword)%></label>
+                        <select id="c_tx_syncword">
+                            <option value="52" selected="selected">0x34 (52) — LoRaWAN Public Network</option>
+                            <option value="18">0x12 (18) — Private LoRa Network</option>
+                        </select>
+                    </div>
+                    <div class="cfg-field">
+                        <label><%:Radio 2 Downlink IQ Polarity (tx_invert)%></label>
+                        <select id="c_tx_invert">
+                            <option value="false" selected="selected"><%:Normal Polarity (No Invert — P2P / Standard)%></option>
+                            <option value="true"><%:Inverted IQ (Standard for LoRaWAN Downlinks to Nodes)%></option>
+                        </select>
+                        <div class="cfg-hint"><%:LoRaWAN end devices expect downlinks on Inverted IQ to reject gateway-to-gateway collisions.%></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. LED INDICATORS -->
+    <div class="cfg-section">
+        <div class="cfg-hdr">
+            <h3><%:4. Hardware Activity LED Indicators%></h3>
+        </div>
+        <div class="cfg-body cfg-grid">
+            <div class="cfg-field">
+                <label><%:RX Activity LED (led_rx)%></label>
+                <input id="c_led_rx" type="text" value="dragino2:green:lan4" />
+                <div class="cfg-hint"><%:OpenWrt LED trigger path in /sys/class/leds/. Leave blank to disable.%></div>
+            </div>
+            <div class="cfg-field">
+                <label><%:TX Activity LED (led_tx)%></label>
+                <input id="c_led_tx" type="text" value="dragino2:red:wan" />
+                <div class="cfg-hint"><%:OpenWrt LED trigger path in /sys/class/leds/. Leave blank to disable.%></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACTION BUTTONS -->
     <div class="cfg-actions">
-        <button type="button" class="cbi-button cbi-button-apply" onclick="saveConfig()"><%:Save and Restart raw_lora_app%></button>
-        <button type="button" class="cbi-button cbi-button-reset" onclick="loadConfig()"><%:Reload from /etc/lora/config.json%></button>
-        <span id="save-msg" style="font-weight: 600; font-size: 13px;"></span>
+        <button type="button" class="cbi-button cbi-button-apply" style="font-size: 14px; font-weight: 700; padding: 8px 20px;" onclick="saveConfig()">
+            <%:Save and Apply Settings%>
+        </button>
+        <button type="button" class="cbi-button cbi-button-reset" style="padding: 8px 16px;" onclick="loadConfig()">
+            <%:Discard Changes / Reload%>
+        </button>
+        <button type="button" class="cbi-button" style="padding: 8px 16px;" onclick="restartService()">
+            <%:Restart Forwarder Service%>
+        </button>
+        <span id="toast-status" class="toast-msg"></span>
     </div>
 </div>
 
 <script type="text/javascript">//<![CDATA[
-var g_rf0_freq = 867500000, g_rf1_freq = 868500000;
-
-function toggleSec(hdr) {
-    var body = hdr.nextElementSibling;
-    if (body.className.indexOf("hidden") !== -1) {
-        body.className = body.className.replace("hidden", "").trim();
-    } else {
-        body.className += " hidden";
-    }
+function showToast(msg, isErr) {
+    var el = document.getElementById('toast-status');
+    if (!el) return;
+    el.innerText = msg;
+    el.style.display = 'inline-block';
+    el.style.backgroundColor = isErr ? '#ffeef0' : '#dcffe4';
+    el.style.color = isErr ? '#cb2431' : '#22863a';
+    el.style.border = isErr ? '1px solid #f97583' : '1px solid #34d058';
+    setTimeout(function() { el.style.display = 'none'; }, 6000);
 }
 
-function buildChTable() {
-    var tb = document.getElementById("ch-tbody");
-    tb.innerHTML = "";
-    for (var i = 0; i < 8; i++) {
-        var tr = document.createElement("tr");
-        tr.innerHTML =
-            '<td><strong>' + i + '</strong></td>' +
-            '<td><select id="ch_radio_' + i + '" onchange="updateFreqPreviews()"><option value="0">0</option><option value="1">1</option></select></td>' +
-            '<td><input id="ch_if_' + i + '" type="number" oninput="updateFreqPreviews()" placeholder="0" /></td>' +
-            '<td id="ch_abs_' + i + '" style="font-family: monospace; font-weight: 600;">—</td>';
-        tb.appendChild(tr);
-    }
+function applyPreset(name, rx_mhz, rx_sf, tx_mhz, tx_sf) {
+    document.getElementById('c_rx_freq_mhz').value = rx_mhz.toFixed(4);
+    document.getElementById('c_rx_sf').value = rx_sf;
+    document.getElementById('c_tx_freq_mhz').value = tx_mhz.toFixed(4);
+    document.getElementById('c_tx_sf').value = tx_sf;
+    showToast('Applied ' + name + ' preset: RX=' + rx_mhz + 'MHz SF' + rx_sf + ' / TX=' + tx_mhz + 'MHz SF' + tx_sf, false);
 }
-
-function updateFreqPreviews() {
-    g_rf0_freq = parseInt(document.getElementById("c_rf0_freq").value) || g_rf0_freq;
-    g_rf1_freq = parseInt(document.getElementById("c_rf1_freq").value) || g_rf1_freq;
-    document.getElementById("rf0-mhz").innerText = (g_rf0_freq / 1e6).toFixed(3) + " MHz";
-    document.getElementById("rf1-mhz").innerText = (g_rf1_freq / 1e6).toFixed(3) + " MHz";
-    var txf = parseInt(document.getElementById("c_tx_default_freq").value);
-    if (txf) document.getElementById("txd-mhz").innerText = (txf / 1e6).toFixed(3) + " MHz";
-    for (var i = 0; i < 8; i++) {
-        var rEl = document.getElementById("ch_radio_" + i);
-        var ifEl = document.getElementById("ch_if_" + i);
-        if (!rEl || !ifEl) continue;
-        var radio = parseInt(rEl.value) || 0;
-        var iif = parseInt(ifEl.value) || 0;
-        var center = (radio === 1) ? g_rf1_freq : g_rf0_freq;
-        document.getElementById("ch_abs_" + i).innerText = ((center + iif) / 1e6).toFixed(3) + " MHz";
-    }
-}
-
-function lutAddRow(vals) {
-    vals = vals || {};
-    var tb = document.getElementById("lut-tbody");
-    var idx = tb.rows.length;
-    var tr = document.createElement("tr");
-    tr.id = "lut-row-" + idx;
-    function inp(id, k) {
-        var v = vals[k] !== undefined ? vals[k] : 0;
-        return '<td><input id="' + id + '" type="number" value="' + v + '" style="width:70px" /></td>';
-    }
-    tr.innerHTML =
-        '<td class="lut-idx">' + idx + '</td>' +
-        inp('lut_rfpwr_' + idx, 'rf_power') +
-        inp('lut_pagain_' + idx, 'pa_gain') +
-        inp('lut_pwidx_' + idx, 'pwr_idx') +
-        inp('lut_dacgain_' + idx, 'dac_gain') +
-        inp('lut_mixgain_' + idx, 'mix_gain') +
-        inp('lut_diggain_' + idx, 'dig_gain') +
-        '<td><button type="button" class="cbi-button cbi-button-remove" onclick="lutDelRow(' + idx + ')">✕</button></td>';
-    tb.appendChild(tr);
-}
-
-function lutDelRow(idx) {
-    var row = document.getElementById("lut-row-" + idx);
-    if (row) row.parentNode.removeChild(row);
-    var tb = document.getElementById("lut-tbody");
-    var flds = ['rfpwr','pagain','pwidx','dacgain','mixgain','diggain'];
-    for (var i = 0; i < tb.rows.length; i++) {
-        var tr = tb.rows[i];
-        tr.id = "lut-row-" + i;
-        tr.querySelector(".lut-idx").innerText = i;
-        var inputs = tr.querySelectorAll("input");
-        for (var fi = 0; fi < flds.length; fi++) {
-            inputs[fi].id = "lut_" + flds[fi] + "_" + i;
-        }
-        tr.querySelector("button").setAttribute("onclick", "lutDelRow(" + i + ")");
-    }
-}
-
-function sv(id, val) {
-    var el = document.getElementById(id);
-    if (!el || val === undefined || val === null) return;
-    if (el.type === "checkbox") el.checked = !!val;
-    else el.value = val;
-}
-function gv(id) { var e = document.getElementById(id); return e ? e.value : ""; }
-function gi(id) { var e = document.getElementById(id); return e ? (parseInt(e.value) || 0) : 0; }
-function gn(id) { var e = document.getElementById(id); return e ? (parseFloat(e.value) || 0) : 0; }
-function gb(id) { var e = document.getElementById(id); return e ? !!e.checked : false; }
 
 function loadConfig() {
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", '<%=luci.dispatcher.build_url("admin/lora/api_config")%>', true);
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                var d = JSON.parse(xhr.responseText);
-                sv('c_target_ip', d.target_ip);
-                sv('c_port_up', d.port_up);
-                sv('c_port_down', d.port_down);
-                sv('c_status_port', d.status_port);
-                sv('c_heartbeat_interval_s', d.heartbeat_interval_s);
-                sv('c_spi_path', d.spi_path);
-                sv('c_reset_gpio', d.reset_gpio);
-                sv('c_pa_gpio', d.pa_gpio);
-                sv('c_clksrc', d.clksrc);
-                sv('c_sync_word', d.sync_word);
-                sv('c_full_duplex', d.full_duplex);
-                sv('c_led_rx', d.led_rx);
-                sv('c_led_tx', d.led_tx);
-                sv('c_rf0_type', d.rf0_type);
-                sv('c_rf0_freq', d.rf0_freq);
-                sv('c_rf0_rssi_offset', d.rf0_rssi_offset);
-                sv('c_rf0_tx_enable', d.rf0_tx_enable);
-                sv('c_rf0_single_input', d.rf0_single_input);
-                sv('c_rf1_type', d.rf1_type);
-                sv('c_rf1_freq', d.rf1_freq);
-                sv('c_rf1_rssi_offset', d.rf1_rssi_offset);
-                sv('c_rf1_tx_enable', d.rf1_tx_enable);
-                sv('c_rf1_single_input', d.rf1_single_input);
-                if (d.chan_if && d.chan_radio) {
-                    for (var i = 0; i < 8; i++) {
-                        sv('ch_if_' + i, d.chan_if[i]);
-                        sv('ch_radio_' + i, d.chan_radio[i]);
-                    }
-                }
-                sv('c_chan_lora_std_enable', d.chan_lora_std_enable);
-                sv('c_chan_lora_std_radio', d.chan_lora_std_radio);
-                sv('c_chan_lora_std_if', d.chan_lora_std_if);
-                sv('c_chan_lora_std_bw', d.chan_lora_std_bw);
-                sv('c_chan_lora_std_sf', d.chan_lora_std_sf);
-                sv('c_chan_fsk_enable', d.chan_fsk_enable);
-                sv('c_chan_fsk_radio', d.chan_fsk_radio);
-                sv('c_chan_fsk_if', d.chan_fsk_if);
-                sv('c_chan_fsk_bw', d.chan_fsk_bw);
-                sv('c_chan_fsk_datarate', d.chan_fsk_datarate);
-                sv('c_tx_default_freq', d.tx_default_freq);
-                sv('c_tx_default_sf', d.tx_default_sf);
-                sv('c_tx_default_power', d.tx_default_power);
-                sv('c_tx_default_rfch', d.tx_default_rfch);
-                sv('c_tx_default_coderate', d.tx_default_coderate);
-                sv('c_tx_default_bandwidth', d.tx_default_bandwidth);
-                sv('c_tx_default_preamble', d.tx_default_preamble);
-                sv('c_tx_default_invert', d.tx_default_invert);
-                sv('c_tx_free_timeout_ms', d.tx_free_timeout_ms);
+    XHR.get('<%=luci.dispatcher.build_url("admin", "lora", "api_config")%>', null, function(x, data) {
+        if (!data) return;
 
-                // Optional HAL features (with backward-compatible defaults)
-                var sfm = (d.sf_mask !== undefined && d.sf_mask !== null) ? parseInt(d.sf_mask, 10) : 255;
-                for (var b = 0; b < 8; b++) {
-                    sv('sfm_' + b, (sfm & (1 << b)) !== 0);
-                }
-                sv('c_mcu_health_check', d.mcu_health_check !== undefined ? d.mcu_health_check : true);
-                sv('c_temp_monitor_enable', d.temp_monitor_enable !== undefined ? d.temp_monitor_enable : true);
-                sv('c_ext_rx_metadata', d.ext_rx_metadata !== undefined ? d.ext_rx_metadata : true);
-                sv('c_ftime_enable', d.ftime_enable !== undefined ? d.ftime_enable : false);
-                sv('c_chan_lora_std_implicit_hdr', d.chan_lora_std_implicit_hdr !== undefined ? d.chan_lora_std_implicit_hdr : false);
-                sv('c_chan_lora_std_implicit_len', d.chan_lora_std_implicit_len !== undefined ? d.chan_lora_std_implicit_len : 0);
-                sv('c_chan_lora_std_implicit_crc', d.chan_lora_std_implicit_crc !== undefined ? d.chan_lora_std_implicit_crc : false);
-                sv('c_chan_lora_std_implicit_cr', d.chan_lora_std_implicit_cr || "4/5");
-                sv('c_chan_fsk_sync_size', d.chan_fsk_sync_size !== undefined ? d.chan_fsk_sync_size : 3);
+        // Server fields
+        if (data.target_ip) document.getElementById('c_target_ip').value = data.target_ip;
+        if (data.gateway_id) document.getElementById('c_gateway_id').value = data.gateway_id;
+        if (data.port_up) document.getElementById('c_port_up').value = data.port_up;
+        if (data.port_down) document.getElementById('c_port_down').value = data.port_down;
+        if (data.heartbeat_interval_s) document.getElementById('c_heartbeat_interval_s').value = data.heartbeat_interval_s;
+        if (data.status_port !== undefined) document.getElementById('c_status_port').value = data.status_port;
 
-                var tb = document.getElementById("lut-tbody");
-                tb.innerHTML = "";
-                if (d.tx_gain_lut && d.tx_gain_lut.length) {
-                    for (var j = 0; j < d.tx_gain_lut.length; j++) {
-                        lutAddRow(d.tx_gain_lut[j]);
-                    }
-                }
-                updateFreqPreviews();
-            } catch(e) {}
-        }
-    };
-    xhr.send();
+        // Radio 1 fields
+        var rx_f = data.rx_freq || (data.radio_0 && data.radio_0.freq) || 868100000;
+        document.getElementById('c_rx_freq_mhz').value = (rx_f > 1000000 ? (rx_f / 1e6) : rx_f).toFixed(4);
+        var rx_sf = data.rx_sf || (data.radio_0 && data.radio_0.sf) || 7;
+        document.getElementById('c_rx_sf').value = rx_sf;
+        var rx_bw = data.rx_bw || (data.radio_0 && data.radio_0.bw) || 125;
+        if (rx_bw > 1000) rx_bw /= 1000;
+        document.getElementById('c_rx_bw').value = rx_bw;
+        var rx_cr = data.rx_cr || 5;
+        document.getElementById('c_rx_cr').value = rx_cr;
+        var rx_prlen = data.rx_prlen || 8;
+        document.getElementById('c_rx_prlen').value = rx_prlen;
+        var rx_sw = data.rx_syncword || 52;
+        document.getElementById('c_rx_syncword').value = (rx_sw == 18 ? 18 : 52);
+
+        // Radio 2 fields
+        var tx_f = data.tx_freq || (data.radio_1 && data.radio_1.freq) || 868300000;
+        document.getElementById('c_tx_freq_mhz').value = (tx_f > 1000000 ? (tx_f / 1e6) : tx_f).toFixed(4);
+        var tx_sf = data.tx_sf || (data.radio_1 && data.radio_1.sf) || 9;
+        document.getElementById('c_tx_sf').value = tx_sf;
+        var tx_bw = data.tx_bw || (data.radio_1 && data.radio_1.bw) || 125;
+        if (tx_bw > 1000) tx_bw /= 1000;
+        document.getElementById('c_tx_bw').value = tx_bw;
+        var tx_cr = data.tx_cr || 5;
+        document.getElementById('c_tx_cr').value = tx_cr;
+        var tx_power = data.tx_power || (data.radio_1 && data.radio_1.tx_power) || 16;
+        document.getElementById('c_tx_power').value = tx_power;
+        var tx_prlen = data.tx_prlen || 8;
+        document.getElementById('c_tx_prlen').value = tx_prlen;
+        var tx_sw = data.tx_syncword || 52;
+        document.getElementById('c_tx_syncword').value = (tx_sw == 18 ? 18 : 52);
+        var tx_inv = (data.tx_invert === true || data.tx_invert === "true" || data.tx_invert === 1);
+        document.getElementById('c_tx_invert').value = tx_inv ? "true" : "false";
+
+        // LEDs
+        if (data.led_rx !== undefined) document.getElementById('c_led_rx').value = data.led_rx;
+        if (data.led_tx !== undefined) document.getElementById('c_led_tx').value = data.led_tx;
+
+        showToast('Configuration loaded from /etc/lora/config.json', false);
+    });
 }
 
 function saveConfig() {
-    var ifArr = [], radioArr = [];
-    for (var i = 0; i < 8; i++) {
-        ifArr.push(gi('ch_if_' + i));
-        radioArr.push(gi('ch_radio_' + i));
+    var rx_mhz = parseFloat(document.getElementById('c_rx_freq_mhz').value);
+    var tx_mhz = parseFloat(document.getElementById('c_tx_freq_mhz').value);
+
+    if (isNaN(rx_mhz) || rx_mhz < 100 || rx_mhz > 1000) {
+        showToast('Error: Please enter a valid Radio 1 frequency in MHz (e.g. 868.100 or 902.320)', true);
+        return;
     }
-    var lutOut = [];
-    var tb = document.getElementById("lut-tbody");
-    for (var j = 0; j < tb.rows.length; j++) {
-        lutOut.push({
-            rf_power: gi('lut_rfpwr_' + j),
-            pa_gain: gi('lut_pagain_' + j),
-            pwr_idx: gi('lut_pwidx_' + j),
-            dac_gain: gi('lut_dacgain_' + j),
-            mix_gain: gi('lut_mixgain_' + j),
-            dig_gain: gi('lut_diggain_' + j)
-        });
+    if (isNaN(tx_mhz) || tx_mhz < 100 || tx_mhz > 1000) {
+        showToast('Error: Please enter a valid Radio 2 frequency in MHz (e.g. 868.300 or 923.300)', true);
+        return;
     }
 
-    var sfmVal = 0;
-    for (var b = 0; b < 8; b++) {
-        if (gb('sfm_' + b)) sfmVal |= (1 << b);
-    }
-    if (sfmVal === 0) sfmVal = 255;
+    var cfg = {
+        target_ip:            document.getElementById('c_target_ip').value.trim() || "192.168.1.8",
+        gateway_id:           document.getElementById('c_gateway_id').value.trim() || "a84041ffff16c21c",
+        port_up:              parseInt(document.getElementById('c_port_up').value, 10) || 5555,
+        port_down:            parseInt(document.getElementById('c_port_down').value, 10) || 5556,
+        status_port:          parseInt(document.getElementById('c_status_port').value, 10) || 5557,
+        heartbeat_interval_s: parseInt(document.getElementById('c_heartbeat_interval_s').value, 10) || 10,
 
-    var obj = {
-        target_ip: gv('c_target_ip'),
-        port_up: gi('c_port_up'),
-        port_down: gi('c_port_down'),
-        status_port: gi('c_status_port'),
-        heartbeat_interval_s: gi('c_heartbeat_interval_s'),
-        spi_path: gv('c_spi_path'),
-        reset_gpio: gv('c_reset_gpio'),
-        pa_gpio: gv('c_pa_gpio'),
-        clksrc: gi('c_clksrc'),
-        sync_word: gv('c_sync_word'),
-        full_duplex: gb('c_full_duplex'),
-        led_rx: gv('c_led_rx'),
-        led_tx: gv('c_led_tx'),
-        rf0_type: gv('c_rf0_type'),
-        rf0_freq: gi('c_rf0_freq'),
-        rf0_rssi_offset: gn('c_rf0_rssi_offset'),
-        rf0_tx_enable: gb('c_rf0_tx_enable'),
-        rf0_single_input: gb('c_rf0_single_input'),
-        rf1_type: gv('c_rf1_type'),
-        rf1_freq: gi('c_rf1_freq'),
-        rf1_rssi_offset: gn('c_rf1_rssi_offset'),
-        rf1_tx_enable: gb('c_rf1_tx_enable'),
-        rf1_single_input: gb('c_rf1_single_input'),
-        chan_if: ifArr,
-        chan_radio: radioArr,
-        chan_lora_std_enable: gb('c_chan_lora_std_enable'),
-        chan_lora_std_radio: gi('c_chan_lora_std_radio'),
-        chan_lora_std_if: gi('c_chan_lora_std_if'),
-        chan_lora_std_bw: gi('c_chan_lora_std_bw'),
-        chan_lora_std_sf: gi('c_chan_lora_std_sf'),
-        chan_fsk_enable: gb('c_chan_fsk_enable'),
-        chan_fsk_radio: gi('c_chan_fsk_radio'),
-        chan_fsk_if: gi('c_chan_fsk_if'),
-        chan_fsk_bw: gi('c_chan_fsk_bw'),
-        chan_fsk_datarate: gi('c_chan_fsk_datarate'),
-        tx_default_freq: gi('c_tx_default_freq'),
-        tx_default_sf: gi('c_tx_default_sf'),
-        tx_default_power: gi('c_tx_default_power'),
-        tx_default_rfch: gi('c_tx_default_rfch'),
-        tx_default_coderate: gv('c_tx_default_coderate'),
-        tx_default_bandwidth: gi('c_tx_default_bandwidth'),
-        tx_default_preamble: gi('c_tx_default_preamble'),
-        tx_default_invert: gb('c_tx_default_invert'),
-        tx_free_timeout_ms: gi('c_tx_free_timeout_ms'),
-        tx_gain_lut: lutOut,
-        sf_mask: sfmVal,
-        mcu_health_check: gb('c_mcu_health_check'),
-        temp_monitor_enable: gb('c_temp_monitor_enable'),
-        ext_rx_metadata: gb('c_ext_rx_metadata'),
-        ftime_enable: gb('c_ftime_enable'),
-        chan_lora_std_implicit_hdr: gb('c_chan_lora_std_implicit_hdr'),
-        chan_lora_std_implicit_len: gi('c_chan_lora_std_implicit_len'),
-        chan_lora_std_implicit_crc: gb('c_chan_lora_std_implicit_crc'),
-        chan_lora_std_implicit_cr: gv('c_chan_lora_std_implicit_cr') || "4/5",
-        chan_fsk_sync_size: gi('c_chan_fsk_sync_size') || 3
+        rx_freq:              Math.round(rx_mhz * 1000000),
+        rx_sf:                parseInt(document.getElementById('c_rx_sf').value, 10) || 7,
+        rx_bw:                parseInt(document.getElementById('c_rx_bw').value, 10) || 125,
+        rx_cr:                parseInt(document.getElementById('c_rx_cr').value, 10) || 5,
+        rx_prlen:             parseInt(document.getElementById('c_rx_prlen').value, 10) || 8,
+        rx_syncword:          parseInt(document.getElementById('c_rx_syncword').value, 10) || 52,
+
+        tx_freq:              Math.round(tx_mhz * 1000000),
+        tx_sf:                parseInt(document.getElementById('c_tx_sf').value, 10) || 9,
+        tx_bw:                parseInt(document.getElementById('c_tx_bw').value, 10) || 125,
+        tx_cr:                parseInt(document.getElementById('c_tx_cr').value, 10) || 5,
+        tx_power:             parseInt(document.getElementById('c_tx_power').value, 10) || 16,
+        tx_prlen:             parseInt(document.getElementById('c_tx_prlen').value, 10) || 8,
+        tx_syncword:          parseInt(document.getElementById('c_tx_syncword').value, 10) || 52,
+        tx_invert:            (document.getElementById('c_tx_invert').value === "true"),
+
+        led_rx:               document.getElementById('c_led_rx').value.trim(),
+        led_tx:               document.getElementById('c_led_tx').value.trim()
     };
 
-    var msg = document.getElementById("save-msg");
-    msg.style.color = "#0366d6";
-    msg.innerText = "Saving /etc/lora/config.json...";
+    showToast('Saving settings and restarting LoRa forwarder...', false);
 
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", '<%=luci.dispatcher.build_url("admin/lora/api_config")%>', true);
-    xhr.setRequestHeader("Content-Type", "application/json");
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-                msg.style.color = "#28a745";
-                msg.innerText = "Saved to /etc/lora/config.json & restarted raw_lora_app!";
+    var req = new XMLHttpRequest();
+    req.open('POST', '<%=luci.dispatcher.build_url("admin", "lora", "api_config")%>', true);
+    req.setRequestHeader('Content-Type', 'application/json');
+    req.onreadystatechange = function() {
+        if (req.readyState === 4) {
+            if (req.status === 200) {
+                showToast('Configuration saved and lg02_pkt_fwd restarted successfully!', false);
             } else {
-                msg.style.color = "#dc3545";
-                msg.innerText = "Error saving configuration.";
+                showToast('Failed to save configuration (HTTP ' + req.status + ')', true);
             }
-            setTimeout(function() { msg.innerText = ""; }, 4000);
         }
     };
-    xhr.send(JSON.stringify(obj));
+    req.send(JSON.stringify(cfg));
 }
 
-window.onload = function() {
-    buildChTable();
-    loadConfig();
-};
+function restartService() {
+    showToast('Restarting LoRa forwarder service...', false);
+    XHR.get('<%=luci.dispatcher.build_url("admin", "lora", "action_service")%>', { cmd: 'restart' }, function(x, data) {
+        showToast('LoRa forwarder service restarted.', false);
+    });
+}
+
+// Initial load on page ready
+window.addEventListener('DOMContentLoaded', loadConfig);
 //]]></script>
 
 <%+footer%>

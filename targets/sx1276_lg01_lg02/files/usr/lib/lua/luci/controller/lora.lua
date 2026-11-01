@@ -49,8 +49,8 @@ function action_status()
         end
     end
 
-    local rf0_freq = tonumber(cfg.rf0_freq) or 867500000
-    local rf1_freq = tonumber(cfg.rf1_freq) or 868500000
+    local rf0_freq = tonumber(cfg.rx_freq) or tonumber(cfg.rf0_freq) or 902320000
+    local rf1_freq = tonumber(cfg.tx_freq) or tonumber(cfg.rf1_freq) or 923300000
     if cfg.radio_0 and cfg.radio_0.freq then
         rf0_freq = tonumber(cfg.radio_0.freq) or rf0_freq
     end
@@ -58,9 +58,8 @@ function action_status()
         rf1_freq = tonumber(cfg.radio_1.freq) or rf1_freq
     end
 
-    local sync_str = cfg.sync_word or "private"
-    if live.sync then sync_str = live.sync end
-    local sync_disp = (sync_str == "public" or sync_str == "0x34") and "public (0x34)" or "private (0x12)"
+    local sync_val = live.syncword or tonumber(cfg.rx_syncword) or 52
+    local sync_disp = (sync_val == 52 or sync_val == 0x34 or tostring(cfg.sync_word) == "public") and "public (0x34 / LoRaWAN)" or "private (0x12)"
 
     local uptime_s = tonumber(live.uptime_s) or 0
     local uptime_str = "Stopped"
@@ -73,20 +72,26 @@ function action_status()
         pid = pid or 0,
         uptime_s = uptime_s,
         uptime = uptime_str,
-        gateway_id = live.eui or "—",
+        gateway_id = live.eui or cfg.gateway_id or "—",
         server = cfg.target_ip or "192.168.1.8",
         port_up = tonumber(cfg.port_up) or 5555,
         port_down = tonumber(cfg.port_down) or 5556,
         status_port = status_port,
         heartbeat_interval_s = tonumber(cfg.heartbeat_interval_s) or 10,
         spi_path = cfg.spi_path or "/dev/spidev1.0",
-        reset_gpio = cfg.reset_gpio or "23",
+        reset_gpio = "8 (Radio 1) / 23 (Radio 2)",
         pa_gpio = cfg.pa_gpio or "dragino2:red:wan",
-        rf0_type = cfg.rf0_type or "SX1250",
-        rf1_type = cfg.rf1_type or "SX1250",
-        rf0_mhz = live.rf0_mhz or (rf0_freq / 1e6),
-        rf1_mhz = live.rf1_mhz or (rf1_freq / 1e6),
-        tx_power = tonumber(cfg.tx_default_power) or 14,
+        rf0_type = "SX1276 (Radio 1 RX)",
+        rf1_type = "SX1276 (Radio 2 TX)",
+        rf0_mhz = live.rx_mhz or (rf0_freq / 1e6),
+        rf1_mhz = live.tx_mhz or (rf1_freq / 1e6),
+        rx_sf = live.rx_sf or tonumber(cfg.rx_sf) or 7,
+        tx_sf = live.tx_sf or tonumber(cfg.tx_sf) or 9,
+        rx_bw = live.rx_bw or tonumber(cfg.rx_bw) or 125,
+        tx_bw = live.tx_bw or tonumber(cfg.tx_bw) or 125,
+        rx_cr = live.rx_cr or tonumber(cfg.rx_cr) or 5,
+        tx_cr = live.tx_cr or tonumber(cfg.tx_cr) or 5,
+        tx_power = live.tx_power or tonumber(cfg.tx_power) or tonumber(cfg.tx_default_power) or 16,
         syncword = sync_disp,
         rx_count = tonumber(live.rx) or 0,
         tx_count = tonumber(live.tx) or 0,
@@ -94,14 +99,14 @@ function action_status()
         tx_err = tonumber(live.tx_err) or 0,
         q_depth = tonumber(live.q_depth) or 0,
         q_drop = tonumber(live.q_drop) or 0,
-        temp_c = tonumber(live.temp_c) or 0,
-        temp_ok = (live.temp_ok == true),
+        temp_c = 0,
+        temp_ok = false,
         inst_cnt_us = tonumber(live.inst_cnt_us) or 0,
         trig_cnt_us = tonumber(live.trig_cnt_us) or 0,
-        tx_status = live.tx_status or "TX_OFF",
-        rx_status = live.rx_status or "RX_OFF",
-        sf_mask = tonumber(live.sf_mask) or tonumber(cfg.sf_mask) or 255,
-        ch_detect = live.ch_detect or {0,0,0,0,0,0,0,0}
+        tx_status = is_running and "ACTIVE" or "TX_OFF",
+        rx_status = is_running and "LISTENING" or "RX_OFF",
+        sf_mask = 255,
+        ch_detect = {0,0,0,0,0,0,0,0}
     }
 
     http.prepare_content("application/json")
@@ -135,8 +140,8 @@ function action_config()
         f:write(jsonc.stringify(parsed, true))
         f:close()
 
-        -- Restart raw_lora_app with new config
-        sys.call("rm -f /tmp/lora_manual_stop; killall raw_lora_app sx1276_app 2>/dev/null; /usr/bin/raw_lora_app >> /var/log/lora.log 2>&1 &")
+        -- Restart lg02_pkt_fwd with new config
+        sys.call("rm -f /tmp/lora_manual_stop; killall lg02_pkt_fwd lg01_pkt_fwd raw_lora_app 2>/dev/null; /usr/bin/lg02_pkt_fwd >> /var/log/lora.log 2>&1 &")
         http.prepare_content("application/json")
         http.write_json({ status = "saved" })
     else
@@ -257,11 +262,11 @@ function action_service()
     local cmd = http.formvalue("cmd")
 
     if cmd == "stop" then
-        sys.call("touch /tmp/lora_manual_stop; killall raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null")
+        sys.call("touch /tmp/lora_manual_stop; killall lg02_pkt_fwd lg01_pkt_fwd raw_lora_app sx1276_app 2>/dev/null")
         http.prepare_content("application/json")
         http.write_json({ success = true, command = cmd })
     elseif cmd == "start" or cmd == "restart" then
-        sys.call("rm -f /tmp/lora_manual_stop; killall raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null; pgrep -f lora_keepalive.sh >/dev/null 2>&1 || (/usr/bin/lora_keepalive.sh >/dev/null 2>&1 &); echo '--- [" .. cmd .. "] ---' >> /var/log/lora.log; /usr/bin/raw_lora_app >> /var/log/lora.log 2>&1 &")
+        sys.call("rm -f /tmp/lora_manual_stop; killall lg02_pkt_fwd lg01_pkt_fwd raw_lora_app sx1276_app 2>/dev/null; pgrep -f lora_keepalive.sh >/dev/null 2>&1 || (/usr/bin/lora_keepalive.sh >/dev/null 2>&1 &); echo '--- [" .. cmd .. "] ---' >> /var/log/lora.log; /usr/bin/lg02_pkt_fwd >> /var/log/lora.log 2>&1 &")
         http.prepare_content("application/json")
         http.write_json({ success = true, command = cmd })
     else

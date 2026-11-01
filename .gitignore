@@ -44,6 +44,7 @@ scripts/env.sh
 !staging_dir/target-mips_24kc_musl/**
 
 # Exclude unnecessary bloated build tools from host
+staging_dir/toolchain-*
 staging_dir/host/bin/*cmake*
 staging_dir/host/bin/*ctest*
 staging_dir/host/bin/*cpack*

@@ -133,8 +133,8 @@
 </style>
 
 <div class="lora-container">
-    <h2><span class="live-dot"></span><%:LoRa Gateway Realtime Status (raw_lora_app)%></h2>
-    <p class="description"><%:Live telemetry from /usr/bin/raw_lora_app (TCP status port 5557 and /etc/lora/config.json).%></p>
+    <h2><span class="live-dot"></span><%:Dragino LG01 / LG02 LoRa Gateway Status%></h2>
+    <p class="description"><%:Live telemetry from /usr/bin/lg02_pkt_fwd (TCP status port 5557 and /etc/lora/config.json).%></p>
 
     <!-- TOP OVERVIEW CARD -->
     <div class="lora-card">
@@ -200,9 +200,9 @@
             <div style="font-size: 11px; color: #888;"><%:Depth / Dropped%></div>
         </div>
         <div class="lora-stat-box">
-            <div class="lora-stat-lbl"><%:SX1302 Temp%></div>
-            <div class="lora-stat-val" id="cnt-temp" style="color: #6f42c1;">—</div>
-            <div style="font-size: 11px; color: #888;" id="cnt-chdet"><%:Thermal sensor%></div>
+            <div class="lora-stat-lbl"><%:SX1276 Transceivers%></div>
+            <div class="lora-stat-val" id="cnt-temp" style="color: #6f42c1; font-size: 18px; line-height: 1.5;">2x Active</div>
+            <div style="font-size: 11px; color: #888;" id="cnt-chdet"><%:Dual Radio (RX + TX)%></div>
         </div>
     </div>
 
@@ -342,7 +342,7 @@ function updateStatus() {
                 document.getElementById("val-rf1").innerText = (data.rf1_mhz || 868.5).toFixed(3);
                 document.getElementById("val-sync").innerText = data.syncword || "private (0x12)";
                 document.getElementById("val-pa").innerText = data.pa_gpio || "(disabled)";
-                document.getElementById("hw-title").innerText = "raw_lora_app (" + (data.spi_path || "/dev/spidev1.0") + ", RST GPIO " + (data.reset_gpio || "23") + ")";
+                document.getElementById("hw-title").innerText = "lg02_pkt_fwd (" + (data.spi_path || "/dev/spidev1.0") + ", RST GPIO " + (data.reset_gpio || "8 / 23") + ")";
 
                 document.getElementById("cnt-rx").innerText = data.rx_count || 0;
                 document.getElementById("cnt-tx").innerText = data.tx_count || 0;
@@ -351,14 +351,8 @@ function updateStatus() {
                 document.getElementById("cnt-q").innerText = (data.q_depth || 0) + " / " + (data.q_drop || 0);
                 document.getElementById("val-instcnt").innerText = (data.inst_cnt_us || 0) + " us";
                 document.getElementById("val-radiost").innerText = (data.rx_status || "RX_OFF") + " / " + (data.tx_status || "TX_OFF");
-                if (data.temp_ok) {
-                    document.getElementById("cnt-temp").innerText = Number(data.temp_c).toFixed(1) + " °C";
-                } else {
-                    document.getElementById("cnt-temp").innerText = "—";
-                }
-                if (data.ch_detect && data.ch_detect.length) {
-                    document.getElementById("cnt-chdet").innerText = "ARB Ch0-7: " + data.ch_detect.join(",");
-                }
+                document.getElementById("cnt-temp").innerText = "RX: SF" + (data.rx_sf || 7) + " | TX: SF" + (data.tx_sf || 9);
+                document.getElementById("cnt-chdet").innerText = "BW " + (data.rx_bw || 125) + "k / " + (data.tx_bw || 125) + "k";
             } catch(e) {}
         }
     };
