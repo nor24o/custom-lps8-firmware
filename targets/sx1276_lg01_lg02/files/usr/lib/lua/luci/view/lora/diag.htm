@@ -331,7 +331,7 @@
         <div id="cad-img-panel" style="display: none; margin-bottom: 16px; text-align: center; border: 1px solid #30363d; border-radius: 6px; padding: 10px; background: #000;">
             <img src="/images/dragino_he_pcb_cad_layout.png" alt="Factory PCB CAD Layout" style="max-width: 100%; height: auto; border-radius: 4px;" />
             <div style="font-size: 12px; color: #8b949e; margin-top: 6px;">
-                <%:Factory Altium / KiCad PCB Footprint Layout showing exact trace routes and crossed-out Pins 35 and 36.%>
+                <%:Factory Altium / KiCad PCB Footprint Layout showing physical pad layout and trace routing for all 50 pads (including GND Pad 35 and GPIO12 Pad 36).%>
             </div>
         </div>
 
@@ -428,13 +428,14 @@
             <div>
                 <label style="font-size: 12px; font-weight: 600; display: block;"><%:Select Free GPIO%></label>
                 <select id="sel-test-gpio" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
-                    <option value="21">GPIO 21 (Pad 16) — Free I/O</option>
-                    <option value="22">GPIO 22 (Pad 17) — Free I/O</option>
-                    <option value="27">GPIO 27 (Pad 46) — Free I/O</option>
-                    <option value="28">GPIO 28 (Pad 27) — Free I/O</option>
-                    <option value="26">GPIO 26 (Pad 47) — Free I/O</option>
+                    <option value="12">GPIO 12 (Pad 36) — Free I/O</option>
                     <option value="11">GPIO 11 (Pad 37) — Free I/O</option>
                     <option value="16">GPIO 16 (Pad 39) — Free I/O</option>
+                    <option value="21">GPIO 21 (Pad 16) — Free I/O</option>
+                    <option value="22">GPIO 22 (Pad 17) — Free I/O</option>
+                    <option value="26">GPIO 26 (Pad 47) — Free I/O</option>
+                    <option value="27">GPIO 27 (Pad 46) — Free I/O</option>
+                    <option value="28">GPIO 28 (Pad 27) — Free I/O</option>
                     <option value="7">GPIO 7 (Pad 15) — SX1276 DIO0</option>
                     <option value="8">GPIO 8 (Pad 16) — Radio 1 Reset</option>
                 </select>
@@ -514,8 +515,8 @@ var PINS = {
     32: { pad: 32, net: "GND",      gpio: null, type: "pwr",  dir: "pwr", val: 0, sub: "System Ground", trace: "Ground Plane", desc: "Digital Ground" },
     33: { pad: 33, net: "UART_RX",  gpio: 9,  type: "uart", dir: "in",  val: 1, sub: "ttyATH0 Console", trace: "Internal UART Traces", desc: "Serial Console RX (115200 8N1)" },
     34: { pad: 34, net: "UART_TX",  gpio: 10, type: "uart", dir: "out", val: 1, sub: "ttyATH0 Console", trace: "Internal UART Traces", desc: "Serial Console TX (115200 8N1)" },
-    35: { pad: 35, net: "GND",      gpio: null, type: "nc",   dir: "nc",  val: 0, sub: "Disconnected (✕)", trace: "Crossed Out on PCB", desc: "Crossed Out on Carrier PCB / Not Connected" },
-    36: { pad: 36, net: "GPIO12",   gpio: 12, type: "nc",   dir: "nc",  val: 0, sub: "Disconnected (✕)", trace: "Crossed Out on PCB", desc: "Crossed Out on Carrier PCB / Not Connected" },
+    35: { pad: 35, net: "GND",      gpio: null, type: "pwr",  dir: "pwr", val: 0, sub: "System Ground", trace: "Ground Plane", desc: "Digital Ground Plane Connection" },
+    36: { pad: 36, net: "GPIO12",   gpio: 12,   type: "gpio", dir: "out", val: 0, sub: "Free Digital I/O", trace: "Up to Baseboard", desc: "Atheros GPIO12 digital I/O (Free I/O)" },
     37: { pad: 37, net: "GPIO11",   gpio: 11, type: "gpio", dir: "out", val: 0, sub: "Free Digital I/O", trace: "Up to Baseboard", desc: "Atheros GPIO11 digital I/O" },
     38: { pad: 38, net: "GPIO15",   gpio: 15, type: "spi",  dir: "out", val: 1, sub: "kmod-spi-gpio-custom", trace: "Up to Radio 2 Header", desc: "Radio 2 Chip Select (CS1, /dev/spidev1.1 on LG02)" },
     39: { pad: 39, net: "GPIO16",   gpio: 16, type: "gpio", dir: "out", val: 0, sub: "Free Digital I/O", trace: "Up to Baseboard", desc: "Atheros GPIO16 digital I/O" },
