@@ -9863,3 +9863,18 @@ Size: 19058
 SHA256sum: e76ca6eb587781e198ce4d93c3a45110c3c8a8b0f4ae07c5d3cbcb1686c3ba11
 Description:  Compressed RAM block device support
 
+Package: libiwinfo-lua
+Version: 2018-07-31-65b8333f-1
+Depends: libc, libiwinfo, liblua
+Source: package/network/utils/iwinfo
+License: GPL-2.0
+Section: lang
+Maintainer: Jo-Philipp Wich <jo@mein.io>
+Architecture: mips_24kc
+Installed-Size: 6140
+Filename: libiwinfo-lua_2018-07-31-65b8333f-1_mips_24kc.ipk
+Size: 6816
+SHA256sum: 0e8c1ed7f71aa1016bf11d261b09a2aa683c38465152178cc8cc4fc64ade2cd8
+Description:  This is the Lua binding for the iwinfo library. It provides access to all enabled
+ backends.
+
