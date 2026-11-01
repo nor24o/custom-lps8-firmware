@@ -164,7 +164,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div>
                 <span id="service-badge" class="badge-stopped"><%:CHECKING...%></span>
-                <span style="margin-left: 10px; font-weight: 600;" id="hw-title">raw_lora_app (/dev/spidev1.0, RST GPIO 23)</span>
+                <span style="margin-left: 10px; font-weight: 600;" id="hw-title">raw_lora_app (SX1302 Concentrator) (/dev/spidev1.0, RST GPIO 23)</span>
                 <span style="margin-left: 15px; color: #6c757d;" id="service-uptime"></span>
             </div>
             <div>
@@ -361,7 +361,7 @@
                 </div>
                 <div style="flex: 1; min-width: 180px;">
                     <label style="font-size: 12px; font-weight: 600; display: block;"><%:ASCII Payload (auto Base64)%></label>
-                    <input type="text" id="tx-ascii" value="PING_FROM_LG02" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;" />
+                    <input type="text" id="tx-ascii" value="PING_FROM_LPS8_SX1302" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;" />
                 </div>
                 <div>
                     <button type="button" class="cbi-button cbi-button-apply" onclick="sendTestTx()"><%:Transmit Now%></button>
@@ -426,7 +426,7 @@ function updateStatus() {
                 document.getElementById("val-rf1").innerText = (data.rf1_mhz || 868.5).toFixed(3);
                 document.getElementById("val-sync").innerText = data.syncword || "private (0x12)";
                 document.getElementById("val-pa").innerText = data.pa_gpio || "(disabled)";
-                document.getElementById("hw-title").innerText = "lg02_pkt_fwd (" + (data.spi_path || "/dev/spidev1.0") + ", RST GPIO " + (data.reset_gpio || "8 / 23") + ")";
+                document.getElementById("hw-title").innerText = (data.daemon || "raw_lora_app (SX1302 Concentrator)") + " (" + (data.spi_path || "/dev/spidev1.0") + ", RST GPIO " + (data.reset_gpio || "23") + ")";
 
                 document.getElementById("cnt-rx").innerText = data.rx_count || 0;
                 document.getElementById("cnt-tx").innerText = data.tx_count || 0;
@@ -434,9 +434,17 @@ function updateStatus() {
                 document.getElementById("cnt-txerr").innerText = data.tx_err || 0;
                 document.getElementById("cnt-q").innerText = (data.q_depth || 0) + " / " + (data.q_drop || 0);
                 document.getElementById("val-instcnt").innerText = (data.inst_cnt_us || 0) + " us";
-                document.getElementById("val-radiost").innerText = (data.rx_status || "RX_OFF") + " / " + (data.tx_status || "TX_OFF");
-                document.getElementById("cnt-temp").innerText = "RX: SF" + (data.rx_sf || 7) + " | TX: SF" + (data.tx_sf || 9);
-                document.getElementById("cnt-chdet").innerText = "BW " + (data.rx_bw || 125) + "k / " + (data.tx_bw || 125) + "k";
+                document.getElementById("val-radiost").innerText = (data.rx_status || "LISTENING (8-CH)") + " / " + (data.tx_status || "TX_FREE");
+                if (data.temp_ok && data.temp_c !== undefined && data.temp_c !== 0) {
+                    document.getElementById("cnt-temp").innerText = data.temp_c.toFixed(1) + " °C";
+                    document.getElementById("cnt-chdet").innerText = "On-die sensor (STTS751)";
+                } else if (data.rx_sf !== undefined) {
+                    document.getElementById("cnt-temp").innerText = "RX: SF" + data.rx_sf + " | TX: SF" + (data.tx_sf || data.rx_sf);
+                    document.getElementById("cnt-chdet").innerText = "BW " + (data.rx_bw || 125) + "k / " + (data.tx_bw || 125) + "k";
+                } else {
+                    document.getElementById("cnt-temp").innerText = "SF7..SF12 (8-CH)";
+                    document.getElementById("cnt-chdet").innerText = "Multi-SF Concurrent";
+                }
             } catch(e) {}
         }
     };

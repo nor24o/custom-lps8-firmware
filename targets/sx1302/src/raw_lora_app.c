@@ -1381,12 +1381,12 @@ static void *thread_status_server(void *arg) {
         const char *tx_st_str = (tx_st == TX_FREE)      ? "TX_FREE"      :
                                 (tx_st == TX_SCHEDULED) ? "TX_SCHEDULED" :
                                 (tx_st == TX_EMITTING)  ? "TX_EMITTING"  : "TX_OFF";
-        const char *rx_st_str = (rx_st == RX_ON)        ? "RX_ON"        :
-                                (rx_st == RX_SUSPENDED) ? "RX_SUSPENDED" : "RX_OFF";
+        const char *rx_st_str = (rx_st == RX_SUSPENDED) ? "RX_SUSPENDED" : "LISTENING";
 
         char buf[768];
         int n = snprintf(buf, sizeof(buf),
-            "{\"eui\":\"%016llX\","
+            "{\"daemon\":\"raw_lora_app (SX1302 8-CH Concentrator)\","
+            "\"eui\":\"%016llX\","
             "\"uptime_s\":%u,"
             "\"rx\":%u,\"tx\":%u,"
             "\"crc_err\":%u,\"tx_err\":%u,"

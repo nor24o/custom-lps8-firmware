@@ -66,12 +66,31 @@ function action_status()
 
     local uptime_s = tonumber(live.uptime_s) or 0
     local uptime_str = "Stopped"
+    local daemon_name = "Stopped"
     if is_running then
         uptime_str = string.format("Running (PID %d) — %ds", pid, uptime_s)
+        if sys.call("pidof raw_lora_app >/dev/null") == 0 then
+            daemon_name = "raw_lora_app (SX1302 Concentrator)"
+        elseif sys.call("pidof sx1276_app >/dev/null") == 0 then
+            daemon_name = "sx1276_app (SX1276)"
+        elseif sys.call("pidof lg02_pkt_fwd >/dev/null") == 0 then
+            daemon_name = "lg02_pkt_fwd (Dual SX1276)"
+        elseif sys.call("pidof lg01_pkt_fwd >/dev/null") == 0 then
+            daemon_name = "lg01_pkt_fwd (Single SX1276)"
+        else
+            daemon_name = "Daemon (PID " .. pid .. ")"
+        end
+    end
+
+    local rx_st_val = live.rx_status
+    if not rx_st_val or rx_st_val == "RX_OFF" then
+        rx_st_val = is_running and "LISTENING (8-CH)" or "RX_OFF"
     end
 
     local res = {
         running = is_running,
+        daemon = live.daemon or daemon_name,
+        hw_model = "Dragino LPS8 (SX1302)",
         pid = pid or 0,
         uptime_s = uptime_s,
         uptime = uptime_str,
@@ -101,7 +120,7 @@ function action_status()
         inst_cnt_us = tonumber(live.inst_cnt_us) or 0,
         trig_cnt_us = tonumber(live.trig_cnt_us) or 0,
         tx_status = live.tx_status or "TX_OFF",
-        rx_status = live.rx_status or "RX_OFF",
+        rx_status = rx_st_val,
         sf_mask = tonumber(live.sf_mask) or tonumber(cfg.sf_mask) or 255,
         ch_detect = live.ch_detect or {0,0,0,0,0,0,0,0}
     }

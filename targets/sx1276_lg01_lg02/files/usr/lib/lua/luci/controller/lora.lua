@@ -65,12 +65,26 @@ function action_status()
 
     local uptime_s = tonumber(live.uptime_s) or 0
     local uptime_str = "Stopped"
+    local daemon_name = "Stopped"
     if is_running then
         uptime_str = string.format("Running (PID %d) — %ds", pid, uptime_s)
+        if sys.call("pidof lg02_pkt_fwd >/dev/null") == 0 then
+            daemon_name = "lg02_pkt_fwd (Dual SX1276)"
+        elseif sys.call("pidof lg01_pkt_fwd >/dev/null") == 0 then
+            daemon_name = "lg01_pkt_fwd (Single SX1276)"
+        elseif sys.call("pidof sx1276_app >/dev/null") == 0 then
+            daemon_name = "sx1276_app (SX1276)"
+        elseif sys.call("pidof raw_lora_app >/dev/null") == 0 then
+            daemon_name = "raw_lora_app (SX1302 Concentrator)"
+        else
+            daemon_name = "Daemon (PID " .. pid .. ")"
+        end
     end
 
     local res = {
         running = is_running,
+        daemon = live.daemon or daemon_name,
+        hw_model = "Dragino LG01 / LG02 (SX1276)",
         pid = pid or 0,
         uptime_s = uptime_s,
         uptime = uptime_str,
