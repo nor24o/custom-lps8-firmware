@@ -46,19 +46,34 @@ if [ -z "$TC_BIN" ]; then
 fi
 
 # 2. Locate staging directory for uci / ubox headers and libraries
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+[ -f "$REPO_DIR/Makefile" ] || REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+[ -f "$REPO_DIR/Makefile" ] || REPO_DIR="$(pwd)"
+
 CANDIDATE_STAGING=(
     "$SCRIPT_DIR/staging"
+    "$REPO_DIR/staging"
     "$SCRIPT_DIR/../../staging"
     "/home/hor/openwrt/openwrt/staging_dir/target-mips_24kc_musl"
     "$HOME/openwrt/openwrt/staging_dir/target-mips_24kc_musl"
+    "$HOME/.openwrt-sdk-mips_24kc/staging_dir/target-mips_24kc_musl"
 )
 TARGET_DIR=""
 for s in "${CANDIDATE_STAGING[@]}"; do
-    if [ -d "$s/usr/include" ] && [ -f "$s/usr/include/uci.h" ]; then
+    if [ -d "$s/usr/include" ] && [ -f "$s/usr/include/uci.h" ] && [ -f "$s/usr/lib/libuci.so" ]; then
         TARGET_DIR="$s"
         break
     fi
 done
+
+if [ -z "$TARGET_DIR" ]; then
+    for s in "${CANDIDATE_STAGING[@]}"; do
+        if [ -d "$s/usr/include" ] && [ -f "$s/usr/include/uci.h" ]; then
+            TARGET_DIR="$s"
+            break
+        fi
+    done
+fi
 
 export PATH="$TC_BIN:$PATH"
 export CROSS_COMPILE=mips-openwrt-linux-musl-

@@ -17,6 +17,10 @@ sx1302_hal/firmwareorg/
 *.o
 *.a
 *.so
+!staging/usr/lib/*.so
+!staging/usr/lib/*.a
+!targets/sx1276_lg01_lg02/staging/usr/lib/*.so
+!targets/sx1276_lg01_lg02/staging/usr/lib/*.a
 tags
 .claude/
 
