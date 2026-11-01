@@ -64,7 +64,8 @@ The **Dragino HE (Hardware Environment)** core module encapsulates the Atheros A
 | **Pin 15** | `GPIO 7` | **SX1276 DIO0** | `/sys/class/gpio/gpio7` | `"dio0_gpio": "7"` | SX1276 packet interrupt on LG01/LG02; free GPIO on LPS8. |
 | **Pin 16** | `GPIO 8` | **Radio 1 Reset** | `/sys/class/gpio/gpio8` | `"rst_gpio": "8"` | Primary SX1276 reset on LG02; free GPIO on LPS8. |
 | **Pins 13,14,22,27** | `GPIO 6,21,22,27` | **Free Digital I/O** | `/sys/class/gpio/gpio*` | User expansion | Unclaimed AR9331 digital GPIOs available for custom accessories. |
-| **Pins 35 & 36** | `GND & GPIO 12` | **Disconnected (X)** | None | None | **Crossed out on carrier PCB layout; left floating.** |
+| **Pin 35** | `GND` | **Ground Plane** | Ground | None | **Digital ground plane connection on HE footprint.** |
+| **Pin 36** | `GPIO 12` | **Free Digital I/O** | `sysfs` / `/sys/class/gpio/gpio12` | `in` / `out` | **Free digital I/O for sensors, relays, or expansion.** |
 
 ### 2.2 Kernel SPI Module Initialization
 
