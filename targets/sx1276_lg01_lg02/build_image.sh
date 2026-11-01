@@ -33,7 +33,7 @@ if [ ! -f "$IMAGEBUILDER_DIR/packages/Packages" ] || [ ! -x "$IMAGEBUILDER_DIR/s
 
     if [ -f "$IMAGEBUILDER_DIR/scripts/download_utils.sh" ]; then
         source "$IMAGEBUILDER_DIR/scripts/download_utils.sh"
-        IB_TAR="$(get_openwrt_imagebuilder_tar)"
+        IB_TAR="$(get_openwrt_imagebuilder_tar | tail -n 1)"
     else
         CACHE_DIR="$HOME/.openwrt-cache"
         mkdir -p "$CACHE_DIR"

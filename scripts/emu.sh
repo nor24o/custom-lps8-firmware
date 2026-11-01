@@ -196,7 +196,7 @@ run_system() {
     if [ ! -s "$KERNEL_ELF" ]; then
         if [ -f "$REPO_DIR/scripts/download_utils.sh" ]; then
             source "$REPO_DIR/scripts/download_utils.sh"
-            KERNEL_ELF="$(get_openwrt_malta_kernel)"
+            KERNEL_ELF="$(get_openwrt_malta_kernel | tail -n 1)"
         else
             local KERNEL_MIRRORS=(
                 "https://downloads.openwrt.org/releases/18.06.9/targets/malta/be/openwrt-18.06.9-malta-be-vmlinux.elf"

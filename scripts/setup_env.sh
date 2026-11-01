@@ -111,7 +111,7 @@ if [ -z "$FOUND_TOOLCHAIN" ]; then
 
     mkdir -p "$SDK_INSTALL_DIR"
     source "$SCRIPT_DIR/download_utils.sh"
-    ARCHIVE_FILE="$(get_openwrt_sdk_tar)"
+    ARCHIVE_FILE="$(get_openwrt_sdk_tar | tail -n 1)"
 
     if [ -z "$ARCHIVE_FILE" ] || [ ! -s "$ARCHIVE_FILE" ]; then
         echo -e "${RED}[ERROR] Failed to obtain OpenWrt SDK archive from all candidate mirrors.${NC}"
@@ -161,7 +161,7 @@ if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ]; then
     if [ "$NEED_IB_DOWNLOAD" -eq 1 ]; then
         echo -e "${YELLOW}[!] ImageBuilder host tools, packages, or kernel missing.${NC}"
         source "$SCRIPT_DIR/download_utils.sh"
-        IB_ARCHIVE="$(get_openwrt_imagebuilder_tar)"
+        IB_ARCHIVE="$(get_openwrt_imagebuilder_tar | tail -n 1)"
 
         if [ -z "$IB_ARCHIVE" ] || [ ! -s "$IB_ARCHIVE" ]; then
             echo -e "${RED}[ERROR] Failed to obtain OpenWrt ImageBuilder archive from all candidate mirrors.${NC}"

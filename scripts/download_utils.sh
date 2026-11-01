@@ -16,9 +16,9 @@ download_file() {
 
     for url in "${urls[@]}"; do
         echo -e "\033[0;34m[*] Trying download from: ${url}...\033[0m" >&2
-        # 1. Try wget with IPv4 only and reasonable timeouts
+        # 1. Try wget with IPv4 only and progress to stderr
         if command -v wget >/dev/null 2>&1; then
-            if wget --inet4-only --timeout=15 --tries=3 -c --show-progress "$url" -O "$tmp_dest" 2>&1; then
+            if wget --inet4-only --timeout=15 --tries=3 -c "$url" -O "$tmp_dest" >&2; then
                 if [ -s "$tmp_dest" ]; then
                     mv "$tmp_dest" "$dest"
                     return 0
@@ -26,9 +26,9 @@ download_file() {
             fi
         fi
 
-        # 2. Try curl with IPv4 only
+        # 2. Try curl with IPv4 only and progress to stderr
         if command -v curl >/dev/null 2>&1; then
-            if curl -4 -L --connect-timeout 15 --retry 3 -f -C - -o "$tmp_dest" "$url" 2>&1; then
+            if curl -4 -L --connect-timeout 15 --retry 3 -f -C - -o "$tmp_dest" "$url" >&2; then
                 if [ -s "$tmp_dest" ]; then
                     mv "$tmp_dest" "$dest"
                     return 0
