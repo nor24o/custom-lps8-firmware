@@ -108,28 +108,19 @@ done
 if [ -z "$FOUND_TOOLCHAIN" ]; then
     echo -e "${YELLOW}[!] OpenWrt MIPS toolchain not detected in candidate paths.${NC}"
     echo -e "${BLUE}[*] Automatically downloading official OpenWrt MIPS 24Kc SDK (~73 MB)...${NC}"
-    
+
     mkdir -p "$SDK_INSTALL_DIR"
-    ARCHIVE_FILE="/tmp/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz"
-    URL1="https://downloads.openwrt.org/releases/19.07.10/targets/ar71xx/generic/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz"
-    URL2="https://archive.openwrt.org/releases/19.07.10/targets/ar71xx/generic/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz"
-    
-    # Check if local cached copy exists
-    if [ -f "/home/hor/giuthub/new/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz" ]; then
-        echo -e "${GREEN}[+] Using local cached SDK archive...${NC}"
-        cp "/home/hor/giuthub/new/openwrt-sdk-19.07.10-ar71xx-generic_gcc-7.5.0_musl.Linux-x86_64.tar.xz" "$ARCHIVE_FILE"
-    else
-        echo -e "${BLUE}[*] Fetching from ${URL1}...${NC}"
-        if ! wget -c --show-progress "$URL1" -O "$ARCHIVE_FILE" 2>/dev/null; then
-            echo -e "${YELLOW}[!] Primary mirror failed, fetching from archive mirror...${NC}"
-            wget -c --show-progress "$URL2" -O "$ARCHIVE_FILE"
-        fi
+    source "$SCRIPT_DIR/download_utils.sh"
+    ARCHIVE_FILE="$(get_openwrt_sdk_tar)"
+
+    if [ -z "$ARCHIVE_FILE" ] || [ ! -s "$ARCHIVE_FILE" ]; then
+        echo -e "${RED}[ERROR] Failed to obtain OpenWrt SDK archive from all candidate mirrors.${NC}"
+        exit 1
     fi
-    
+
     echo -e "${BLUE}[*] Extracting MIPS 24Kc SDK and toolchain into ${SDK_INSTALL_DIR}...${NC}"
     tar -xJf "$ARCHIVE_FILE" -C "$SDK_INSTALL_DIR" --strip-components=1
-    rm -f "$ARCHIVE_FILE"
-    
+
     if [ -x "$SDK_INSTALL_DIR/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin/mips-openwrt-linux-musl-gcc" ]; then
         FOUND_TOOLCHAIN="$SDK_INSTALL_DIR/staging_dir/toolchain-mips_24kc_gcc-7.5.0_musl/bin"
         echo -e "${GREEN}[+] Toolchain successfully installed to: ${FOUND_TOOLCHAIN}${NC}"
@@ -169,25 +160,12 @@ if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ]; then
 
     if [ "$NEED_IB_DOWNLOAD" -eq 1 ]; then
         echo -e "${YELLOW}[!] ImageBuilder host tools, packages, or kernel missing.${NC}"
-        IB_CACHE_CANDIDATES=(
-            "$OPENWRT_IB_TAR"
-            "/home/hor/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-            "$HOME/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-            "$REPO_DIR/../openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-        )
-        IB_ARCHIVE=""
-        for c in "${IB_CACHE_CANDIDATES[@]}"; do
-            if [ -n "$c" ] && [ -f "$c" ]; then
-                IB_ARCHIVE="$c"
-                break
-            fi
-        done
+        source "$SCRIPT_DIR/download_utils.sh"
+        IB_ARCHIVE="$(get_openwrt_imagebuilder_tar)"
 
-        if [ -z "$IB_ARCHIVE" ]; then
-            IB_ARCHIVE="/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-            IB_URL="https://archive.openwrt.org/releases/18.06.9/targets/ar71xx/generic/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-            echo -e "${BLUE}[*] Downloading OpenWrt 18.06.9 ImageBuilder components from archive mirror...${NC}"
-            wget -c --show-progress "$IB_URL" -O "$IB_ARCHIVE"
+        if [ -z "$IB_ARCHIVE" ] || [ ! -s "$IB_ARCHIVE" ]; then
+            echo -e "${RED}[ERROR] Failed to obtain OpenWrt ImageBuilder archive from all candidate mirrors.${NC}"
+            exit 1
         fi
 
         echo -e "${BLUE}[*] Unpacking ImageBuilder host tools, packages, and Dragino kernels...${NC}"
@@ -200,7 +178,6 @@ if [ -f "$REPO_DIR/Makefile" ] && [ -f "$REPO_DIR/rules.mk" ]; then
             openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma \
             openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf \
             openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader-generic.elf
-        [ "$IB_ARCHIVE" = "/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz" ] && rm -f "$IB_ARCHIVE"
     fi
     echo -e "${GREEN}[+] ImageBuilder host tools, packages, and Dragino kernels ready.${NC}"
 fi

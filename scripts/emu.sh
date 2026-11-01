@@ -192,11 +192,26 @@ run_system() {
     local CACHE_DIR="$HOME/.openwrt-sdk-mips_24kc"
     mkdir -p "$CACHE_DIR"
     local KERNEL_ELF="$CACHE_DIR/openwrt-18.06.9-malta-be-vmlinux.elf"
-    local KERNEL_URL="https://archive.openwrt.org/releases/18.06.9/targets/malta/be/openwrt-18.06.9-malta-be-vmlinux.elf"
 
     if [ ! -s "$KERNEL_ELF" ]; then
-        echo -e "${BLUE}[*] Downloading OpenWrt 18.06.9 MIPS Malta boot kernel (~5.8 MB)...${NC}"
-        wget -c --show-progress "$KERNEL_URL" -O "$KERNEL_ELF"
+        if [ -f "$REPO_DIR/scripts/download_utils.sh" ]; then
+            source "$REPO_DIR/scripts/download_utils.sh"
+            KERNEL_ELF="$(get_openwrt_malta_kernel)"
+        else
+            local KERNEL_MIRRORS=(
+                "https://downloads.openwrt.org/releases/18.06.9/targets/malta/be/openwrt-18.06.9-malta-be-vmlinux.elf"
+                "http://archive.openwrt.org/releases/18.06.9/targets/malta/be/openwrt-18.06.9-malta-be-vmlinux.elf"
+                "http://downloads.openwrt.org/releases/18.06.9/targets/malta/be/openwrt-18.06.9-malta-be-vmlinux.elf"
+            )
+            for kurl in "${KERNEL_MIRRORS[@]}"; do
+                echo -e "${BLUE}[*] Trying mirror: ${kurl}...${NC}"
+                if wget --inet4-only --timeout=15 --tries=3 -c --show-progress "$kurl" -O "$KERNEL_ELF"; then
+                    break
+                elif command -v curl >/dev/null 2>&1 && curl -4 -L --connect-timeout 15 --retry 3 -C - -o "$KERNEL_ELF" "$kurl"; then
+                    break
+                fi
+            done
+        fi
     fi
 
     local ROOTFS="$REPO_DIR/build_dir/target-mips_24kc_musl/root-ar71xx"
