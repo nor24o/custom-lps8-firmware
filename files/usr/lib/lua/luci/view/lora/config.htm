@@ -114,13 +114,13 @@
 </style>
 
 <div>
-    <h2><%:raw_lora_app Settings & Configuration (/etc/lora/config.json)%></h2>
+    <h2><%:raw_lora_app Settings and Configuration (/etc/lora/config.json)%></h2>
     <p class="description"><%:Directly configure all parameters for /usr/bin/raw_lora_app. Saving writes /etc/lora/config.json and restarts raw_lora_app.%></p>
 
     <!-- 1. Network -->
     <div class="cfg-section">
         <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:1. Network & Upstream Target%></h3><span>▾</span>
+            <h3><%:1. Network and Upstream Target%></h3><span>▾</span>
         </div>
         <div class="cfg-body cfg-grid">
             <div>
@@ -153,7 +153,7 @@
     <!-- 2. Hardware -->
     <div class="cfg-section">
         <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:2. Hardware, SPI & GPIO%></h3><span>▾</span>
+            <h3><%:2. Hardware, SPI and GPIO%></h3><span>▾</span>
         </div>
         <div class="cfg-body cfg-grid">
             <div>
@@ -206,7 +206,7 @@
     <!-- 3. RF Chains -->
     <div class="cfg-section">
         <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:3. RF Chains (RF0 & RF1)%></h3><span>▾</span>
+            <h3><%:3. RF Chains (RF0 and RF1)%></h3><span>▾</span>
         </div>
         <div class="cfg-body cfg-grid">
             <div>
@@ -284,10 +284,10 @@
         </div>
     </div>
 
-    <!-- 5. LoRa Std & FSK -->
+    <!-- 5. LoRa Std and FSK -->
     <div class="cfg-section">
         <div class="cfg-hdr" onclick="toggleSec(this)">
-            <h3><%:5. LoRa Std (Ch 8) & FSK (Ch 9)%></h3><span>▾</span>
+            <h3><%:5. LoRa Std (Ch 8) and FSK (Ch 9)%></h3><span>▾</span>
         </div>
         <div class="cfg-body cfg-grid">
             <div>
@@ -435,7 +435,7 @@
         </div>
         <div class="cfg-body cfg-grid hidden">
             <div>
-                <div class="sub-hdr"><%:Demodulator & Health Telemetry%></div>
+                <div class="sub-hdr"><%:Demodulator and Health Telemetry%></div>
                 <div class="cfg-field">
                     <label><%:Multi-SF Demodulator Bitmask (sf_mask: 1=SF5 .. 128=SF12)%></label>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px;">
@@ -464,7 +464,7 @@
                 </div>
             </div>
             <div>
-                <div class="sub-hdr"><%:LoRa Std Implicit Header & FSK Sync%></div>
+                <div class="sub-hdr"><%:LoRa Std Implicit Header and FSK Sync%></div>
                 <div class="cfg-field">
                     <label><input type="checkbox" id="c_chan_lora_std_implicit_hdr" /> <%:LoRa Std Implicit Header Mode (chan_lora_std_implicit_hdr)%></label>
                 </div>
@@ -491,7 +491,7 @@
     </div>
 
     <div class="cfg-actions">
-        <button type="button" class="cbi-button cbi-button-apply" onclick="saveConfig()"><%:Save & Restart raw_lora_app%></button>
+        <button type="button" class="cbi-button cbi-button-apply" onclick="saveConfig()"><%:Save and Restart raw_lora_app%></button>
         <button type="button" class="cbi-button cbi-button-reset" onclick="loadConfig()"><%:Reload from /etc/lora/config.json%></button>
         <span id="save-msg" style="font-weight: 600; font-size: 13px;"></span>
     </div>
