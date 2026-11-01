@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include "libloragw/inc/loragw_hal.h"
+#include "libloragw/inc/loragw_sx1302.h"
 #include "libtools/inc/parson.h"
 #include "libtools/inc/base64.h"
 
@@ -93,6 +94,18 @@ typedef struct {
     // LEDs
     char     led_rx[64];
     char     led_tx[64];
+    // Optional HAL Features
+    uint8_t  sf_mask;                     // multi-SF demodulator bitmask (0x01=SF5..0x80=SF12, default 0xFF)
+    bool     mcu_health_check;            // periodic sx1302_update() health check (default true)
+    bool     temp_monitor_enable;         // periodic lgw_get_temperature() telemetry (default true)
+    bool     ext_rx_metadata;             // extended RX metadata (snr_min/max, crc, ftime) (default true)
+    bool     ftime_enable;                // fine timestamping enable (SX1303 only, default false)
+    bool     chan_lora_std_implicit_hdr;  // implicit header mode on LoRa std channel 8 (default false)
+    uint8_t  chan_lora_std_implicit_len;  // implicit payload length on channel 8 (default 0)
+    bool     chan_lora_std_implicit_crc;  // implicit CRC enable on channel 8 (default false)
+    char     chan_lora_std_implicit_cr[8];// implicit coderate on channel 8 ("4/5".."4/8")
+    uint8_t  chan_fsk_sync_size;          // FSK sync word size in bytes (1..8, default 3)
+    uint64_t chan_fsk_sync_word;          // FSK sync word (default 0xC194C1)
 } app_config_t;
 
 static app_config_t g_cfg;
@@ -174,6 +187,17 @@ static void load_config(const char *path) {
     g_cfg.tx_free_timeout_ms     = 2000;
     g_cfg.led_rx[0]              = '\0';
     g_cfg.led_tx[0]              = '\0';
+    g_cfg.sf_mask                    = LGW_MULTI_SF_EN; // 0xFF (SF5..SF12 all enabled)
+    g_cfg.mcu_health_check           = true;
+    g_cfg.temp_monitor_enable        = true;
+    g_cfg.ext_rx_metadata            = true;
+    g_cfg.ftime_enable               = false;
+    g_cfg.chan_lora_std_implicit_hdr = false;
+    g_cfg.chan_lora_std_implicit_len = 0;
+    g_cfg.chan_lora_std_implicit_crc = false;
+    strncpy(g_cfg.chan_lora_std_implicit_cr, "4/5", sizeof(g_cfg.chan_lora_std_implicit_cr) - 1);
+    g_cfg.chan_fsk_sync_size         = 3;
+    g_cfg.chan_fsk_sync_word         = 0xC194C1ULL;
 
     JSON_Value *root = json_parse_file(path);
     if (!root) {
@@ -308,6 +332,20 @@ static void load_config(const char *path) {
     // LEDs
     CFG_STR  ("led_rx", g_cfg.led_rx)
     CFG_STR  ("led_tx", g_cfg.led_tx)
+
+    // Optional HAL Features
+    CFG_U8   ("sf_mask",                    g_cfg.sf_mask)
+    CFG_BOOL ("mcu_health_check",           g_cfg.mcu_health_check)
+    CFG_BOOL ("temp_monitor_enable",        g_cfg.temp_monitor_enable)
+    CFG_BOOL ("ext_rx_metadata",            g_cfg.ext_rx_metadata)
+    CFG_BOOL ("ftime_enable",               g_cfg.ftime_enable)
+    CFG_BOOL ("chan_lora_std_implicit_hdr", g_cfg.chan_lora_std_implicit_hdr)
+    CFG_U8   ("chan_lora_std_implicit_len", g_cfg.chan_lora_std_implicit_len)
+    CFG_BOOL ("chan_lora_std_implicit_crc", g_cfg.chan_lora_std_implicit_crc)
+    CFG_STR  ("chan_lora_std_implicit_cr",  g_cfg.chan_lora_std_implicit_cr)
+    CFG_U8   ("chan_fsk_sync_size",         g_cfg.chan_fsk_sync_size)
+    if ((val = json_object_get_value(obj, "chan_fsk_sync_word")) && json_value_get_type(val) == JSONNumber)
+        g_cfg.chan_fsk_sync_word = (uint64_t)json_value_get_number(val);
 
 #undef CFG_STR
 #undef CFG_U32
@@ -684,26 +722,131 @@ static int configure_and_start_sx1302(void) {
     }
 
     memset(&ifconf, 0, sizeof(ifconf));
-    ifconf.enable    = g_cfg.chan_lora_std_enable;
-    ifconf.rf_chain  = g_cfg.chan_lora_std_radio;
-    ifconf.freq_hz   = g_cfg.chan_lora_std_if;
-    ifconf.bandwidth = bw_khz_to_enum(g_cfg.chan_lora_std_bw);
-    ifconf.datarate  = g_cfg.chan_lora_std_sf;
+    ifconf.enable                  = g_cfg.chan_lora_std_enable;
+    ifconf.rf_chain                = g_cfg.chan_lora_std_radio;
+    ifconf.freq_hz                 = g_cfg.chan_lora_std_if;
+    ifconf.bandwidth               = bw_khz_to_enum(g_cfg.chan_lora_std_bw);
+    ifconf.datarate                = g_cfg.chan_lora_std_sf;
+    ifconf.implicit_hdr            = g_cfg.chan_lora_std_implicit_hdr;
+    ifconf.implicit_payload_length = g_cfg.chan_lora_std_implicit_len;
+    ifconf.implicit_crc_en         = g_cfg.chan_lora_std_implicit_crc;
+    ifconf.implicit_coderate       = str_to_coderate(g_cfg.chan_lora_std_implicit_cr);
     lgw_rxif_setconf(8, &ifconf);
 
     memset(&ifconf, 0, sizeof(ifconf));
-    ifconf.enable    = g_cfg.chan_fsk_enable;
-    ifconf.rf_chain  = g_cfg.chan_fsk_radio;
-    ifconf.freq_hz   = g_cfg.chan_fsk_if;
-    ifconf.bandwidth = bw_khz_to_enum(g_cfg.chan_fsk_bw);
-    ifconf.datarate  = g_cfg.chan_fsk_datarate;
+    ifconf.enable         = g_cfg.chan_fsk_enable;
+    ifconf.rf_chain       = g_cfg.chan_fsk_radio;
+    ifconf.freq_hz        = g_cfg.chan_fsk_if;
+    ifconf.bandwidth      = bw_khz_to_enum(g_cfg.chan_fsk_bw);
+    ifconf.datarate       = g_cfg.chan_fsk_datarate;
+    ifconf.sync_word_size = g_cfg.chan_fsk_sync_size;
+    ifconf.sync_word      = g_cfg.chan_fsk_sync_word;
     lgw_rxif_setconf(9, &ifconf);
 
     memset(&demodconf, 0, sizeof(demodconf));
-    demodconf.multisf_datarate = LGW_MULTI_SF_EN;
+    demodconf.multisf_datarate = g_cfg.sf_mask ? g_cfg.sf_mask : LGW_MULTI_SF_EN;
     lgw_demod_setconf(&demodconf);
 
+    if (g_cfg.ftime_enable) {
+        struct lgw_conf_ftime_s ftimeconf;
+        memset(&ftimeconf, 0, sizeof(ftimeconf));
+        ftimeconf.enable = true;
+        ftimeconf.mode   = LGW_FTIME_MODE_ALL_SF;
+        lgw_ftime_setconf(&ftimeconf);
+    }
+
     return lgw_start();
+}
+
+// === LIVE RX PACKET RING BUFFER FOR LUCI ===
+#define RX_HIST_MAX 25
+typedef struct {
+    char     time_hms[16];
+    uint32_t tmst;
+    uint8_t  chan;
+    uint8_t  rfch;
+    double   freq_mhz;
+    char     datr[16];
+    char     codr[8];
+    float    rssis;
+    float    rssic;
+    float    snr;
+    float    snr_min;
+    float    snr_max;
+    int32_t  foff;
+    uint16_t size;
+    uint16_t crc;
+    char     status[12];
+    char     hex[68];
+    char     b64[360];
+} rx_hist_entry_t;
+
+static rx_hist_entry_t g_rx_hist[RX_HIST_MAX];
+static int             g_rx_hist_head  = 0;
+static int             g_rx_hist_count = 0;
+static pthread_mutex_t rx_hist_mutex   = PTHREAD_MUTEX_INITIALIZER;
+static float           g_temperature_c = 0.0f;
+static bool            g_temp_valid    = false;
+
+static void record_rx_packet(const struct lgw_pkt_rx_s *p, const char *hms,
+                             const char *datr_str, const char *codr_str,
+                             const char *crc_str, const char *b64_str) {
+    pthread_mutex_lock(&rx_hist_mutex);
+    rx_hist_entry_t *e = &g_rx_hist[g_rx_hist_head];
+    memset(e, 0, sizeof(*e));
+    strncpy(e->time_hms, hms, sizeof(e->time_hms) - 1);
+    e->tmst     = p->count_us;
+    e->chan     = p->if_chain;
+    e->rfch     = p->rf_chain;
+    e->freq_mhz = p->freq_hz / 1e6;
+    strncpy(e->datr, datr_str, sizeof(e->datr) - 1);
+    strncpy(e->codr, codr_str, sizeof(e->codr) - 1);
+    e->rssis    = p->rssis;
+    e->rssic    = p->rssic;
+    e->snr      = p->snr;
+    e->snr_min  = p->snr_min;
+    e->snr_max  = p->snr_max;
+    e->foff     = p->freq_offset;
+    e->size     = p->size;
+    e->crc      = p->crc;
+    strncpy(e->status, crc_str, sizeof(e->status) - 1);
+    strncpy(e->b64, b64_str, sizeof(e->b64) - 1);
+
+    int hex_bytes = p->size > 32 ? 32 : p->size;
+    for (int k = 0; k < hex_bytes; k++) {
+        snprintf(e->hex + (k * 2), 3, "%02X", p->payload[k]);
+    }
+    e->hex[hex_bytes * 2] = '\0';
+
+    g_rx_hist_head = (g_rx_hist_head + 1) % RX_HIST_MAX;
+    if (g_rx_hist_count < RX_HIST_MAX) g_rx_hist_count++;
+
+    FILE *fp = fopen("/tmp/lora_packets.json.tmp", "w");
+    if (fp) {
+        fprintf(fp, "[");
+        for (int i = 0; i < g_rx_hist_count; i++) {
+            int idx = (g_rx_hist_head - 1 - i + RX_HIST_MAX) % RX_HIST_MAX;
+            rx_hist_entry_t *it = &g_rx_hist[idx];
+            fprintf(fp,
+                "%s{\"time\":\"%s\",\"tmst\":%u,\"chan\":%u,\"rfch\":%u,"
+                "\"freq\":\"%.4f\",\"datr\":\"%s\",\"codr\":\"%s\","
+                "\"rssi\":%.1f,\"rssic\":%.1f,\"snr\":%.1f,"
+                "\"snr_min\":%.1f,\"snr_max\":%.1f,\"foff\":%d,"
+                "\"size\":%u,\"crc\":%u,\"status\":\"%s\","
+                "\"hex\":\"%s\",\"b64\":\"%s\"}",
+                (i > 0) ? "," : "",
+                it->time_hms, it->tmst, (unsigned)it->chan, (unsigned)it->rfch,
+                it->freq_mhz, it->datr, it->codr,
+                it->rssis, it->rssic, it->snr,
+                it->snr_min, it->snr_max, (int)it->foff,
+                (unsigned)it->size, (unsigned)it->crc, it->status,
+                it->hex, it->b64);
+        }
+        fprintf(fp, "]\n");
+        fclose(fp);
+        rename("/tmp/lora_packets.json.tmp", "/tmp/lora_packets.json");
+    }
+    pthread_mutex_unlock(&rx_hist_mutex);
 }
 
 static bool wait_tx_free(uint8_t rf_chain, int timeout_ms) {
@@ -722,7 +865,7 @@ static bool wait_tx_free(uint8_t rf_chain, int timeout_ms) {
 static void *thread_rx_loop(void *arg) {
     (void)arg;
     struct lgw_pkt_rx_s rxpkt[16];
-    char json_buf[1280];
+    char json_buf[1536];
     char b64[400];
     int consec_err = 0;
 
@@ -762,8 +905,10 @@ static void *thread_rx_loop(void *arg) {
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
             char time_str[28];
+            char hms_str[16];
             struct tm *tm_info = gmtime(&ts.tv_sec);
             strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%S", tm_info);
+            strftime(hms_str,  sizeof(hms_str),  "%H:%M:%S",          tm_info);
 
             bin_to_b64(p->payload, (int)p->size, b64, (int)sizeof(b64));
 
@@ -790,6 +935,19 @@ static void *thread_rx_loop(void *arg) {
             int stat_val = (p->status == STAT_CRC_OK)  ?  1 :
                            (p->status == STAT_CRC_BAD) ? -1 : 0;
 
+            char ext_buf[160] = "";
+            if (g_cfg.ext_rx_metadata) {
+                if (p->ftime_received) {
+                    snprintf(ext_buf, sizeof(ext_buf),
+                        ",\"snr_min\":%.1f,\"snr_max\":%.1f,\"crc\":%u,\"ftime\":%u",
+                        p->snr_min, p->snr_max, (unsigned)p->crc, p->ftime);
+                } else {
+                    snprintf(ext_buf, sizeof(ext_buf),
+                        ",\"snr_min\":%.1f,\"snr_max\":%.1f,\"crc\":%u",
+                        p->snr_min, p->snr_max, (unsigned)p->crc);
+                }
+            }
+
             int json_len = snprintf(json_buf, sizeof(json_buf),
                 "{\"rxpk\":[{"
                 "\"tmst\":%u,"
@@ -805,7 +963,7 @@ static void *thread_rx_loop(void *arg) {
                 "\"rssis\":%.1f,"
                 "\"lsnr\":%.1f,"
                 "\"foff\":%d,"
-                "\"rssi\":%.1f,"
+                "\"rssi\":%.1f%s,"
                 "\"size\":%u,"
                 "\"data\":\"%s\""
                 "}]}",
@@ -813,7 +971,7 @@ static void *thread_rx_loop(void *arg) {
                 (unsigned)p->if_chain, (unsigned)p->rf_chain,
                 p->freq_hz / 1e6, (unsigned)p->modem_id, stat_val,
                 modu_str, datr_str, codr_str, p->rssis, p->snr, p->freq_offset,
-                p->rssic, (unsigned)p->size, b64);
+                p->rssic, ext_buf, (unsigned)p->size, b64);
 
             send_uplink(json_buf, (size_t)json_len);
 
@@ -825,6 +983,7 @@ static void *thread_rx_loop(void *arg) {
 
             const char *crc_str = (p->status == STAT_CRC_OK)  ? "CRC_OK"  :
                                   (p->status == STAT_CRC_BAD) ? "CRC_BAD" : "NO_CRC";
+            record_rx_packet(p, hms_str, datr_str, codr_str, crc_str, b64);
             printf("[RX] %u bytes | %s | %.4f MHz | RSSI %.1f dBm | SNR %.1f dB | %s\n",
                    p->size, datr_str, p->freq_hz / 1e6, p->rssis, p->snr, crc_str);
         }
@@ -872,10 +1031,38 @@ static void *thread_tx_recv(void *arg) {
         memset(&txpkt, 0, sizeof(txpkt));
         JSON_Value *val;
 
+        // Optional TX abort command: {"abort": true, "rfch": 0}
+        if ((val = json_object_get_value(obj, "abort")) &&
+            json_value_get_type(val) == JSONBoolean &&
+            json_value_get_boolean(val)) {
+            uint8_t rfch = g_cfg.tx_default_rfch;
+            if ((val = json_object_get_value(obj, "rfch")) && json_value_get_type(val) == JSONNumber)
+                rfch = (uint8_t)json_value_get_number(val);
+            pthread_mutex_lock(&hal_mutex);
+            int r = lgw_abort_tx(rfch);
+            pthread_mutex_unlock(&hal_mutex);
+            pa_set(0);
+            printf("[TX-RECV] Aborted TX on chain %u (res=%d).\n", rfch, r);
+            json_value_free(root_val);
+            continue;
+        }
+
         bool imme = true;
         if ((val = json_object_get_value(obj, "imme")) && json_value_get_type(val) == JSONBoolean)
             imme = (json_value_get_boolean(val) != 0);
-        txpkt.tx_mode = imme ? IMMEDIATE : TIMESTAMPED;
+
+        // Hardware timestamped Class A/B downlink ("tmst" in us)
+        if ((val = json_object_get_value(obj, "tmst")) && json_value_get_type(val) == JSONNumber) {
+            txpkt.count_us = (uint32_t)json_value_get_number(val);
+            if (!json_object_get_value(obj, "imme"))
+                imme = false;
+        }
+
+        const char *tx_mode_str = json_object_get_string(obj, "tx_mode");
+        if (tx_mode_str && strcmp(tx_mode_str, "on_gps") == 0)
+            txpkt.tx_mode = ON_GPS;
+        else
+            txpkt.tx_mode = imme ? IMMEDIATE : TIMESTAMPED;
 
         if ((val = json_object_get_value(obj, "freq")) && json_value_get_type(val) == JSONNumber)
             txpkt.freq_hz = (uint32_t)(json_value_get_number(val) * 1e6 + 0.5);
@@ -893,7 +1080,9 @@ static void *thread_tx_recv(void *arg) {
             txpkt.rf_power = g_cfg.tx_default_power;
 
         const char *modu = json_object_get_string(obj, "modu");
-        txpkt.modulation = (modu && strcmp(modu, "FSK") == 0) ? MOD_FSK : MOD_LORA;
+        if (modu && strcmp(modu, "FSK") == 0)     txpkt.modulation = MOD_FSK;
+        else if (modu && strcmp(modu, "CW") == 0) txpkt.modulation = MOD_CW;
+        else                                      txpkt.modulation = MOD_LORA;
 
         const char *datr = json_object_get_string(obj, "datr");
         if (datr) {
@@ -931,8 +1120,23 @@ static void *thread_tx_recv(void *arg) {
         else
             txpkt.no_crc = false;
 
-        txpkt.preamble   = g_cfg.tx_default_preamble;
-        txpkt.no_header  = false;
+        if ((val = json_object_get_value(obj, "prea")) && json_value_get_type(val) == JSONNumber)
+            txpkt.preamble = (uint16_t)json_value_get_number(val);
+        else
+            txpkt.preamble = g_cfg.tx_default_preamble;
+
+        if ((val = json_object_get_value(obj, "nhdr")) && json_value_get_type(val) == JSONBoolean)
+            txpkt.no_header = (json_value_get_boolean(val) != 0);
+        else
+            txpkt.no_header = false;
+
+        if ((val = json_object_get_value(obj, "f_dev")) && json_value_get_type(val) == JSONNumber)
+            txpkt.f_dev = (uint8_t)json_value_get_number(val);
+        else if (txpkt.modulation == MOD_FSK)
+            txpkt.f_dev = 25;
+
+        if ((val = json_object_get_value(obj, "f_off")) && json_value_get_type(val) == JSONNumber)
+            txpkt.freq_offset = (int8_t)json_value_get_number(val);
 
         const char *b64_data = json_object_get_string(obj, "data");
         if (b64_data) {
@@ -944,6 +1148,8 @@ static void *thread_tx_recv(void *arg) {
                 continue;
             }
             txpkt.size = (uint16_t)decoded_len;
+        } else if (txpkt.modulation == MOD_CW) {
+            txpkt.size = 0;
         } else {
             printf("[TX-RECV] Missing payload field 'data'\n");
             json_value_free(root_val);
@@ -974,7 +1180,7 @@ static void *thread_tx_dispatch(void *arg) {
     printf("[TX-DISPATCH] Thread started.\n");
 
     while (txq_pop(&txq, &txpkt)) {
-        uint32_t toa_ms = lgw_time_on_air(&txpkt);
+        uint32_t toa_ms = (txpkt.modulation == MOD_CW) ? 0 : lgw_time_on_air(&txpkt);
 
         if (!wait_tx_free(txpkt.rf_chain, g_cfg.tx_free_timeout_ms)) {
             printf("[TX-DISPATCH] Timeout waiting for TX_FREE on chain %u.\n", txpkt.rf_chain);
@@ -990,12 +1196,13 @@ static void *thread_tx_dispatch(void *arg) {
         int ret = lgw_send(&txpkt);
         pthread_mutex_unlock(&hal_mutex);
 
-        if (ret == LGW_HAL_SUCCESS) {
+        if (ret == LGW_HAL_SUCCESS && txpkt.modulation != MOD_CW) {
             // Wait for actual over-air transmission to finish before releasing PA
             wait_tx_free(txpkt.rf_chain, (int)toa_ms + 500);
+            pa_set(0);  // PA/LNA switch → RX mode (LOW)
+        } else if (ret != LGW_HAL_SUCCESS) {
+            pa_set(0);
         }
-
-        pa_set(0);      // PA/LNA switch → RX mode (LOW)
 
         pthread_mutex_lock(&stats_mutex);
         if (ret != LGW_HAL_SUCCESS) {
@@ -1023,6 +1230,21 @@ static void *thread_heartbeat(void *arg) {
             sleep(1);
         if (g_quit) break;
 
+        if (g_cfg.mcu_health_check || g_cfg.temp_monitor_enable) {
+            pthread_mutex_lock(&hal_mutex);
+            if (g_cfg.mcu_health_check) {
+                sx1302_update();
+            }
+            if (g_cfg.temp_monitor_enable) {
+                float t = 0.0f;
+                if (lgw_get_temperature(&t) == LGW_HAL_SUCCESS) {
+                    g_temperature_c = t;
+                    g_temp_valid    = true;
+                }
+            }
+            pthread_mutex_unlock(&hal_mutex);
+        }
+
         struct heartbeat_pkt hb;
         hb.pkt_type    = PKT_TYPE_HEARTBEAT;
         hb.gateway_eui = g_gateway_eui;
@@ -1043,10 +1265,10 @@ static void *thread_heartbeat(void *arg) {
 
         send_uplink(&hb, sizeof(hb));
 
-        printf("[HB] uptime=%us rx=%u tx=%u crc_err=%u tx_err=%u q=%u q_drop=%u\n",
+        printf("[HB] uptime=%us rx=%u tx=%u crc_err=%u tx_err=%u q=%u q_drop=%u temp=%.1fC\n",
                hb.uptime_s, hb.rx_count, hb.tx_count,
                hb.crc_err_count, hb.tx_err_count,
-               hb.tx_queue_depth, hb.tx_queue_drop);
+               hb.tx_queue_depth, hb.tx_queue_drop, g_temperature_c);
     }
 
     printf("[HB] Thread exiting.\n");
@@ -1143,7 +1365,26 @@ static void *thread_status_server(void *arg) {
         uint32_t qdrop  = stat_tx_queue_drop;
         pthread_mutex_unlock(&stats_mutex);
 
-        char buf[512];
+        uint32_t inst_cnt_us = 0, trig_cnt_us = 0;
+        uint8_t  tx_st = 0, rx_st = 0;
+        uint8_t  ch_det[8] = {0};
+        pthread_mutex_lock(&hal_mutex);
+        lgw_get_instcnt(&inst_cnt_us);
+        lgw_get_trigcnt(&trig_cnt_us);
+        lgw_status(0, TX_STATUS, &tx_st);
+        lgw_status(0, RX_STATUS, &rx_st);
+        for (int ch = 0; ch < 8; ch++) {
+            ch_det[ch] = sx1302_arb_get_debug_stats_detect((uint8_t)ch);
+        }
+        pthread_mutex_unlock(&hal_mutex);
+
+        const char *tx_st_str = (tx_st == TX_FREE)      ? "TX_FREE"      :
+                                (tx_st == TX_SCHEDULED) ? "TX_SCHEDULED" :
+                                (tx_st == TX_EMITTING)  ? "TX_EMITTING"  : "TX_OFF";
+        const char *rx_st_str = (rx_st == RX_ON)        ? "RX_ON"        :
+                                (rx_st == RX_SUSPENDED) ? "RX_SUSPENDED" : "RX_OFF";
+
+        char buf[768];
         int n = snprintf(buf, sizeof(buf),
             "{\"eui\":\"%016llX\","
             "\"uptime_s\":%u,"
@@ -1151,13 +1392,24 @@ static void *thread_status_server(void *arg) {
             "\"crc_err\":%u,\"tx_err\":%u,"
             "\"q_depth\":%u,\"q_drop\":%u,"
             "\"rf0_mhz\":%.6f,\"rf1_mhz\":%.6f,"
-            "\"sync\":\"%s\"}\n",
+            "\"sync\":\"%s\","
+            "\"temp_c\":%.1f,\"temp_ok\":%s,"
+            "\"inst_cnt_us\":%u,\"trig_cnt_us\":%u,"
+            "\"tx_status\":\"%s\",\"rx_status\":\"%s\","
+            "\"sf_mask\":%u,"
+            "\"ch_detect\":[%u,%u,%u,%u,%u,%u,%u,%u]}\n",
             (unsigned long long)g_gateway_eui,
             (uint32_t)(time(NULL) - g_start_time),
             rx, tx, crcerr, txerr,
             (uint32_t)txq_count(&txq), qdrop,
             g_rf0_freq / 1e6, g_rf1_freq / 1e6,
-            g_sync_word == 0x34 ? "public" : "private");
+            g_sync_word == 0x34 ? "public" : "private",
+            g_temperature_c, g_temp_valid ? "true" : "false",
+            inst_cnt_us, trig_cnt_us,
+            tx_st_str, rx_st_str,
+            (unsigned)g_cfg.sf_mask,
+            ch_det[0], ch_det[1], ch_det[2], ch_det[3],
+            ch_det[4], ch_det[5], ch_det[6], ch_det[7]);
         write(cli_fd, buf, n);
         close(cli_fd);
     }

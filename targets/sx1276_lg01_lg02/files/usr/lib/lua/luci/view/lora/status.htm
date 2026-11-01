@@ -160,7 +160,9 @@
                 <strong><%:RF0:%></strong> <span id="val-rf0">867.500</span> MHz &nbsp;|&nbsp;
                 <strong><%:RF1:%></strong> <span id="val-rf1">868.500</span> MHz &nbsp;|&nbsp;
                 <strong><%:Sync Word:%></strong> <span id="val-sync">private (0x12)</span> &nbsp;|&nbsp;
-                <strong><%:PA GPIO:%></strong> <span id="val-pa" style="font-family: monospace;">dragino2:red:wan</span>
+                <strong><%:PA GPIO:%></strong> <span id="val-pa" style="font-family: monospace;">dragino2:red:wan</span> &nbsp;|&nbsp;
+                <strong><%:HW Counter:%></strong> <span id="val-instcnt" style="font-family: monospace;">0 us</span> &nbsp;|&nbsp;
+                <strong><%:Radio State:%></strong> <span id="val-radiost" style="font-family: monospace;">RX_OFF / TX_OFF</span>
             </div>
             <div class="action-btn-bar">
                 <button type="button" class="cbi-button cbi-button-apply" onclick="serviceAction('restart')"><%:Restart App%></button>
@@ -197,6 +199,11 @@
             <div class="lora-stat-val" id="cnt-q" style="color: #17a2b8;">0 / 0</div>
             <div style="font-size: 11px; color: #888;"><%:Depth / Dropped%></div>
         </div>
+        <div class="lora-stat-box">
+            <div class="lora-stat-lbl"><%:SX1302 Temp%></div>
+            <div class="lora-stat-val" id="cnt-temp" style="color: #6f42c1;">—</div>
+            <div style="font-size: 11px; color: #888;" id="cnt-chdet"><%:Thermal sensor%></div>
+        </div>
     </div>
 
     <!-- LIVE PACKET STREAM TABLE -->
@@ -215,24 +222,71 @@
             <table class="table-lora" id="tbl-packets">
                 <thead>
                     <tr>
-                        <th style="width: 110px;"><%:Time%></th>
-                        <th style="width: 110px;"><%:Frequency%></th>
-                        <th style="width: 110px;"><%:Modulation%></th>
-                        <th style="width: 100px;"><%:RSSI%></th>
-                        <th style="width: 90px;"><%:SNR%></th>
-                        <th style="width: 80px;"><%:Size%></th>
-                        <th style="width: 100px;"><%:Status%></th>
+                        <th style="width: 90px;"><%:Time%></th>
+                        <th style="width: 130px;"><%:Freq / Offset%></th>
+                        <th style="width: 105px;"><%:Modulation%></th>
+                        <th style="width: 135px;"><%:RSSI (Sig / Ch)%></th>
+                        <th style="width: 130px;"><%:SNR (Min..Max)%></th>
+                        <th style="width: 70px;"><%:Size%></th>
+                        <th><%:Payload (Hex)%></th>
+                        <th style="width: 90px;"><%:Status%></th>
                     </tr>
                 </thead>
                 <tbody id="tbody-packets">
                     <tr id="row-empty">
-                        <td colspan="7" style="text-align: center; color: #888; padding: 25px;">
+                        <td colspan="8" style="text-align: center; color: #888; padding: 25px;">
                             <%:Waiting for incoming LoRa RF transmissions from raw_lora_app...%>
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
+    </div>
+
+    <!-- OPTIONAL INTERACTIVE TEST TX / CW TONE GENERATOR -->
+    <div class="lora-card">
+        <details>
+            <summary style="cursor: pointer; font-weight: 700; font-size: 15px; color: #0366d6; outline: none;">
+                <%:Interactive Test TX / CW Tone & Abort Controls (Optional HAL Feature)%>
+            </summary>
+            <div style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
+                <div>
+                    <label style="font-size: 12px; font-weight: 600; display: block;"><%:Mode%></label>
+                    <select id="tx-modu" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+                        <option value="LORA">LoRa Packet (IMMEDIATE)</option>
+                        <option value="CW">Continuous Wave (CW Tone)</option>
+                        <option value="FSK">FSK Packet</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 12px; font-weight: 600; display: block;"><%:Freq (MHz)%></label>
+                    <input type="number" step="0.001" id="tx-freq" value="868.100" style="width: 100px; padding: 5px; border: 1px solid #ccc; border-radius: 4px;" />
+                </div>
+                <div>
+                    <label style="font-size: 12px; font-weight: 600; display: block;"><%:Data Rate%></label>
+                    <select id="tx-datr" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+                        <option value="SF7BW125">SF7BW125</option>
+                        <option value="SF8BW125">SF8BW125</option>
+                        <option value="SF9BW125">SF9BW125</option>
+                        <option value="SF10BW125">SF10BW125</option>
+                        <option value="SF12BW125">SF12BW125</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 12px; font-weight: 600; display: block;"><%:Power (dBm)%></label>
+                    <input type="number" id="tx-powe" value="14" style="width: 70px; padding: 5px; border: 1px solid #ccc; border-radius: 4px;" />
+                </div>
+                <div style="flex: 1; min-width: 180px;">
+                    <label style="font-size: 12px; font-weight: 600; display: block;"><%:ASCII Payload (auto Base64)%></label>
+                    <input type="text" id="tx-ascii" value="PING_FROM_LPS8" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;" />
+                </div>
+                <div>
+                    <button type="button" class="cbi-button cbi-button-apply" onclick="sendTestTx()"><%:Transmit Now%></button>
+                    <button type="button" class="cbi-button cbi-button-reset" onclick="abortTx()"><%:Abort TX%></button>
+                </div>
+            </div>
+            <div id="tx-test-msg" style="margin-top: 8px; font-size: 12px; color: #28a745; font-family: monospace;"></div>
+        </details>
     </div>
 
     <!-- LOG CONSOLE -->
@@ -295,6 +349,16 @@ function updateStatus() {
                 document.getElementById("cnt-crc").innerText = data.crc_err || 0;
                 document.getElementById("cnt-txerr").innerText = data.tx_err || 0;
                 document.getElementById("cnt-q").innerText = (data.q_depth || 0) + " / " + (data.q_drop || 0);
+                document.getElementById("val-instcnt").innerText = (data.inst_cnt_us || 0) + " us";
+                document.getElementById("val-radiost").innerText = (data.rx_status || "RX_OFF") + " / " + (data.tx_status || "TX_OFF");
+                if (data.temp_ok) {
+                    document.getElementById("cnt-temp").innerText = Number(data.temp_c).toFixed(1) + " °C";
+                } else {
+                    document.getElementById("cnt-temp").innerText = "—";
+                }
+                if (data.ch_detect && data.ch_detect.length) {
+                    document.getElementById("cnt-chdet").innerText = "ARB Ch0-7: " + data.ch_detect.join(",");
+                }
             } catch(e) {}
         }
     };
@@ -316,9 +380,9 @@ function updatePackets() {
                 var emptyRow = document.getElementById("row-empty");
                 if (emptyRow) tbody.removeChild(emptyRow);
 
-                for (var i = 0; i < pkts.length; i++) {
+                for (var i = pkts.length - 1; i >= 0; i--) {
                     var p = pkts[i];
-                    var key = p.time + "_" + p.freq + "_" + p.rssi;
+                    var key = (p.tmst ? p.tmst : p.time) + "_" + p.freq + "_" + p.rssi;
                     if (seenPacketIds[key]) continue;
                     seenPacketIds[key] = true;
 
@@ -326,15 +390,25 @@ function updatePackets() {
                     var statBadge = '<span class="sig-badge sig-good">CRC OK</span>';
                     if (p.status && p.status.indexOf("BAD") !== -1) {
                         statBadge = '<span class="sig-badge sig-low">CRC ERR</span>';
+                    } else if (p.status && p.status.indexOf("NO_CRC") !== -1) {
+                        statBadge = '<span class="sig-badge sig-med">NO CRC</span>';
                     }
+
+                    var foffStr = (p.foff !== undefined) ? ' <span style="color:#6c757d;font-size:11px;">(' + (p.foff >= 0 ? '+' : '') + p.foff + 'Hz)</span>' : '';
+                    var rssicStr = (p.rssic !== undefined) ? ' <span style="color:#6c757d;font-size:11px;">/ ' + Number(p.rssic).toFixed(0) + '</span>' : '';
+                    var snrRange = (p.snr_min !== undefined && p.snr_max !== undefined)
+                        ? ' <span style="color:#6c757d;font-size:11px;">[' + Number(p.snr_min).toFixed(1) + '..' + Number(p.snr_max).toFixed(1) + ']</span>'
+                        : '';
+                    var hexPreview = p.hex ? '<span style="color:#0366d6;font-size:11px;">' + p.hex + '</span>' : '—';
 
                     tr.innerHTML =
                         '<td>' + (p.time || "") + '</td>' +
-                        '<td><strong>' + (p.freq || "") + ' MHz</strong></td>' +
-                        '<td>' + (p.datr || "") + '</td>' +
-                        '<td>' + formatRssi(p.rssi) + '</td>' +
-                        '<td>' + (p.snr || "0") + ' dB</td>' +
+                        '<td><strong>' + (p.freq || "") + ' MHz</strong>' + foffStr + '</td>' +
+                        '<td>' + (p.datr || "") + (p.codr ? ' <span style="color:#6c757d;font-size:11px;">' + p.codr + '</span>' : '') + '</td>' +
+                        '<td>' + formatRssi(p.rssi) + rssicStr + '</td>' +
+                        '<td>' + (p.snr !== undefined ? p.snr : "0") + ' dB' + snrRange + '</td>' +
                         '<td>' + (p.size || "0") + ' B</td>' +
+                        '<td>' + hexPreview + '</td>' +
                         '<td>' + statBadge + '</td>';
 
                     if (tbody.firstChild) {
@@ -351,6 +425,53 @@ function updatePackets() {
         }
     };
     xhr.send();
+}
+
+function sendTestTx() {
+    var modu = document.getElementById("tx-modu").value;
+    var freq = parseFloat(document.getElementById("tx-freq").value) || 868.1;
+    var datr = document.getElementById("tx-datr").value;
+    var powe = parseInt(document.getElementById("tx-powe").value, 10) || 14;
+    var ascii = document.getElementById("tx-ascii").value || "PING";
+    var payload = {
+        imme: true,
+        freq: freq,
+        rfch: 0,
+        powe: powe,
+        modu: modu,
+        datr: datr,
+        codr: "4/5",
+        ipol: false,
+        data: btoa(ascii)
+    };
+    var msgEl = document.getElementById("tx-test-msg");
+    msgEl.innerText = "Sending test TX to raw_lora_app UDP downlink port...";
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", '<%=luci.dispatcher.build_url("admin/lora/api_tx_test")%>', true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            msgEl.innerText = (xhr.status === 200)
+                ? "Queued " + modu + " @ " + freq.toFixed(3) + " MHz (" + powe + " dBm)"
+                : "TX request failed (HTTP " + xhr.status + ")";
+            setTimeout(refreshLog, 400);
+        }
+    };
+    xhr.send(JSON.stringify(payload));
+}
+
+function abortTx() {
+    var msgEl = document.getElementById("tx-test-msg");
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", '<%=luci.dispatcher.build_url("admin/lora/api_tx_test")%>', true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            msgEl.innerText = "Sent lgw_abort_tx(0) command.";
+            setTimeout(refreshLog, 400);
+        }
+    };
+    xhr.send(JSON.stringify({ abort: true, rfch: 0 }));
 }
 
 function refreshLog() {
