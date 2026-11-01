@@ -1,4 +1,7 @@
--- Streamlined Network Controller (NO DHCP, NO Static Routes)
+-- Copyright 2008 Steven Barth <steven@midlink.org>
+-- Copyright 2011-2018 Jo-Philipp Wich <jo@mein.io>
+-- Licensed to the public under the Apache License 2.0.
+
 module("luci.controller.admin.network", package.seeall)
 
 function index()
@@ -11,115 +14,144 @@ function index()
 	page.order  = 50
 	page.index  = true
 
-	local has_switch = false
-	uci:foreach("network", "switch",
-		function(s)
-			has_switch = true
-			return false
-		end)
+--	if page.inreq then
+		local has_switch = false
 
-	if has_switch then
-		page  = node("admin", "network", "vlan")
-		page.target = cbi("admin_network/vlan")
-		page.title  = _("Switch")
-		page.order  = 20
+		uci:foreach("network", "switch",
+			function(s)
+				has_switch = true
+				return false
+			end)
 
-		page = entry({"admin", "network", "switch_status"}, call("switch_status"), nil)
-		page.leaf = true
-	end
+		if has_switch then
+			page  = node("admin", "network", "vlan")
+			page.target = cbi("admin_network/vlan")
+			page.title  = _("Switch")
+			page.order  = 20
 
-	local has_wifi = false
-	uci:foreach("wireless", "wifi-device",
-		function(s)
-			has_wifi = true
-			return false
-		end)
+			page = entry({"admin", "network", "switch_status"}, call("switch_status"), nil)
+			page.leaf = true
+		end
 
-	if has_wifi then
-		page = entry({"admin", "network", "wireless_assoclist"}, call("wifi_assoclist"), nil)
-		page.leaf = true
 
-		page = entry({"admin", "network", "wireless_join"}, post("wifi_join"), nil)
-		page.leaf = true
+		local has_wifi = false
 
-		page = entry({"admin", "network", "wireless_add"}, post("wifi_add"), nil)
-		page.leaf = true
+		uci:foreach("wireless", "wifi-device",
+			function(s)
+				has_wifi = true
+				return false
+			end)
 
-		page = entry({"admin", "network", "wireless_status"}, call("wifi_status"), nil)
-		page.leaf = true
+		if has_wifi then
+			page = entry({"admin", "network", "wireless_assoclist"}, call("wifi_assoclist"), nil)
+			page.leaf = true
 
-		page = entry({"admin", "network", "wireless_reconnect"}, post("wifi_reconnect"), nil)
-		page.leaf = true
+			page = entry({"admin", "network", "wireless_join"}, post("wifi_join"), nil)
+			page.leaf = true
 
-		page = entry({"admin", "network", "wireless_scan_trigger"}, post("wifi_scan_trigger"), nil)
-		page.leaf = true
+			page = entry({"admin", "network", "wireless_add"}, post("wifi_add"), nil)
+			page.leaf = true
 
-		page = entry({"admin", "network", "wireless_scan_results"}, call("wifi_scan_results"), nil)
-		page.leaf = true
+			page = entry({"admin", "network", "wireless_status"}, call("wifi_status"), nil)
+			page.leaf = true
 
-		page = entry({"admin", "network", "wireless"}, arcombine(cbi("admin_network/wifi_overview"), cbi("admin_network/wifi")), _("Wireless"), 15)
-		page.leaf = true
-		page.subindex = true
+			page = entry({"admin", "network", "wireless_reconnect"}, post("wifi_reconnect"), nil)
+			page.leaf = true
 
-		if page.inreq then
-			local wdev
-			local net = require "luci.model.network".init(uci)
-			for _, wdev in ipairs(net:get_wifidevs()) do
-				local wnet
-				for _, wnet in ipairs(wdev:get_wifinets()) do
-					entry(
-						{"admin", "network", "wireless", wnet:id()},
-						alias("admin", "network", "wireless"),
-						wdev:name() .. ": " .. wnet:shortname()
-					)
+			page = entry({"admin", "network", "wireless_scan_trigger"}, post("wifi_scan_trigger"), nil)
+			page.leaf = true
+
+			page = entry({"admin", "network", "wireless_scan_results"}, call("wifi_scan_results"), nil)
+			page.leaf = true
+
+			page = entry({"admin", "network", "wireless"}, arcombine(cbi("admin_network/wifi_overview"), cbi("admin_network/wifi")), _("Wireless"), 15)
+			page.leaf = true
+			page.subindex = true
+
+			if page.inreq then
+				local wdev
+				local net = require "luci.model.network".init(uci)
+				for _, wdev in ipairs(net:get_wifidevs()) do
+					local wnet
+					for _, wnet in ipairs(wdev:get_wifinets()) do
+						entry(
+							{"admin", "network", "wireless", wnet:id()},
+							alias("admin", "network", "wireless"),
+							wdev:name() .. ": " .. wnet:shortname()
+						)
+					end
 				end
 			end
 		end
-	end
 
-	page = entry({"admin", "network", "iface_add"}, form("admin_network/iface_add"), nil)
-	page.leaf = true
 
-	page = entry({"admin", "network", "iface_status"}, call("iface_status"), nil)
-	page.leaf = true
+		page = entry({"admin", "network", "iface_add"}, form("admin_network/iface_add"), nil)
+		page.leaf = true
 
-	page = entry({"admin", "network", "iface_reconnect"}, post("iface_reconnect"), nil)
-	page.leaf = true
+		page = entry({"admin", "network", "iface_status"}, call("iface_status"), nil)
+		page.leaf = true
 
-	page = entry({"admin", "network", "network"}, arcombine(cbi("admin_network/network"), cbi("admin_network/ifaces")), _("Interfaces"), 10)
-	page.leaf   = true
-	page.subindex = true
+		page = entry({"admin", "network", "iface_reconnect"}, post("iface_reconnect"), nil)
+		page.leaf = true
 
-	if page.inreq then
-		uci:foreach("network", "interface",
-			function (section)
-				local ifc = section[".name"]
-				if ifc ~= "loopback" then
-					entry({"admin", "network", "network", ifc},
-					true, ifc:upper())
-				end
-			end)
-	end
+		page = entry({"admin", "network", "network"}, arcombine(cbi("admin_network/network"), cbi("admin_network/ifaces")), _("Interfaces"), 10)
+		page.leaf   = true
+		page.subindex = true
 
-	page = node("admin", "network", "diagnostics")
-	page.target = template("admin_network/diagnostics")
-	page.title  = _("Diagnostics")
-	page.order  = 60
+		if page.inreq then
+			uci:foreach("network", "interface",
+				function (section)
+					local ifc = section[".name"]
+					if ifc ~= "loopback" then
+						entry({"admin", "network", "network", ifc},
+						true, ifc:upper())
+					end
+				end)
+		end
 
-	page = entry({"admin", "network", "diag_ping"}, post("diag_ping"), nil)
-	page.leaf = true
 
-	page = entry({"admin", "network", "diag_nslookup"}, post("diag_nslookup"), nil)
-	page.leaf = true
+		if nixio.fs.access("/etc/config/dhcp") then
+			page = node("admin", "network", "dhcp")
+			page.target = cbi("admin_network/dhcp")
+			page.title  = _("DHCP and DNS")
+			page.order  = 30
 
-	page = entry({"admin", "network", "diag_traceroute"}, post("diag_traceroute"), nil)
-	page.leaf = true
+			page = entry({"admin", "network", "dhcplease_status"}, call("lease_status"), nil)
+			page.leaf = true
 
-	page = entry({"admin", "network", "diag_ping6"}, post("diag_ping6"), nil)
-	page.leaf = true
+			page = node("admin", "network", "hosts")
+			page.target = cbi("admin_network/hosts")
+			page.title  = _("Hostnames")
+			page.order  = 40
+		end
 
-	page = entry({"admin", "network", "diag_traceroute6"}, post("diag_traceroute6"), nil)
-	page.leaf = true
+		if nixio.fs.access("/etc/config/routes") then
+			page  = node("admin", "network", "routes")
+			page.target = cbi("admin_network/routes")
+			page.title  = _("Static Routes")
+			page.order  = 50
+		end
+
+		page = node("admin", "network", "diagnostics")
+		page.target = template("admin_network/diagnostics")
+		page.title  = _("Diagnostics")
+		page.order  = 60
+
+		page = entry({"admin", "network", "diag_ping"}, post("diag_ping"), nil)
+		page.leaf = true
+
+		page = entry({"admin", "network", "diag_nslookup"}, post("diag_nslookup"), nil)
+		page.leaf = true
+
+		page = entry({"admin", "network", "diag_traceroute"}, post("diag_traceroute"), nil)
+		page.leaf = true
+
+		page = entry({"admin", "network", "diag_ping6"}, post("diag_ping6"), nil)
+		page.leaf = true
+
+		page = entry({"admin", "network", "diag_traceroute6"}, post("diag_traceroute6"), nil)
+		page.leaf = true
+--	end
 end
 
 function wifi_join()
@@ -155,57 +187,64 @@ function wifi_add()
 
 	if dev then
 		local net = dev:add_wifinet({
-			mode = "ap",
-			network = "lan"
+			mode       = "ap",
+			ssid       = "OpenWrt",
+			encryption = "none"
 		})
 
-		net:set("ssid", "OpenWrt")
-		net:set("encryption", "none")
-
 		ntm:save("wireless")
-		luci.http.redirect(net:admin_url())
+		luci.http.redirect(net:adminlink())
 	end
 end
 
 function iface_status(ifaces)
-	local netmd = require "luci.model.network".init()
+	local netm = require "luci.model.network".init()
 	local rv   = { }
 
+	local iface
 	for iface in ifaces:gmatch("[%w%.%-_]+") do
-		local net = netmd:get_network(iface)
+		local net = netm:get_network(iface)
 		local device = net and net:get_interface()
 		if device then
 			local data = {
 				id         = iface,
+				desc       = net:get_i18n(),
 				proto      = net:proto(),
 				uptime     = net:uptime(),
 				gwaddr     = net:gwaddr(),
+				ipaddrs    = net:ipaddrs(),
+				ip6addrs   = net:ip6addrs(),
 				dnsaddrs   = net:dnsaddrs(),
+				ip6prefix  = net:ip6prefix(),
+				errors     = net:errors(),
 				name       = device:shortname(),
 				type       = device:type(),
 				typename   = device:get_type_i18n(),
 				ifname     = device:name(),
 				macaddr    = device:mac(),
-				is_up      = device:is_up(),
+				is_up      = net:is_up() and device:is_up(),
+				is_alias   = net:is_alias(),
+				is_dynamic = net:is_dynamic(),
 				rx_bytes   = device:rx_bytes(),
 				tx_bytes   = device:tx_bytes(),
 				rx_packets = device:rx_packets(),
 				tx_packets = device:tx_packets(),
+
 				subdevices = { }
 			}
 
-			for _, dev in ipairs(net:get_interfaces() or {}) do
+			for _, device in ipairs(net:get_interfaces() or {}) do
 				data.subdevices[#data.subdevices+1] = {
-					name       = dev:shortname(),
-					type       = dev:type(),
-					typename   = dev:get_type_i18n(),
-					ifname     = dev:name(),
-					macaddr    = dev:mac(),
-					is_up      = dev:is_up(),
-					rx_bytes   = dev:rx_bytes(),
-					tx_bytes   = dev:tx_bytes(),
-					rx_packets = dev:rx_packets(),
-					tx_packets = dev:tx_packets(),
+					name       = device:shortname(),
+					type       = device:type(),
+					typename   = device:get_type_i18n(),
+					ifname     = device:name(),
+					macaddr    = device:mac(),
+					is_up      = device:is_up(),
+					rx_bytes   = device:rx_bytes(),
+					tx_bytes   = device:tx_bytes(),
+					rx_packets = device:rx_packets(),
+					tx_packets = device:tx_packets(),
 				}
 			end
 
@@ -263,6 +302,7 @@ end
 
 function wifi_reconnect(radio)
 	local rc = luci.sys.call("env -i /sbin/wifi up %s" % luci.util.shellquote(radio))
+
 	if rc == 0 then
 		luci.http.status(200, "Reconnected")
 	else
@@ -272,12 +312,97 @@ end
 
 function wifi_assoclist()
 	local s = require "luci.tools.status"
+
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(s.wifi_assoclist())
 end
 
+
+local function _wifi_get_scan_results(cache_key)
+	local results = luci.util.ubus("session", "get", {
+		ubus_rpc_session = luci.model.uci:get_session_id(),
+		keys = { cache_key }
+	})
+
+	if type(results) == "table" and
+	   type(results.values) == "table" and
+	   type(results.values[cache_key]) == "table"
+	then
+		return results.values[cache_key]
+	end
+
+	return { }
+end
+
+function wifi_scan_trigger(radio, update)
+	local iw = radio and luci.sys.wifi.getiwinfo(radio)
+
+	if not iw then
+		luci.http.status(404, "No such radio device")
+		return
+	end
+
+	luci.http.status(200, "Scan scheduled")
+
+	if nixio.fork() == 0 then
+		io.stderr:close()
+		io.stdout:close()
+
+		local _, bss
+		local data, bssids = { }, { }
+		local cache_key = "scan_%s" % radio
+
+		luci.util.ubus("session", "set", {
+			ubus_rpc_session = luci.model.uci:get_session_id(),
+			values = { [cache_key] = nil }
+		})
+
+		for _, bss in ipairs(iw.scanlist or { }) do
+			data[_] = bss
+			bssids[bss.bssid] = bss
+		end
+
+		if update then
+			for _, bss in ipairs(_wifi_get_scan_results(cache_key)) do
+				if not bssids[bss.bssid] then
+					bss.stale = true
+					data[#data + 1] = bss
+				end
+			end
+		end
+
+		luci.util.ubus("session", "set", {
+			ubus_rpc_session = luci.model.uci:get_session_id(),
+			values = { [cache_key] = data }
+		})
+	end
+end
+
+function wifi_scan_results(radio)
+	local results = radio and _wifi_get_scan_results("scan_%s" % radio)
+
+	if results and #results > 0 then
+		luci.http.prepare_content("application/json")
+		luci.http.write_json(results)
+	else
+		luci.http.status(404, "No wireless scan results")
+	end
+end
+
+function lease_status()
+	local s = require "luci.tools.status"
+
+	luci.http.prepare_content("application/json")
+	luci.http.write('[')
+	luci.http.write_json(s.dhcp_leases())
+	luci.http.write(',')
+	luci.http.write_json(s.dhcp6_leases())
+	luci.http.write(']')
+end
+
 function switch_status(switches)
 	local s = require "luci.tools.status"
+
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(s.switch_status(switches))
 end
@@ -285,6 +410,7 @@ end
 function diag_command(cmd, addr)
 	if addr and addr:match("^[a-zA-Z0-9%-%.:_]+$") then
 		luci.http.prepare_content("text/plain")
+
 		local util = io.popen(cmd % luci.util.shellquote(addr))
 		if util then
 			while true do
@@ -293,10 +419,13 @@ function diag_command(cmd, addr)
 				luci.http.write(ln)
 				luci.http.write("\n")
 			end
+
 			util:close()
 		end
+
 		return
 	end
+
 	luci.http.status(500, "Bad address")
 end
 
