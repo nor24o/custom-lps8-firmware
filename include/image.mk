@@ -75,12 +75,15 @@ JFFS2OPTS += $(MKFS_DEVTABLE_OPT)
 SQUASHFS_BLOCKSIZE := $(CONFIG_TARGET_SQUASHFS_BLOCK_SIZE)k
 SQUASHFSOPT := -b $(SQUASHFS_BLOCKSIZE)
 SQUASHFSOPT += -p '/dev d 755 0 0' -p '/dev/console c 600 0 0 5 1'
-SQUASHFSCOMP := gzip
 LZMA_XZ_OPTIONS := -Xpreset 9 -Xe -Xlc 0 -Xlp 2 -Xpb 2
-ifeq ($(CONFIG_SQUASHFS_XZ),y)
-  ifneq ($(filter arm x86 powerpc sparc,$(LINUX_KARCH)),)
-    BCJ_FILTER:=-Xbcj $(LINUX_KARCH)
-  endif
+ifneq ($(filter arm x86 powerpc sparc,$(LINUX_KARCH)),)
+  BCJ_FILTER:=-Xbcj $(LINUX_KARCH)
+endif
+# OpenWrt kernel for ar71xx (Dragino MS14 / LPS8 / LG01 / LG02) has CONFIG_SQUASHFS_XZ=y
+# and lacks zlib decompression in kernel. Default to xz to avoid kernel panic bootloop.
+ifeq ($(CONFIG_SQUASHFS_GZIP),y)
+  SQUASHFSCOMP := gzip
+else
   SQUASHFSCOMP := xz $(LZMA_XZ_OPTIONS) $(BCJ_FILTER)
 endif
 

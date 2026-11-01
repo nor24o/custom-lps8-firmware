@@ -82,6 +82,11 @@ done
 # Explicitly stripped: DHCP servers, firewall, iptables, ppp routing bloat
 PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap wpad-mini iwinfo libiwinfo-lua nano htop -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c"
 
+# Ensure squashfs uses XZ compression (Dragino kernel 4.9 lacks zlib squashfs decompression)
+if [ -f "$IMAGEBUILDER_DIR/.config" ] && ! grep -q 'CONFIG_SQUASHFS_XZ=y' "$IMAGEBUILDER_DIR/.config"; then
+    echo "CONFIG_SQUASHFS_XZ=y" >> "$IMAGEBUILDER_DIR/.config"
+fi
+
 cd "$IMAGEBUILDER_DIR"
 make image \
     PROFILE=dragino2 \
@@ -89,12 +94,21 @@ make image \
     FILES="$OVERLAY_DIR"
 
 OUT_BIN="$IMAGEBUILDER_DIR/bin/targets/ar71xx/generic/openwrt-18.06.9-ar71xx-generic-dragino2-squashfs-sysupgrade.bin"
+ROOT_FS="$IMAGEBUILDER_DIR/bin/targets/ar71xx/generic/openwrt-18.06.9-ar71xx-generic-root.squashfs"
 if [ -f "$OUT_BIN" ]; then
+    if [ -f "$ROOT_FS" ] && [ -x "$IMAGEBUILDER_DIR/staging_dir/host/bin/unsquashfs4" ]; then
+        COMP_TYPE="$("$IMAGEBUILDER_DIR/staging_dir/host/bin/unsquashfs4" -s "$ROOT_FS" 2>/dev/null | grep -i '^Compression' | awk '{print $2}')"
+        if [ "$COMP_TYPE" != "xz" ]; then
+            echo -e "${RED}[ERROR] SquashFS compression is '$COMP_TYPE', but kernel requires 'xz'!${NC}"
+            exit 1
+        fi
+    fi
     echo -e "\n${GREEN}==================================================================${NC}"
     echo -e "${GREEN}[+] BUILD SUCCESSFUL! Firmware ready for LG01 / LG02:${NC}"
-    echo -e "    File: $OUT_BIN"
-    echo -e "    Size: $(du -h "$OUT_BIN" | cut -f1)"
-    echo -e "    MD5:  $(md5sum "$OUT_BIN" | awk '{print $1}')"
+    echo -e "    File:     $OUT_BIN"
+    echo -e "    Size:     $(du -h "$OUT_BIN" | cut -f1)"
+    echo -e "    SquashFS: Verified XZ compression"
+    echo -e "    MD5:      $(md5sum "$OUT_BIN" | awk '{print $1}')"
     echo -e "${GREEN}==================================================================${NC}"
 else
     echo -e "${RED}[ERROR] Firmware image was not generated.${NC}"
