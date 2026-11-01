@@ -29,26 +29,35 @@ echo "Overlay:      $OVERLAY_DIR"
 
 # Ensure ImageBuilder precompiled tools, packages, & kernel exist
 if [ ! -f "$IMAGEBUILDER_DIR/packages/Packages" ] || [ ! -x "$IMAGEBUILDER_DIR/staging_dir/host/bin/mksquashfs4" ] || [ ! -f "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin" ] || [ ! -f "$IMAGEBUILDER_DIR/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader-generic.elf" ]; then
-    CANDIDATE_TARS=(
-        "$OPENWRT_IB_TAR"
-        "/home/hor/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-        "$HOME/2026-gateway/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-        "$IMAGEBUILDER_DIR/../openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-    )
-    IB_TAR=""
-    for t in "${CANDIDATE_TARS[@]}"; do
-        if [ -n "$t" ] && [ -f "$t" ]; then
-            IB_TAR="$t"
-            break
-        fi
-    done
+    echo -e "${YELLOW}[!] ImageBuilder host tools, packages, or kernel missing.${NC}"
 
-    if [ -z "$IB_TAR" ]; then
-        IB_TAR="/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-        IB_URL="https://archive.openwrt.org/releases/18.06.9/targets/ar71xx/generic/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
-        echo -e "${YELLOW}[!] ImageBuilder host tools, packages, or kernel missing.${NC}"
-        echo -e "${BLUE}[*] Automatically downloading OpenWrt ImageBuilder components from archive mirror...${NC}"
-        wget -c --show-progress "$IB_URL" -O "$IB_TAR"
+    if [ -f "$IMAGEBUILDER_DIR/scripts/download_utils.sh" ]; then
+        source "$IMAGEBUILDER_DIR/scripts/download_utils.sh"
+        IB_TAR="$(get_openwrt_imagebuilder_tar)"
+    else
+        CACHE_DIR="$HOME/.openwrt-cache"
+        mkdir -p "$CACHE_DIR"
+        IB_TAR="$CACHE_DIR/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+        if [ ! -s "$IB_TAR" ]; then
+            IB_MIRRORS=(
+                "https://downloads.openwrt.org/releases/18.06.9/targets/ar71xx/generic/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+                "http://archive.openwrt.org/releases/18.06.9/targets/ar71xx/generic/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+                "http://downloads.openwrt.org/releases/18.06.9/targets/ar71xx/generic/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz"
+            )
+            for url in "${IB_MIRRORS[@]}"; do
+                echo -e "${BLUE}[*] Trying mirror: ${url}...${NC}"
+                if wget --inet4-only --timeout=15 --tries=3 -c --show-progress "$url" -O "$IB_TAR"; then
+                    break
+                elif command -v curl >/dev/null 2>&1 && curl -4 -L --connect-timeout 15 --retry 3 -C - -o "$IB_TAR" "$url"; then
+                    break
+                fi
+            done
+        fi
+    fi
+
+    if [ -z "$IB_TAR" ] || [ ! -s "$IB_TAR" ]; then
+        echo -e "${RED}[ERROR] Failed to obtain OpenWrt ImageBuilder archive.${NC}"
+        exit 1
     fi
 
     echo -e "${YELLOW}[*] Unpacking ImageBuilder precompiled host tools, packages, and Dragino kernels...${NC}"
@@ -61,7 +70,6 @@ if [ ! -f "$IMAGEBUILDER_DIR/packages/Packages" ] || [ ! -x "$IMAGEBUILDER_DIR/s
         openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma \
         openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf \
         openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64/build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader-generic.elf
-    [ "$IB_TAR" = "/tmp/openwrt-imagebuilder-18.06.9-ar71xx-generic.Linux-x86_64.tar.xz" ] && rm -f "$IB_TAR"
 fi
 
 # Ensure scripts are executable before bundling into squashfs
@@ -72,7 +80,7 @@ done
 # Package list for LG01/LG02:
 # LuCI web UI, LoRa hardware drivers, sysadmin tools.
 # Explicitly stripped: DHCP servers, firewall, iptables, ppp routing bloat
-PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap nano htop -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c -wpad-mini"
+PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap wpad-mini iwinfo nano htop -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c"
 
 cd "$IMAGEBUILDER_DIR"
 make image \
