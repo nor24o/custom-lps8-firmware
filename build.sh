@@ -30,10 +30,12 @@ usage() {
     echo "  app            Compile only the applications"
     echo "  image          Build only the OpenWrt firmware image"
     echo "  clean          Clean build directories and compiled binaries"
+    echo "  --flash        Upload and flash built firmware directly to device"
     echo ""
     echo -e "${BOLD}Examples:${NC}"
     echo "  $0 sx1302              # Build entire LPS8 firmware & apps"
     echo "  $0 lg02                # Build entire LG01/LG02 firmware & apps"
+    echo "  $0 lg02 --flash        # Build and immediately flash to gateway"
     echo "  $0 all                 # Build both targets"
     echo "  $0 app sx1302          # Compile only LPS8 raw_lora_app"
     echo "  $0 image lg02          # Build only LG02 firmware image"
@@ -83,6 +85,17 @@ clean_all() {
 }
 
 # Parse Arguments
+FLASH_AFTER=false
+FILTERED_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" == "--flash" ] || [ "$arg" == "--upload" ]; then
+        FLASH_AFTER=true
+    else
+        FILTERED_ARGS+=("$arg")
+    fi
+done
+set -- "${FILTERED_ARGS[@]}"
+
 ACTION="all"
 TARGET=""
 
@@ -134,3 +147,8 @@ case "$TARGET" in
         exit 1
         ;;
 esac
+
+if [ "$FLASH_AFTER" = true ]; then
+    echo -e "\n${BLUE}[*] Triggering direct device flash with upload_firmware.sh...${NC}"
+    "$ROOT_DIR/upload_firmware.sh" -t "$TARGET"
+fi

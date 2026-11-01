@@ -24,7 +24,8 @@ A lean, high-performance, and unified firmware build system and custom applicati
   2. *Layer 2 (Supervisor)*: External background watchdog (`/usr/bin/lora_keepalive.sh` & `/usr/bin/net_watchdog.sh`).
   3. *Layer 3 (Hardware Watchdog)*: Concentrator hardware auto-reset after 10 consecutive HAL errors and UDP socket auto-reconnection upon network recovery.
 - **Full Semtech SX1302 HAL 2.1.0 Feature Set**: Concentrator temperature monitoring, 1-µs hardware timestamp counter, live radio status (`TX_STATUS`/`RX_STATUS`), extended RF metadata (channel noise floor `rssic`, SNR dynamic range `snr_min..snr_max`, frequency offset `foff` Hz, hex payload preview), microsecond timestamped downlinks, Continuous Wave RF tone generator (`MOD_CW`), instant transmission abort (`lgw_abort_tx`), and selective multi-SF mask (`sf_mask`).
-- **Native LuCI Web Interface**: Dedicated top-level navigation tab **"LoRa Gateway"** containing Realtime Status, Pin & GPIO Diagnostics, Settings & Config, Hardware Pinout & Map, and Gateway Logs.
+- **Custom Multi-Scheme Payload Decoder**: Built directly into LuCI (**LoRa Gateway -> Payload Decoder**). Features rule-based scheme matching (by Hex Header/Prefix like `aa0b`, `aa0c`, exact size, regex, or custom condition), support for JavaScript decoders (TTN/ChirpStack style), visual no-code field slicers, plain ASCII auto-decode, and Cayenne LPP. Integrates live with Realtime Status so every packet row displays decoded values and provides an interactive click-to-inspect packet modal.
+- **Native LuCI Web Interface**: Dedicated top-level navigation tab **"LoRa Gateway"** containing Realtime Status, Pin & GPIO Diagnostics, Settings & Config, Payload Decoder, Hardware Pinout & Map, and Gateway Logs.
 - **2.4 GHz WiFi**: Powered by `kmod-ath9k`, `wpad-mini`, and `iwinfo` for Access Point or Client (STA) uplink backhaul.
 
 ---
@@ -131,6 +132,32 @@ Installs required host tools and downloads the official OpenWrt MIPS 24Kc cross-
 
 Firmware output:
 `bin/targets/ar71xx/generic/openwrt-18.06.9-ar71xx-generic-dragino2-squashfs-sysupgrade.bin`
+
+---
+
+## Uploading & Flashing Directly to Target Gateway (`upload_firmware.sh` / `flash_device.sh`)
+
+Upload the final sysupgrade build directly to your target Dragino device over the network with automatic pre-flight safety checks (remote RAM check, MD5 checksum integrity, `sysupgrade -T` validation, and reboot ping monitoring):
+
+```bash
+# 1. Auto-detect Dragino gateway on local network and flash:
+./upload_firmware.sh
+
+# 2. Flash to a specific gateway IP:
+./upload_firmware.sh 192.168.1.29
+
+# 3. Build & flash in a single command:
+./build.sh lg02 --flash
+
+# 4. Upgrade while preserving existing /etc/ configuration:
+./upload_firmware.sh --keep-config 192.168.1.29
+
+# 5. Fast Live-Sync (Update binaries, decoders & LuCI web views without rebooting):
+./upload_firmware.sh --live-sync 192.168.1.29
+
+# 6. Test image compatibility on device without writing to flash:
+./upload_firmware.sh --test-only 192.168.1.29
+```
 
 ---
 
