@@ -9,6 +9,8 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <netdb.h>
+#include <errno.h>
 #include <pthread.h>
 #include "libloragw/inc/loragw_hal.h"
 #include "libtools/inc/parson.h"
@@ -460,6 +462,9 @@ static uint32_t g_rf0_freq    = 0;
 static uint32_t g_rf1_freq    = 0;
 
 static pthread_mutex_t stats_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t hal_mutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t sock_mutex  = PTHREAD_MUTEX_INITIALIZER;
+static bool            g_net_ok    = true;
 static uint32_t stat_rx_count      = 0;
 static uint32_t stat_tx_count      = 0;
 static uint32_t stat_crc_err       = 0;
@@ -560,10 +565,153 @@ static void reset_sx1302(void) {
     printf("Hardware reset complete.\n");
 }
 
+static void resolve_dest_addr(void) {
+    memset(&dest_addr, 0, sizeof(dest_addr));
+    dest_addr.sin_family = AF_INET;
+    dest_addr.sin_port   = htons(g_cfg.port_up);
+
+    struct addrinfo hints, *res = NULL;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family   = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+    if (getaddrinfo(g_cfg.target_ip, NULL, &hints, &res) == 0 && res) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)res->ai_addr;
+        dest_addr.sin_addr = sin->sin_addr;
+        freeaddrinfo(res);
+    } else {
+        dest_addr.sin_addr.s_addr = inet_addr(g_cfg.target_ip);
+    }
+}
+
+static void send_uplink(const void *buf, size_t len) {
+    pthread_mutex_lock(&sock_mutex);
+    if (sock_up < 0) {
+        sock_up = socket(AF_INET, SOCK_DGRAM, 0);
+        resolve_dest_addr();
+    }
+    ssize_t sent = -1;
+    if (sock_up >= 0) {
+        sent = sendto(sock_up, buf, len, 0,
+                      (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    }
+    if (sent < 0) {
+        if (g_net_ok) {
+            printf("[NET] Uplink sendto(%s:%u) failed (%s) — reconnecting socket...\n",
+                   g_cfg.target_ip, g_cfg.port_up, strerror(errno));
+            g_net_ok = false;
+        }
+        if (sock_up >= 0) close(sock_up);
+        sock_up = socket(AF_INET, SOCK_DGRAM, 0);
+        resolve_dest_addr();
+        if (sock_up >= 0) {
+            sent = sendto(sock_up, buf, len, 0,
+                          (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        }
+    }
+    if (sent >= 0 && !g_net_ok) {
+        g_net_ok = true;
+        printf("[NET] Uplink connection to %s:%u recovered.\n",
+               g_cfg.target_ip, g_cfg.port_up);
+        struct boot_pkt boot;
+        memset(&boot, 0, sizeof(boot));
+        boot.pkt_type    = PKT_TYPE_BOOT;
+        boot.gateway_eui = g_gateway_eui;
+        strncpy(boot.hal_version, lgw_version_info(), sizeof(boot.hal_version) - 1);
+        sendto(sock_up, &boot, sizeof(boot), 0,
+               (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    }
+    pthread_mutex_unlock(&sock_mutex);
+}
+
+static int configure_and_start_sx1302(void) {
+    struct lgw_conf_board_s  boardconf;
+    struct lgw_conf_rxrf_s   rfconf;
+    struct lgw_conf_rxif_s   ifconf;
+    struct lgw_conf_demod_s  demodconf;
+    struct lgw_tx_gain_lut_s txlut;
+
+    if (access(g_cfg.spi_path, F_OK) != 0) {
+        system("/etc/init.d/spi_init start >/dev/null 2>&1");
+        usleep(200000);
+    }
+
+    reset_sx1302();
+
+    memset(&boardconf, 0, sizeof(boardconf));
+    boardconf.lorawan_public = g_cfg.lorawan_public;
+    boardconf.clksrc         = g_cfg.clksrc;
+    boardconf.full_duplex    = g_cfg.full_duplex;
+    boardconf.com_type       = LGW_COM_SPI;
+    strncpy(boardconf.com_path, g_cfg.spi_path, sizeof(boardconf.com_path) - 1);
+    lgw_board_setconf(&boardconf);
+    g_sync_word = g_cfg.lorawan_public ? 0x34 : 0x12;
+
+    memset(&txlut, 0, sizeof(txlut));
+    if (g_cfg.tx_gain_lut.size > 0) {
+        txlut = g_cfg.tx_gain_lut;
+    } else {
+        txlut.size = 2;
+        txlut.lut[0].rf_power = 14; txlut.lut[0].pa_gain = 0; txlut.lut[0].pwr_idx = 21;
+        txlut.lut[1].rf_power = 27; txlut.lut[1].pa_gain = 1; txlut.lut[1].pwr_idx = 22;
+    }
+    if (g_cfg.rf0_tx_enable) lgw_txgain_setconf(0, &txlut);
+    if (g_cfg.rf1_tx_enable) lgw_txgain_setconf(1, &txlut);
+
+    memset(&rfconf, 0, sizeof(rfconf));
+    rfconf.enable            = true;
+    rfconf.type              = str_to_radio_type(g_cfg.rf0_type);
+    rfconf.single_input_mode = g_cfg.rf0_single_input;
+    rfconf.tx_enable         = g_cfg.rf0_tx_enable;
+    rfconf.freq_hz           = g_cfg.rf0_freq;
+    rfconf.rssi_offset       = g_cfg.rf0_rssi_offset;
+    g_rf0_freq               = rfconf.freq_hz;
+    lgw_rxrf_setconf(0, &rfconf);
+
+    rfconf.type              = str_to_radio_type(g_cfg.rf1_type);
+    rfconf.single_input_mode = g_cfg.rf1_single_input;
+    rfconf.tx_enable         = g_cfg.rf1_tx_enable;
+    rfconf.freq_hz           = g_cfg.rf1_freq;
+    rfconf.rssi_offset       = g_cfg.rf1_rssi_offset;
+    g_rf1_freq               = rfconf.freq_hz;
+    lgw_rxrf_setconf(1, &rfconf);
+
+    memset(&ifconf, 0, sizeof(ifconf));
+    ifconf.enable = true;
+    for (int i = 0; i < 8; i++) {
+        ifconf.rf_chain = g_cfg.chan_radio[i];
+        ifconf.freq_hz  = g_cfg.chan_if[i];
+        lgw_rxif_setconf(i, &ifconf);
+    }
+
+    memset(&ifconf, 0, sizeof(ifconf));
+    ifconf.enable    = g_cfg.chan_lora_std_enable;
+    ifconf.rf_chain  = g_cfg.chan_lora_std_radio;
+    ifconf.freq_hz   = g_cfg.chan_lora_std_if;
+    ifconf.bandwidth = bw_khz_to_enum(g_cfg.chan_lora_std_bw);
+    ifconf.datarate  = g_cfg.chan_lora_std_sf;
+    lgw_rxif_setconf(8, &ifconf);
+
+    memset(&ifconf, 0, sizeof(ifconf));
+    ifconf.enable    = g_cfg.chan_fsk_enable;
+    ifconf.rf_chain  = g_cfg.chan_fsk_radio;
+    ifconf.freq_hz   = g_cfg.chan_fsk_if;
+    ifconf.bandwidth = bw_khz_to_enum(g_cfg.chan_fsk_bw);
+    ifconf.datarate  = g_cfg.chan_fsk_datarate;
+    lgw_rxif_setconf(9, &ifconf);
+
+    memset(&demodconf, 0, sizeof(demodconf));
+    demodconf.multisf_datarate = LGW_MULTI_SF_EN;
+    lgw_demod_setconf(&demodconf);
+
+    return lgw_start();
+}
+
 static bool wait_tx_free(uint8_t rf_chain, int timeout_ms) {
     uint8_t tx_status;
     for (int waited = 0; waited < timeout_ms; waited++) {
+        pthread_mutex_lock(&hal_mutex);
         lgw_status(rf_chain, TX_STATUS, &tx_status);
+        pthread_mutex_unlock(&hal_mutex);
         if (tx_status == TX_FREE)
             return true;
         usleep(1000);
@@ -576,17 +724,38 @@ static void *thread_rx_loop(void *arg) {
     struct lgw_pkt_rx_s rxpkt[16];
     char json_buf[1280];
     char b64[400];
+    int consec_err = 0;
 
     printf("[RX] Thread started.\n");
 
     while (!g_quit) {
+        pthread_mutex_lock(&hal_mutex);
         int nb_pkt = lgw_receive(16, rxpkt);
+        pthread_mutex_unlock(&hal_mutex);
 
         if (nb_pkt == LGW_HAL_ERROR) {
-            printf("[RX] lgw_receive() error — retrying.\n");
+            consec_err++;
+            printf("[RX] lgw_receive() error (%d/10) — retrying.\n", consec_err);
+            if (consec_err >= 10) {
+                printf("[WATCHDOG] 10 consecutive HAL errors — resetting SX1302 concentrator...\n");
+                pthread_mutex_lock(&hal_mutex);
+                lgw_stop();
+                usleep(200000);
+                int r = configure_and_start_sx1302();
+                pthread_mutex_unlock(&hal_mutex);
+                if (r == LGW_HAL_SUCCESS) {
+                    printf("[WATCHDOG] SX1302 concentrator recovered and resumed!\n");
+                    consec_err = 0;
+                } else {
+                    printf("[WATCHDOG] SX1302 recovery failed — requesting full daemon restart.\n");
+                    g_quit = 1;
+                    break;
+                }
+            }
             usleep(100000);
             continue;
         }
+        consec_err = 0;
 
         for (int i = 0; i < nb_pkt; i++) {
             struct lgw_pkt_rx_s *p = &rxpkt[i];
@@ -646,8 +815,7 @@ static void *thread_rx_loop(void *arg) {
                 modu_str, datr_str, codr_str, p->rssis, p->snr, p->freq_offset,
                 p->rssic, (unsigned)p->size, b64);
 
-            sendto(sock_up, json_buf, json_len, 0,
-                   (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+            send_uplink(json_buf, (size_t)json_len);
 
             pthread_mutex_lock(&stats_mutex);
             stat_rx_count++;
@@ -818,7 +986,9 @@ static void *thread_tx_dispatch(void *arg) {
 
         pa_set(1);      // PA/LNA switch → TX mode (HIGH)
 
+        pthread_mutex_lock(&hal_mutex);
         int ret = lgw_send(&txpkt);
+        pthread_mutex_unlock(&hal_mutex);
 
         if (ret == LGW_HAL_SUCCESS) {
             // Wait for actual over-air transmission to finish before releasing PA
@@ -871,8 +1041,7 @@ static void *thread_heartbeat(void *arg) {
         hb.rf0_freq       = g_rf0_freq;
         hb.rf1_freq       = g_rf1_freq;
 
-        sendto(sock_up, &hb, sizeof(hb), 0,
-               (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        send_uplink(&hb, sizeof(hb));
 
         printf("[HB] uptime=%us rx=%u tx=%u crc_err=%u tx_err=%u q=%u q_drop=%u\n",
                hb.uptime_s, hb.rx_count, hb.tx_count,
@@ -999,13 +1168,11 @@ static void *thread_status_server(void *arg) {
 }
 
 int main(void) {
-    struct lgw_conf_board_s  boardconf;
-    struct lgw_conf_rxrf_s   rfconf;
-    struct lgw_conf_rxif_s   ifconf;
-    struct lgw_conf_demod_s  demodconf;
-    struct lgw_tx_gain_lut_s txlut;
-    struct sockaddr_in       local_addr;
+    struct sockaddr_in local_addr;
     pthread_t rx_tid, tx_recv_tid, tx_dispatch_tid, hb_tid, led_tid, status_tid;
+
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
 
     signal(SIGINT,  sig_handler);
     signal(SIGTERM, sig_handler);
@@ -1016,7 +1183,6 @@ int main(void) {
     load_config(CONFIG_PATH);
 
     printf("SX1302 Forwarder — HAL %s\n", lgw_version_info());
-    reset_sx1302();
     pa_gpio_init();
 
     // Sockets
@@ -1024,15 +1190,14 @@ int main(void) {
         perror("socket(sock_up)");
         return EXIT_FAILURE;
     }
-    memset(&dest_addr, 0, sizeof(dest_addr));
-    dest_addr.sin_family      = AF_INET;
-    dest_addr.sin_port        = htons(g_cfg.port_up);
-    dest_addr.sin_addr.s_addr = inet_addr(g_cfg.target_ip);
+    resolve_dest_addr();
 
     if ((sock_down = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("socket(sock_down)");
         return EXIT_FAILURE;
     }
+    int reuse = 1;
+    setsockopt(sock_down, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
     memset(&local_addr, 0, sizeof(local_addr));
     local_addr.sin_family      = AF_INET;
     local_addr.sin_port        = htons(g_cfg.port_down);
@@ -1042,82 +1207,10 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    // Board config
-    memset(&boardconf, 0, sizeof(boardconf));
-    boardconf.lorawan_public = g_cfg.lorawan_public;
-    boardconf.clksrc         = g_cfg.clksrc;
-    boardconf.full_duplex    = g_cfg.full_duplex;
-    boardconf.com_type       = LGW_COM_SPI;
-    strncpy(boardconf.com_path, g_cfg.spi_path, sizeof(boardconf.com_path) - 1);
-    lgw_board_setconf(&boardconf);
-    g_sync_word = g_cfg.lorawan_public ? 0x34 : 0x12;
-
-    // TX gain LUT (apply to all TX-enabled chains)
-    memset(&txlut, 0, sizeof(txlut));
-    if (g_cfg.tx_gain_lut.size > 0) {
-        txlut = g_cfg.tx_gain_lut;
-    } else {
-        txlut.size = 2;
-        txlut.lut[0].rf_power = 14; txlut.lut[0].pa_gain = 0; txlut.lut[0].pwr_idx = 21;
-        txlut.lut[1].rf_power = 27; txlut.lut[1].pa_gain = 1; txlut.lut[1].pwr_idx = 22;
-    }
-    if (g_cfg.rf0_tx_enable)
-        lgw_txgain_setconf(0, &txlut);
-    if (g_cfg.rf1_tx_enable)
-        lgw_txgain_setconf(1, &txlut);
-
-    // RF chain 0
-    memset(&rfconf, 0, sizeof(rfconf));
-    rfconf.enable            = true;
-    rfconf.type              = str_to_radio_type(g_cfg.rf0_type);
-    rfconf.single_input_mode = g_cfg.rf0_single_input;
-    rfconf.tx_enable         = g_cfg.rf0_tx_enable;
-    rfconf.freq_hz           = g_cfg.rf0_freq;
-    rfconf.rssi_offset       = g_cfg.rf0_rssi_offset;
-    g_rf0_freq               = rfconf.freq_hz;
-    lgw_rxrf_setconf(0, &rfconf);
-
-    // RF chain 1
-    rfconf.type              = str_to_radio_type(g_cfg.rf1_type);
-    rfconf.single_input_mode = g_cfg.rf1_single_input;
-    rfconf.tx_enable         = g_cfg.rf1_tx_enable;
-    rfconf.freq_hz           = g_cfg.rf1_freq;
-    rfconf.rssi_offset       = g_cfg.rf1_rssi_offset;
-    g_rf1_freq               = rfconf.freq_hz;
-    lgw_rxrf_setconf(1, &rfconf);
-
-    // MultiSF channels 0-7
-    memset(&ifconf, 0, sizeof(ifconf));
-    ifconf.enable = true;
-    for (int i = 0; i < 8; i++) {
-        ifconf.rf_chain = g_cfg.chan_radio[i];
-        ifconf.freq_hz  = g_cfg.chan_if[i];
-        lgw_rxif_setconf(i, &ifconf);
-    }
-
-    // LoRa std channel (channel index 8)
-    memset(&ifconf, 0, sizeof(ifconf));
-    ifconf.enable    = g_cfg.chan_lora_std_enable;
-    ifconf.rf_chain  = g_cfg.chan_lora_std_radio;
-    ifconf.freq_hz   = g_cfg.chan_lora_std_if;
-    ifconf.bandwidth = bw_khz_to_enum(g_cfg.chan_lora_std_bw);
-    ifconf.datarate  = g_cfg.chan_lora_std_sf;
-    lgw_rxif_setconf(8, &ifconf);
-
-    // FSK channel (channel index 9)
-    memset(&ifconf, 0, sizeof(ifconf));
-    ifconf.enable    = g_cfg.chan_fsk_enable;
-    ifconf.rf_chain  = g_cfg.chan_fsk_radio;
-    ifconf.freq_hz   = g_cfg.chan_fsk_if;
-    ifconf.bandwidth = bw_khz_to_enum(g_cfg.chan_fsk_bw);
-    ifconf.datarate  = g_cfg.chan_fsk_datarate;
-    lgw_rxif_setconf(9, &ifconf);
-
-    demodconf.multisf_datarate = LGW_MULTI_SF_EN;
-    lgw_demod_setconf(&demodconf);
-
-    if (lgw_start() != LGW_HAL_SUCCESS) {
+    if (configure_and_start_sx1302() != LGW_HAL_SUCCESS) {
         printf("ERROR: lgw_start() failed.\n");
+        close(sock_up);
+        close(sock_down);
         return EXIT_FAILURE;
     }
 
@@ -1130,8 +1223,7 @@ int main(void) {
     boot.pkt_type    = PKT_TYPE_BOOT;
     boot.gateway_eui = g_gateway_eui;
     strncpy(boot.hal_version, lgw_version_info(), sizeof(boot.hal_version) - 1);
-    sendto(sock_up, &boot, sizeof(boot), 0,
-           (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    send_uplink(&boot, sizeof(boot));
 
     printf("Concentrator started. Launching threads...\n");
 

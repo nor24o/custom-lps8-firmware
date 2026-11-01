@@ -123,7 +123,7 @@ function action_config()
         f:close()
 
         -- Restart raw_lora_app with new config
-        sys.call("killall raw_lora_app sx1276_app 2>/dev/null; /usr/bin/raw_lora_app >> /var/log/lora.log 2>&1 &")
+        sys.call("rm -f /tmp/lora_manual_stop; killall raw_lora_app sx1276_app 2>/dev/null; /usr/bin/raw_lora_app >> /var/log/lora.log 2>&1 &")
         http.prepare_content("application/json")
         http.write_json({ status = "saved" })
     else
@@ -198,11 +198,11 @@ function action_service()
     local cmd = http.formvalue("cmd")
 
     if cmd == "stop" then
-        sys.call("killall raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null; /etc/init.d/lora_gateway stop >/dev/null 2>&1 &")
+        sys.call("touch /tmp/lora_manual_stop; killall raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null")
         http.prepare_content("application/json")
         http.write_json({ success = true, command = cmd })
     elseif cmd == "start" or cmd == "restart" then
-        sys.call("killall raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null; echo '--- [" .. cmd .. "] ---' >> /var/log/lora.log; /usr/bin/raw_lora_app >> /var/log/lora.log 2>&1 &")
+        sys.call("rm -f /tmp/lora_manual_stop; killall raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null; pgrep -f lora_keepalive.sh >/dev/null 2>&1 || (/usr/bin/lora_keepalive.sh >/dev/null 2>&1 &); echo '--- [" .. cmd .. "] ---' >> /var/log/lora.log; /usr/bin/raw_lora_app >> /var/log/lora.log 2>&1 &")
         http.prepare_content("application/json")
         http.write_json({ success = true, command = cmd })
     else
