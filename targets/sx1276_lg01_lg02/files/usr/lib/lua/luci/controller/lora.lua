@@ -170,27 +170,46 @@ function action_packets()
         end
     end
 
-    local pipe = io.popen("(cat /var/log/lora.log 2>/dev/null; logread 2>/dev/null) | grep -F '[RX]' | tail -n 30")
-    if pipe then
-        local id = 1
-        for line in pipe:lines() do
-            local time = line:match("^(%w+%s+%w+%s+%d+%s+%d+:%d+:%d+)") or ""
-            local sz, datr, freq, rssi, snr, crc = line:match("%[RX%]%s+(%d+)%s+bytes%s+|%s+([^|]+)|%s+([^|]+)|%s+RSSI%s+([^|]+)|%s+SNR%s+([^|]+)|%s+([%w_]+)")
+    -- Fallback: parse /var/log/lora.log
+    local log_f = io.open("/var/log/lora.log", "r")
+    if log_f then
+        local raw = log_f:read("*a")
+        log_f:close()
+        local last_hex = nil
+        local all_pkts = {}
+        for line in raw:gmatch("[^\r\n]+") do
+            local h = line:match("Receive%(HEX%):([0-9a-fA-F]+)")
+            if h then last_hex = h end
+
+            -- Format A: [RX] 12 bytes SF9BW125 868.1000MHz RSSI -55.0dBm SNR 13.0dB
+            local sz, datr, freq, rssi, snr = line:match("%[RX%]%s+(%d+)%s+bytes%s+([%w_]+)%s+([%d%.]+)%s*MHz%s+RSSI%s+([%-%d%.]+)%s*dBm%s+SNR%s+([%-%d%.]+)%s*dB")
+            if not sz then
+                -- Format B: [RX] 12 bytes | SF9BW125 | 868.100MHz | RSSI -55dBm | SNR 13.0dB
+                sz, datr, freq, rssi, snr = line:match("%[RX%]%s+(%d+)%s+bytes%s+|%s+([^|]+)|%s+([^|]+)|%s+RSSI%s+([^|]+)|%s+SNR%s+([^|]+)")
+            end
+
             if sz then
-                table.insert(packets, 1, {
-                    id = id,
-                    time = (time ~= "" and time or os.date("%H:%M:%S")),
+                local time_str = line:match("%[(%d%d:%d%d:%d%d)%]") or os.date("%H:%M:%S")
+                all_pkts[#all_pkts + 1] = {
+                    time = time_str,
                     size = tonumber(sz) or 0,
-                    datr = datr:gsub("%s+", ""),
-                    freq = freq:gsub("%s*MHz%s*", ""):gsub("%s+", ""),
-                    rssi = rssi:gsub("%s*dBm%s*", ""):gsub("%s+", ""),
-                    snr = snr:gsub("%s*dB%s*", ""):gsub("%s+", ""),
-                    status = crc:gsub("%s+", "")
-                })
-                id = id + 1
+                    datr = (datr or ""):gsub("%s+", ""),
+                    freq = tonumber(freq) or 868.1,
+                    rssi = tonumber(rssi) or -50,
+                    snr = tonumber(snr) or 10,
+                    hex = last_hex or "",
+                    status = "CRC_OK",
+                    tmst = #all_pkts + 1
+                }
+                last_hex = nil
             end
         end
-        pipe:close()
+
+        local total = #all_pkts
+        local start = math.max(1, total - 29)
+        for i = total, start, -1 do
+            packets[#packets + 1] = all_pkts[i]
+        end
     end
 
     http.prepare_content("application/json")

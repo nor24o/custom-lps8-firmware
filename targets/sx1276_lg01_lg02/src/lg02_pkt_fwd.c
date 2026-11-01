@@ -442,6 +442,71 @@ static void sig_handler(int signo)
 /* Thread: RX loop                                                     */
 /* ------------------------------------------------------------------ */
 
+struct rx_history_entry {
+    char time[32];
+    double freq;
+    char datr[16];
+    char codr[8];
+    float rssi;
+    float snr;
+    uint16_t size;
+    char hex[514];
+    char status[16];
+    uint32_t tmst;
+};
+
+#define RX_HIST_MAX 40
+static struct rx_history_entry g_rx_history[RX_HIST_MAX];
+static int g_rx_hist_count = 0;
+static int g_rx_hist_head = 0;
+static pthread_mutex_t g_rx_hist_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void record_rx_packet(const struct pkt_rx_s *pkt, const char *datr, const char *codr, double freq_mhz, uint32_t tmst)
+{
+    time_t now = time(NULL);
+    struct tm *tm = localtime(&now);
+
+    pthread_mutex_lock(&g_rx_hist_mutex);
+    struct rx_history_entry *e = &g_rx_history[g_rx_hist_head];
+    if (tm) {
+        strftime(e->time, sizeof(e->time), "%H:%M:%S", tm);
+    } else {
+        snprintf(e->time, sizeof(e->time), "--:--:--");
+    }
+    e->freq = freq_mhz;
+    snprintf(e->datr, sizeof(e->datr), "%s", datr);
+    snprintf(e->codr, sizeof(e->codr), "%s", codr);
+    e->rssi = pkt->rssi;
+    e->snr = pkt->snr;
+    e->size = pkt->size;
+    e->tmst = tmst;
+    snprintf(e->status, sizeof(e->status), "CRC_OK");
+
+    e->hex[0] = '\0';
+    for (int i = 0; i < pkt->size && i < 255; i++) {
+        sprintf(e->hex + (i * 2), "%02x", (uint8_t)pkt->payload[i]);
+    }
+
+    g_rx_hist_head = (g_rx_hist_head + 1) % RX_HIST_MAX;
+    if (g_rx_hist_count < RX_HIST_MAX) g_rx_hist_count++;
+
+    FILE *fp = fopen("/tmp/lora_packets.json.tmp", "w");
+    if (fp) {
+        fprintf(fp, "[\n");
+        for (int i = 0; i < g_rx_hist_count; i++) {
+            int idx = (g_rx_hist_head - 1 - i + RX_HIST_MAX) % RX_HIST_MAX;
+            struct rx_history_entry *r = &g_rx_history[idx];
+            fprintf(fp, "  {\"time\":\"%s\",\"freq\":%.4f,\"datr\":\"%s\",\"codr\":\"%s\",\"rssi\":%.1f,\"snr\":%.1f,\"size\":%u,\"hex\":\"%s\",\"status\":\"%s\",\"tmst\":%u}%s\n",
+                    r->time, r->freq, r->datr, r->codr, r->rssi, r->snr, r->size, r->hex, r->status, r->tmst,
+                    (i + 1 < g_rx_hist_count) ? "," : "");
+        }
+        fprintf(fp, "]\n");
+        fclose(fp);
+        rename("/tmp/lora_packets.json.tmp", "/tmp/lora_packets.json");
+    }
+    pthread_mutex_unlock(&g_rx_hist_mutex);
+}
+
 static void *thread_rx_loop(void *arg)
 {
     (void)arg;
@@ -518,8 +583,12 @@ static void *thread_rx_loop(void *arg)
         pthread_mutex_unlock(&stats_mutex);
         g_led_rx_blink = 1;
 
-        printf("[RX] %u bytes  %s  %.4fMHz  RSSI %.1fdBm  SNR %.1fdB\n",
-               pktrx.size, datr_str, rxdev->freq / 1e6, pktrx.rssi, pktrx.snr);
+        record_rx_packet(&pktrx, datr_str, cr_to_str(rxdev->cr), rxdev->freq / 1e6, tmst);
+
+        char time_short[16];
+        strftime(time_short, sizeof(time_short), "%H:%M:%S", localtime(&ts.tv_sec));
+        printf("[%s] [RX] %u bytes  %s  %.4fMHz  RSSI %.1fdBm  SNR %.1fdB\n",
+               time_short, pktrx.size, datr_str, rxdev->freq / 1e6, pktrx.rssi, pktrx.snr);
     }
 
     printf("[RX] Thread exiting.\n");

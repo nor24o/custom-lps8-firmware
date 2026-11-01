@@ -17,6 +17,8 @@ sx1302_hal/firmwareorg/
 *.o
 *.a
 *.so
+targets/*/src/*_pkt_fwd
+targets/*/src/simple_spi_rw
 !staging/usr/lib/*.so
 !staging/usr/lib/*.a
 !targets/sx1276_lg01_lg02/staging/usr/lib/*.so
