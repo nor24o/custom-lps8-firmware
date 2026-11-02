@@ -1,0 +1,896 @@
+<%+header%>
+
+<style>
+.lora-nav-tabs {
+    display: flex;
+    border-bottom: 2px solid #e1e4e8;
+    margin-bottom: 20px;
+    gap: 8px;
+}
+.lora-nav-tab {
+    padding: 10px 18px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    color: #586069;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+.lora-nav-tab:hover {
+    color: #0366d6;
+    background: #f6f8fa;
+    border-radius: 4px 4px 0 0;
+}
+.lora-nav-tab.active {
+    color: #0366d6;
+    border-bottom-color: #0366d6;
+}
+.lora-card {
+    background: #fff;
+    border: 1px solid #dcdcdc;
+    border-radius: 6px;
+    padding: 18px 20px;
+    margin-bottom: 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.lora-card h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 6px;
+    display: inline-block;
+}
+.class-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #fff;
+}
+.class-a { background: #27ae60; }
+.class-b { background: #2980b9; }
+.class-c { background: #e67e22; }
+
+.status-pill {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: bold;
+}
+.pill-green { background: #e8f8f5; color: #27ae60; border: 1px solid #a3e4d7; }
+.pill-blue  { background: #ebf5fb; color: #2980b9; border: 1px solid #aed6f1; }
+.pill-orange{ background: #fef9e7; color: #d35400; border: 1px solid #f9e79f; }
+.pill-red   { background: #fdedec; color: #c0392b; border: 1px solid #f5b7b1; }
+
+.rule-box {
+    background: #fafbfc;
+    border: 1px solid #e1e4e8;
+    border-left: 4px solid #3498db;
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin-bottom: 15px;
+    transition: all 0.2s ease;
+}
+.rule-box:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.rule-box.disabled {
+    border-left-color: #95a5a6;
+    opacity: 0.7;
+}
+.rule-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.terminal-console {
+    background: #1e1e1e;
+    color: #00ff66;
+    font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 12px;
+    padding: 12px 14px;
+    border-radius: 5px;
+    min-height: 160px;
+    max-height: 320px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-box {
+    background: #fff;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 850px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 22px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+.form-field {
+    display: flex;
+    flex-direction: column;
+}
+.form-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 4px;
+}
+.form-field input, .form-field select {
+    padding: 7px 10px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    font-size: 13px;
+}
+</style>
+
+<div class="cbi-map">
+    <h2 name="content"><%:LoRa Node Registry & Device Linking%></h2>
+    <div class="cbi-map-descr">
+        <%:Manage registered LoRa nodes, configure LPWAN device classes (Class A, B, C), set up autonomous edge linking with Listen-Before-Send (LBT) and turnaround delays, and inspect the rotating 50-message buffer stored in SQLite.%>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="lora-nav-tabs">
+        <div class="lora-nav-tab active" onclick="switchTab('nodes')">📡 Node Registry (<span id="node-count">0</span>)</div>
+        <div class="lora-nav-tab" onclick="switchTab('links')">🔗 Device Linking & Automations (<span id="link-count">0</span>)</div>
+        <div class="lora-nav-tab" onclick="switchTab('testing')">⚡ Test & Diagnostics Console</div>
+        <div class="lora-nav-tab" onclick="switchTab('logs')">📜 Execution Audit Log</div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- TAB 1: NODE REGISTRY                                                   -->
+    <!-- ====================================================================== -->
+    <div id="tab-nodes" class="tab-pane">
+        <div class="lora-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <h3><%:Known LoRa Nodes%></h3>
+                <div>
+                    <button class="cbi-button cbi-button-apply" onclick="openNodeModal()"><%:➕ Register New Node%></button>
+                    <button class="cbi-button cbi-button-reset" onclick="loadNodes()"><%:🔄 Refresh%></button>
+                </div>
+            </div>
+
+            <table class="cbi-section-table" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr class="cbi-section-table-titles" style="background:#f1f4f8; text-align:left;">
+                        <th style="padding:10px;"><%:Node ID%></th>
+                        <th style="padding:10px;"><%:Friendly Name%></th>
+                        <th style="padding:10px;"><%:LPWAN Class%></th>
+                        <th style="padding:10px;"><%:Group / Area%></th>
+                        <th style="padding:10px;"><%:Signal (RSSI / SNR)%></th>
+                        <th style="padding:10px;"><%:Last Seen%></th>
+                        <th style="padding:10px; text-align:right;"><%:Actions%></th>
+                    </tr>
+                </thead>
+                <tbody id="nodes-tbody">
+                    <tr><td colspan="7" style="text-align:center; padding:20px; color:#777;"><%:Loading nodes from SQLite...%></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- TAB 2: DEVICE LINKING & RULES                                          -->
+    <!-- ====================================================================== -->
+    <div id="tab-links" class="tab-pane" style="display:none;">
+        <div class="lora-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <div>
+                    <h3><%:Autonomous Edge Linking Rules%></h3>
+                    <div style="font-size:12px; color:#666;">
+                        <%:Define what device triggers what action, timing windows, debounce cooldowns, and Listen-Before-Send collision avoidance.%>
+                    </div>
+                </div>
+                <div>
+                    <button class="cbi-button cbi-button-apply" onclick="openLinkModal()"><%:➕ Create New Link Rule%></button>
+                    <button class="cbi-button cbi-button-reset" onclick="loadLinks()"><%:🔄 Refresh%></button>
+                </div>
+            </div>
+
+            <div id="links-container">
+                <div style="text-align:center; padding:25px; color:#777;"><%:Loading linking rules from SQLite...%></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- TAB 3: TEST & DIAGNOSTICS CONSOLE                                      -->
+    <!-- ====================================================================== -->
+    <div id="tab-testing" class="tab-pane" style="display:none;">
+        <div class="lora-card">
+            <h3><%:Interactive Downlink & Linking Test Console%></h3>
+            <p style="font-size:13px; color:#555; margin-bottom:18px;">
+                <%:Verify turnaround delays, Listen-Before-Send carrier sensing, and Class A/C transmissions without waiting for live physical sensor triggers.%>
+            </p>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                <!-- Live Hardware Downlink Test -->
+                <div style="background:#fdfdfd; border:1px solid #e1e4e8; border-radius:6px; padding:16px;">
+                    <h4 style="margin-top:0; color:#2c3e50;"><%:⚡ Live Downlink Test (Hardware TX)%></h4>
+                    
+                    <div class="form-field" style="margin-bottom:12px;">
+                        <label><%:Target Node ID:%></label>
+                        <select id="test-target-node" onchange="updateTargetClassLabel()">
+                            <option value="AA0C">AA0C (Irrigation Valve)</option>
+                            <option value="AA0B">AA0B (Sensor)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field" style="margin-bottom:12px;">
+                        <label><%:Target LPWAN Class:%></label>
+                        <span id="test-target-class-badge" class="class-badge class-c">CLASS C (Always Listening)</span>
+                    </div>
+
+                    <div class="form-field" style="margin-bottom:12px;">
+                        <label><%:Downlink Payload (Hex or Text):%></label>
+                        <input type="text" id="test-payload" value="0101" placeholder="e.g. 0101 or VALVE:ON" />
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:14px;">
+                        <div class="form-field">
+                            <label><%:Turnaround Delay (ms):%></label>
+                            <input type="number" id="test-delay" value="1000" />
+                        </div>
+                        <div class="form-field">
+                            <label><%:LBT RSSI Thresh (dBm):%></label>
+                            <input type="number" id="test-lbt-thresh" value="-85" />
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:14px;">
+                        <label><input type="checkbox" id="test-lbt-enable" checked /> <%:Enable Listen-Before-Send (LBT / Carrier Sniff)%></label>
+                    </div>
+
+                    <button class="cbi-button cbi-button-apply" style="width:100%; padding:9px;" onclick="runDownlinkTest()">
+                        <%:🚀 Dispatch Downlink via Concentrator%>
+                    </button>
+                </div>
+
+                <!-- Dry-Run Rule Simulation -->
+                <div style="background:#fdfdfd; border:1px solid #e1e4e8; border-radius:6px; padding:16px;">
+                    <h4 style="margin-top:0; color:#2c3e50;"><%:🧪 Dry-Run Rule Simulator%></h4>
+                    
+                    <div class="form-field" style="margin-bottom:12px;">
+                        <label><%:Select Rule to Simulate:%></label>
+                        <select id="sim-rule-select" onchange="populateSimRuleFields()">
+                            <option value=""><%:Loading rules...%></option>
+                        </select>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-bottom:12px;">
+                        <div class="form-field">
+                            <label><%:Field:%></label>
+                            <input type="text" id="sim-field" value="temperature" readonly style="background:#f5f5f5;" />
+                        </div>
+                        <div class="form-field">
+                            <label><%:Operator:%></label>
+                            <input type="text" id="sim-operator" value=">" readonly style="background:#f5f5f5;" />
+                        </div>
+                        <div class="form-field">
+                            <label><%:Threshold:%></label>
+                            <input type="number" id="sim-threshold" value="30.0" readonly style="background:#f5f5f5;" />
+                        </div>
+                    </div>
+
+                    <div class="form-field" style="margin-bottom:14px;">
+                        <label><%:Mock Sensor Value to Test:%></label>
+                        <input type="number" step="0.1" id="sim-mock-value" value="32.5" placeholder="e.g. 32.5" />
+                    </div>
+
+                    <button class="cbi-button cbi-button-action" style="width:100%; padding:9px;" onclick="runSimulation()">
+                        <%:Evaluate Rule Condition%>
+                    </button>
+
+                    <div id="sim-result-box" style="margin-top:14px; padding:10px; border-radius:4px; display:none;"></div>
+                </div>
+            </div>
+
+            <!-- Terminal Output -->
+            <div style="margin-top:20px;">
+                <h4 style="margin-bottom:6px;"><%:Diagnostic Execution Log%></h4>
+                <div id="test-console" class="terminal-console"><%:System ready. Click 'Dispatch Downlink' or 'Evaluate Rule' to run diagnostics...%></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- TAB 4: AUDIT LOG                                                       -->
+    <!-- ====================================================================== -->
+    <div id="tab-logs" class="tab-pane" style="display:none;">
+        <div class="lora-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <h3><%:Recent Execution & Trigger Logs (Stored in RAM)%></h3>
+                <button class="cbi-button cbi-button-reset" onclick="loadAuditLogs()"><%:🔄 Refresh Logs%></button>
+            </div>
+
+            <table class="cbi-section-table" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr class="cbi-section-table-titles" style="background:#f1f4f8; text-align:left;">
+                        <th style="padding:9px;"><%:Timestamp%></th>
+                        <th style="padding:9px;"><%:Event%></th>
+                        <th style="padding:9px;"><%:Source%></th>
+                        <th style="padding:9px;"><%:Target (Class)%></th>
+                        <th style="padding:9px;"><%:LBT Status%></th>
+                        <th style="padding:9px;"><%:Delay%></th>
+                        <th style="padding:9px;"><%:TX Result%></th>
+                        <th style="padding:9px;"><%:Details%></th>
+                    </tr>
+                </thead>
+                <tbody id="logs-tbody">
+                    <tr><td colspan="8" style="text-align:center; padding:16px; color:#777;"><%:Loading logs...%></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================== -->
+<!-- MODAL: LAST 50 MESSAGES VIEWER (CIRCULAR BUFFER)                          -->
+<!-- ========================================================================== -->
+<div id="history-modal" class="modal-overlay">
+    <div class="modal-box">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #e1e4e8; padding-bottom:10px;">
+            <h3 style="margin:0;"><%:Rotating Buffer: Last 50 Messages for %> <span id="hist-node-title" style="color:#0366d6;"></span></h3>
+            <button class="cbi-button cbi-button-reset" onclick="closeHistoryModal()"><%:✖ Close%></button>
+        </div>
+
+        <div style="margin-bottom:12px; font-size:12px; color:#666;">
+            <%:Auto-pruned SQLite circular buffer. Guarantees zero flash wear (stored in RAM tmpfs). Maximum 50 messages per node.%>
+        </div>
+
+        <table class="cbi-section-table" style="width:100%; font-size:12px;">
+            <thead>
+                <tr style="background:#f6f8fa; text-align:left;">
+                    <th style="padding:6px;"><%:Time%></th>
+                    <th style="padding:6px;"><%:Signal (RSSI/SNR)%></th>
+                    <th style="padding:6px;"><%:Frequency & SF%></th>
+                    <th style="padding:6px;"><%:Raw Hex Payload%></th>
+                    <th style="padding:6px;"><%:Decoded Telemetry (JSON)%></th>
+                </tr>
+            </thead>
+            <tbody id="hist-tbody">
+                <tr><td colspan="5" style="text-align:center; padding:15px;"><%:Loading...%></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ========================================================================== -->
+<!-- MODAL: NODE EDIT / CREATE                                                  -->
+<!-- ========================================================================== -->
+<div id="node-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width:550px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #e1e4e8; padding-bottom:10px;">
+            <h3 style="margin:0;" id="node-modal-title"><%:Register Node%></h3>
+            <button class="cbi-button cbi-button-reset" onclick="closeNodeModal()"><%:✖%></button>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-field">
+                <label><%:Node ID (Hex Prefix / DevEUI):%></label>
+                <input type="text" id="nm-id" placeholder="e.g. AA0B" />
+            </div>
+            <div class="form-field">
+                <label><%:Friendly Name:%></label>
+                <input type="text" id="nm-name" placeholder="e.g. Greenhouse Sensor" />
+            </div>
+            <div class="form-field">
+                <label><%:LPWAN Device Class:%></label>
+                <select id="nm-class">
+                    <option value="A">Class A (Battery, Uplink-triggered RX1)</option>
+                    <option value="B">Class B (Periodic Scheduled Ping Slots)</option>
+                    <option value="C">Class C (Mains-powered, Always Listening)</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label><%:Group / Area:%></label>
+                <input type="text" id="nm-group" value="Default" placeholder="e.g. Zone A, Garden" />
+            </div>
+            <div class="form-field">
+                <label><%:RX1 Turnaround Delay (ms):%></label>
+                <input type="number" id="nm-rx1" value="1000" />
+            </div>
+            <div class="form-field">
+                <label><%:Default TX Power (dBm):%></label>
+                <input type="number" id="nm-powe" value="14" />
+            </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+            <button class="cbi-button cbi-button-reset" onclick="closeNodeModal()"><%:Cancel%></button>
+            <button class="cbi-button cbi-button-apply" onclick="saveNode()"><%:Save Node to SQLite%></button>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================== -->
+<!-- MODAL: LINK RULE EDIT / CREATE                                             -->
+<!-- ========================================================================== -->
+<div id="link-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width:680px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #e1e4e8; padding-bottom:10px;">
+            <h3 style="margin:0;" id="link-modal-title"><%:Configure Device Link Rule%></h3>
+            <button class="cbi-button cbi-button-reset" onclick="closeLinkModal()"><%:✖%></button>
+        </div>
+
+        <input type="hidden" id="lm-id" value="" />
+
+        <div class="form-field" style="margin-bottom:12px;">
+            <label><%:Rule Name:%></label>
+            <input type="text" id="lm-name" placeholder="e.g. High Temperature Valve Activation" />
+        </div>
+
+        <h4 style="margin:12px 0 8px; color:#2c3e50;"><%:1. Trigger Event (Source Node)%></h4>
+        <div class="form-grid">
+            <div class="form-field">
+                <label><%:Source Node:%></label>
+                <select id="lm-source"></select>
+            </div>
+            <div class="form-field">
+                <label><%:Trigger Field:%></label>
+                <input type="text" id="lm-field" value="temperature" placeholder="e.g. temperature, battery, val" />
+            </div>
+            <div class="form-field">
+                <label><%:Condition Operator:%></label>
+                <select id="lm-op">
+                    <option value=">">Greater than (>)</option>
+                    <option value="<">Less than (<)</option>
+                    <option value=">=">Greater than or equal (>=)</option>
+                    <option value="<=">Less than or equal (<=)</option>
+                    <option value="==">Equals (==)</option>
+                    <option value="!=">Not equal (!=)</option>
+                    <option value="always">Always on every packet</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label><%:Threshold Value:%></label>
+                <input type="number" step="0.1" id="lm-thresh" value="30.0" />
+            </div>
+        </div>
+
+        <h4 style="margin:12px 0 8px; color:#2c3e50;"><%:2. Timing Delays & Listen-Before-Send (LBT)%></h4>
+        <div class="form-grid">
+            <div class="form-field">
+                <label><%:Turnaround Delay (ms):%></label>
+                <input type="number" id="lm-delay" value="1000" />
+            </div>
+            <div class="form-field">
+                <label><%:Cooldown Debounce (s):%></label>
+                <input type="number" id="lm-cooldown" value="60" />
+            </div>
+            <div class="form-field">
+                <label><%:Auto-Reset Pulse (s, 0=off):%></label>
+                <input type="number" id="lm-pulse" value="0" />
+            </div>
+            <div class="form-field">
+                <label><%:LBT RSSI Threshold (dBm):%></label>
+                <input type="number" id="lm-lbt-thresh" value="-85" />
+            </div>
+        </div>
+        <div style="margin-bottom:14px;">
+            <label><input type="checkbox" id="lm-lbt-enable" checked /> <%:Enable Listen-Before-Send (Carrier Sense / Backoff)%></label>
+        </div>
+
+        <h4 style="margin:12px 0 8px; color:#2c3e50;"><%:3. Target Device & Downlink Action%></h4>
+        <div class="form-grid">
+            <div class="form-field">
+                <label><%:Target Node:%></label>
+                <select id="lm-target"></select>
+            </div>
+            <div class="form-field">
+                <label><%:Downlink Payload (Hex or ASCII):%></label>
+                <input type="text" id="lm-payload" value="0101" placeholder="e.g. 0101 or VALVE:ON" />
+            </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+            <button class="cbi-button cbi-button-reset" onclick="closeLinkModal()"><%:Cancel%></button>
+            <button class="cbi-button cbi-button-apply" onclick="saveLink()"><%:Save Link Rule%></button>
+        </div>
+    </div>
+</div>
+
+<script>
+var g_nodes = [];
+var g_links = [];
+
+function switchTab(name) {
+    var tabs = document.querySelectorAll('.lora-nav-tab');
+    var panes = document.querySelectorAll('.tab-pane');
+    tabs.forEach(function(t) { t.classList.remove('active'); });
+    panes.forEach(function(p) { p.style.display = 'none'; });
+
+    var targetPane = document.getElementById('tab-' + name);
+    if (targetPane) targetPane.style.display = 'block';
+
+    if (name === 'nodes') { tabs[0].classList.add('active'); loadNodes(); }
+    else if (name === 'links') { tabs[1].classList.add('active'); loadLinks(); }
+    else if (name === 'testing') { tabs[2].classList.add('active'); }
+    else if (name === 'logs') { tabs[3].classList.add('active'); loadAuditLogs(); }
+}
+
+function loadNodes() {
+    fetch('<%=url("admin/lora/api_nodes")%>')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            g_nodes = data.nodes || [];
+            document.getElementById('node-count').textContent = g_nodes.length;
+            renderNodesTable();
+            populateNodeDropdowns();
+        })
+        .catch(function(e) { console.error(e); });
+}
+
+function renderNodesTable() {
+    var tbody = document.getElementById('nodes-tbody');
+    tbody.innerHTML = '';
+    if (g_nodes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#888;">No nodes registered yet. Transmit from a sensor or click Register New Node.</td></tr>';
+        return;
+    }
+
+    g_nodes.forEach(function(n) {
+        var tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #eee';
+
+        var cls = (n.node_class || 'A').toUpperCase();
+        var badgeCls = cls === 'C' ? 'class-c' : (cls === 'B' ? 'class-b' : 'class-a');
+        var clsLabel = cls === 'C' ? 'Class C (Mains / Instant)' : (cls === 'B' ? 'Class B (Ping Slots)' : 'Class A (Battery / RX1)');
+
+        var rssiStr = (n.last_rssi !== null && n.last_rssi !== undefined) ? (n.last_rssi + ' dBm') : '-';
+        var snrStr  = (n.last_snr !== null && n.last_snr !== undefined) ? (n.last_snr + ' dB') : '-';
+        var lastSeen = n.last_seen || 'Never';
+
+        tr.innerHTML = 
+            '<td style="padding:10px; font-weight:bold; color:#0366d6;">' + escapeHtml(n.node_id) + '</td>' +
+            '<td style="padding:10px;">' + escapeHtml(n.name || '-') + '</td>' +
+            '<td style="padding:10px;"><span class="class-badge ' + badgeCls + '">' + clsLabel + '</span></td>' +
+            '<td style="padding:10px;"><span class="status-pill pill-blue">' + escapeHtml(n.group_name || 'Default') + '</span></td>' +
+            '<td style="padding:10px;"><code>' + rssiStr + ' / ' + snrStr + '</code></td>' +
+            '<td style="padding:10px; font-size:12px; color:#555;">' + lastSeen + '</td>' +
+            '<td style="padding:10px; text-align:right;">' +
+                '<button class="cbi-button cbi-button-action" style="margin-right:6px;" onclick="openHistoryModal(\'' + n.node_id + '\')">📊 Last 50</button>' +
+                '<button class="cbi-button cbi-button-reset" onclick="deleteNode(\'' + n.node_id + '\')">🗑️</button>' +
+            '</td>';
+        tbody.appendChild(tr);
+    });
+}
+
+function loadLinks() {
+    fetch('<%=url("admin/lora/api_links")%>')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            g_links = data.links || [];
+            document.getElementById('link-count').textContent = g_links.length;
+            renderLinksCards();
+            populateSimRuleDropdown();
+        })
+        .catch(function(e) { console.error(e); });
+}
+
+function renderLinksCards() {
+    var c = document.getElementById('links-container');
+    c.innerHTML = '';
+    if (g_links.length === 0) {
+        c.innerHTML = '<div style="text-align:center; padding:25px; color:#888;">No linking rules defined yet. Click "Create New Link Rule" to link your devices!</div>';
+        return;
+    }
+
+    g_links.forEach(function(l) {
+        var box = document.createElement('div');
+        box.className = 'rule-box' + (l.enabled ? '' : ' disabled');
+
+        var lbtText = l.lbt_enabled ? ('ON (' + (l.lbt_rssi_threshold || -85) + ' dBm)') : 'OFF';
+        var pulseText = (l.pulse_sec && l.pulse_sec > 0) ? (l.pulse_sec + 's auto-reset') : 'Permanent';
+
+        box.innerHTML = 
+            '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+                '<div style="font-size:15px; font-weight:bold; color:#2c3e50;">🔗 ' + escapeHtml(l.name) + '</div>' +
+                '<div>' +
+                    '<button class="cbi-button cbi-button-apply" style="margin-right:6px;" onclick="testLinkFromCard(' + l.link_id + ')">⚡ Test Now</button>' +
+                    '<button class="cbi-button cbi-button-reset" onclick="deleteLink(' + l.link_id + ')">🗑️</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="rule-row">' +
+                '<div><strong>Trigger:</strong> <span class="status-pill pill-blue">Node ' + escapeHtml(l.source_node) + '</span></div>' +
+                '<div><code>' + escapeHtml(l.trigger_field) + ' ' + escapeHtml(l.operator) + ' ' + l.threshold_val + '</code></div>' +
+                '<div>➡️ <strong>Target:</strong> <span class="status-pill pill-orange">Node ' + escapeHtml(l.target_node) + '</span></div>' +
+                '<div><strong>Payload:</strong> <code>' + escapeHtml(l.action_payload) + '</code></div>' +
+            '</div>' +
+            '<div class="rule-row" style="font-size:12px; color:#555; border-top:1px dashed #e1e4e8; padding-top:8px;">' +
+                '<div>⏱️ Turnaround Delay: <strong>' + (l.turnaround_delay_ms || 1000) + ' ms</strong></div>' +
+                '<div>⏳ Cooldown Debounce: <strong>' + (l.cooldown_sec || 60) + ' s</strong></div>' +
+                '<div>🛡️ Listen-Before-Send (LBT): <strong>' + lbtText + '</strong></div>' +
+                '<div>⚡ Pulse: <strong>' + pulseText + '</strong></div>' +
+                '<div>Status: <span class="status-pill pill-green">' + (l.last_status || 'IDLE') + '</span></div>' +
+            '</div>';
+        c.appendChild(box);
+    });
+}
+
+function openHistoryModal(node_id) {
+    document.getElementById('hist-node-title').textContent = node_id;
+    var tbody = document.getElementById('hist-tbody');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:15px;">Querying SQLite rolling messages...</td></tr>';
+    document.getElementById('history-modal').style.display = 'flex';
+
+    fetch('<%=url("admin/lora/api_node_history")%>?node_id=' + encodeURIComponent(node_id))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            tbody.innerHTML = '';
+            var msgs = data.messages || [];
+            if (msgs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:15px; color:#777;">No telemetry stored yet for this node.</td></tr>';
+                return;
+            }
+            msgs.forEach(function(m) {
+                var tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #eee';
+                tr.innerHTML = 
+                    '<td style="padding:6px; color:#555;">' + (m.timestamp || '-') + '</td>' +
+                    '<td style="padding:6px;"><code>' + (m.rssi || '-') + ' dBm / ' + (m.snr || '-') + ' dB</code></td>' +
+                    '<td style="padding:6px;"><code>' + ((m.freq_hz || 868100000) / 1e6).toFixed(3) + ' MHz / SF' + (m.sf || 7) + '</code></td>' +
+                    '<td style="padding:6px;"><code style="color:#d63384;">' + (m.payload_raw || '-') + '</code></td>' +
+                    '<td style="padding:6px; font-family:monospace; font-size:11px; color:#2e7d32;">' + (m.payload_decoded || '-') + '</td>';
+                tbody.appendChild(tr);
+            });
+        })
+        .catch(function(e) { console.error(e); });
+}
+
+function closeHistoryModal() {
+    document.getElementById('history-modal').style.display = 'none';
+}
+
+function openNodeModal() {
+    document.getElementById('node-modal').style.display = 'flex';
+}
+function closeNodeModal() {
+    document.getElementById('node-modal').style.display = 'none';
+}
+
+function saveNode() {
+    var id = document.getElementById('nm-id').value.trim();
+    if (!id) { alert('Node ID is required'); return; }
+    var payload = {
+        node_id: id,
+        name: document.getElementById('nm-name').value.trim(),
+        node_class: document.getElementById('nm-class').value,
+        group_name: document.getElementById('nm-group').value.trim(),
+        rx1_delay_ms: parseInt(document.getElementById('nm-rx1').value) || 1000,
+        default_tx_power: parseInt(document.getElementById('nm-powe').value) || 14
+    };
+
+    fetch('<%=url("admin/lora/api_nodes")%>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+      .then(function(res) {
+          if (res.success) {
+              closeNodeModal();
+              loadNodes();
+          } else {
+              alert(res.error || 'Failed to save node');
+          }
+      });
+}
+
+function deleteNode(id) {
+    if (!confirm('Delete node ' + id + ' from SQLite registry?')) return;
+    fetch('<%=url("admin/lora/api_nodes")%>?node_id=' + encodeURIComponent(id), { method: 'DELETE' })
+        .then(function() { loadNodes(); });
+}
+
+function openLinkModal() {
+    populateNodeDropdowns();
+    document.getElementById('link-modal').style.display = 'flex';
+}
+function closeLinkModal() {
+    document.getElementById('link-modal').style.display = 'none';
+}
+
+function populateNodeDropdowns() {
+    var srcSel = document.getElementById('lm-source');
+    var tgtSel = document.getElementById('lm-target');
+    var testSel = document.getElementById('test-target-node');
+
+    srcSel.innerHTML = '';
+    tgtSel.innerHTML = '';
+    testSel.innerHTML = '';
+
+    g_nodes.forEach(function(n) {
+        var opt1 = new Option(n.node_id + ' (' + (n.name || 'Node') + ')', n.node_id);
+        var opt2 = new Option(n.node_id + ' (' + (n.name || 'Node') + ') [' + (n.node_class || 'A') + ']', n.node_id);
+        var opt3 = new Option(n.node_id + ' (' + (n.name || 'Node') + ') [' + (n.node_class || 'A') + ']', n.node_id);
+        srcSel.add(opt1);
+        tgtSel.add(opt2);
+        testSel.add(opt3);
+    });
+}
+
+function saveLink() {
+    var payload = {
+        name: document.getElementById('lm-name').value.trim() || 'Link Rule',
+        source_node: document.getElementById('lm-source').value,
+        trigger_field: document.getElementById('lm-field').value.trim() || 'temperature',
+        operator: document.getElementById('lm-op').value,
+        threshold_val: parseFloat(document.getElementById('lm-thresh').value) || 0,
+        turnaround_delay_ms: parseInt(document.getElementById('lm-delay').value) || 1000,
+        cooldown_sec: parseInt(document.getElementById('lm-cooldown').value) || 60,
+        pulse_sec: parseInt(document.getElementById('lm-pulse').value) || 0,
+        lbt_enabled: document.getElementById('lm-lbt-enable').checked ? 1 : 0,
+        lbt_rssi_threshold: parseInt(document.getElementById('lm-lbt-thresh').value) || -85,
+        target_node: document.getElementById('lm-target').value,
+        action_payload: document.getElementById('lm-payload').value.trim() || '0101'
+    };
+
+    fetch('<%=url("admin/lora/api_links")%>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+      .then(function(res) {
+          if (res.success) {
+              closeLinkModal();
+              loadLinks();
+          } else {
+              alert(res.error || 'Failed to save link');
+          }
+      });
+}
+
+function deleteLink(id) {
+    if (!confirm('Delete link rule #' + id + '?')) return;
+    fetch('<%=url("admin/lora/api_links")%>?link_id=' + encodeURIComponent(id), { method: 'DELETE' })
+        .then(function() { loadLinks(); });
+}
+
+function runDownlinkTest() {
+    var consoleEl = document.getElementById('test-console');
+    consoleEl.textContent = '[1/5] Initiating interactive downlink hardware test...\n';
+
+    var payload = {
+        target_node: document.getElementById('test-target-node').value,
+        action_payload: document.getElementById('test-payload').value,
+        turnaround_delay_ms: parseInt(document.getElementById('test-delay').value) || 0,
+        lbt_enabled: document.getElementById('test-lbt-enable').checked ? 1 : 0,
+        lbt_rssi_threshold: parseInt(document.getElementById('test-lbt-thresh').value) || -85
+    };
+
+    fetch('<%=url("admin/lora/api_link_test")%>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+      .then(function(res) {
+          consoleEl.textContent = '';
+          (res.logs || []).forEach(function(l) {
+              consoleEl.textContent += '[' + l.time + '] ' + l.msg + '\n';
+          });
+      })
+      .catch(function(err) {
+          consoleEl.textContent += '[ERROR] Request failed: ' + err;
+      });
+}
+
+function populateSimRuleDropdown() {
+    var sel = document.getElementById('sim-rule-select');
+    sel.innerHTML = '';
+    g_links.forEach(function(l, idx) {
+        var opt = new Option(l.name + ' (' + l.source_node + ' -> ' + l.target_node + ')', idx);
+        sel.add(opt);
+    });
+    populateSimRuleFields();
+}
+
+function populateSimRuleFields() {
+    var idx = parseInt(document.getElementById('sim-rule-select').value);
+    var l = g_links[idx];
+    if (l) {
+        document.getElementById('sim-field').value = l.trigger_field;
+        document.getElementById('sim-operator').value = l.operator;
+        document.getElementById('sim-threshold').value = l.threshold_val;
+    }
+}
+
+function runSimulation() {
+    var idx = parseInt(document.getElementById('sim-rule-select').value);
+    var l = g_links[idx];
+    if (!l) return;
+
+    var mockVal = parseFloat(document.getElementById('sim-mock-value').value);
+    var payload = {
+        trigger_field: l.trigger_field,
+        operator: l.operator,
+        threshold_val: l.threshold_val,
+        mock_value: mockVal,
+        action_payload: l.action_payload
+    };
+
+    var box = document.getElementById('sim-result-box');
+    var consoleEl = document.getElementById('test-console');
+
+    fetch('<%=url("admin/lora/api_link_simulate")%>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+      .then(function(res) {
+          box.style.display = 'block';
+          if (res.matched) {
+              box.style.background = '#e8f8f5';
+              box.style.color = '#27ae60';
+              box.innerHTML = '<strong>MATCHED!</strong> Condition satisfied: ' + res.tested_value + ' ' + res.operator + ' ' + res.threshold + '<br>Generated Action: <code>' + res.action + '</code>';
+              consoleEl.textContent = '[SIMULATION] Field: ' + res.field + ' | Value: ' + res.tested_value + ' ' + res.operator + ' ' + res.threshold + ' -> RESULT: TRUE (Downlink triggered)\n';
+          } else {
+              box.style.background = '#fef9e7';
+              box.style.color = '#d35400';
+              box.innerHTML = '<strong>NO MATCH:</strong> Condition not met: ' + res.tested_value + ' ' + res.operator + ' ' + res.threshold;
+              consoleEl.textContent = '[SIMULATION] Field: ' + res.field + ' | Value: ' + res.tested_value + ' ' + res.operator + ' ' + res.threshold + ' -> RESULT: FALSE (No action)\n';
+          }
+      });
+}
+
+function loadAuditLogs() {
+    fetch('<%=url("admin/lora/api_link_logs")%>')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var tbody = document.getElementById('logs-tbody');
+            tbody.innerHTML = '';
+            var logs = data.logs || [];
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:16px; color:#888;">No execution logs in RAM.</td></tr>';
+                return;
+            }
+            logs.forEach(function(l) {
+                var tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #eee';
+                tr.innerHTML = 
+                    '<td style="padding:8px; font-size:12px; color:#666;">' + (l.timestamp || '-') + '</td>' +
+                    '<td style="padding:8px;"><span class="status-pill pill-blue">' + (l.event_type || '-') + '</span></td>' +
+                    '<td style="padding:8px;"><code>' + (l.source_node || '-') + '</code></td>' +
+                    '<td style="padding:8px;"><code>' + (l.target_node || '-') + ' [' + (l.target_class || '-') + ']</code></td>' +
+                    '<td style="padding:8px;"><span class="status-pill pill-green">' + (l.lbt_status || '-') + '</span></td>' +
+                    '<td style="padding:8px;">' + (l.delay_ms || 0) + ' ms</td>' +
+                    '<td style="padding:8px;"><span class="status-pill ' + (l.tx_status === 'SENT' ? 'pill-green' : 'pill-orange') + '">' + (l.tx_status || '-') + '</span></td>' +
+                    '<td style="padding:8px; font-size:12px; color:#555;">' + escapeHtml(l.details || '-') + '</td>';
+                tbody.appendChild(tr);
+            });
+        });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadNodes();
+    loadLinks();
+});
+</script>
+
+<%+footer%>

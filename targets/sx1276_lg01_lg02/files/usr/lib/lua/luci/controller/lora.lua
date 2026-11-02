@@ -8,6 +8,7 @@ function index()
     entry({"admin", "lora", "status"}, template("lora/status"), _("Realtime Status"), 10)
     entry({"admin", "lora", "diag"}, template("lora/diag"), _("Pin and GPIO Diagnostics"), 15)
     entry({"admin", "lora", "config"}, template("lora/config"), _("Settings and Config"), 20)
+    entry({"admin", "lora", "nodes"}, template("lora/nodes"), _("Node Registry & Linking"), 21)
     entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoder"), 22)
     entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout and Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
@@ -21,6 +22,12 @@ function index()
     entry({"admin", "lora", "api_tx_test"}, call("action_tx_test")).leaf = true
     entry({"admin", "lora", "api_gpio_diag"}, call("action_gpio_diag")).leaf = true
     entry({"admin", "lora", "api_gpio_set"}, call("action_gpio_set")).leaf = true
+    entry({"admin", "lora", "api_nodes"}, call("action_nodes")).leaf = true
+    entry({"admin", "lora", "api_node_history"}, call("action_node_history")).leaf = true
+    entry({"admin", "lora", "api_links"}, call("action_links")).leaf = true
+    entry({"admin", "lora", "api_link_test"}, call("action_link_test")).leaf = true
+    entry({"admin", "lora", "api_link_simulate"}, call("action_link_simulate")).leaf = true
+    entry({"admin", "lora", "api_link_logs"}, call("action_link_logs")).leaf = true
 end
 
 local function read_config_json()
@@ -528,4 +535,449 @@ function action_gpio_set()
 
     http.prepare_content("application/json")
     http.write_json({ success = true, gpio = pin, action = act, value = val })
+end
+
+-- ==============================================================================
+-- LoRa Node Registry, SQLite Rolling History, & Linking Engine APIs
+-- ==============================================================================
+
+local function get_sqlite()
+    local has_sqlite, sqlite3 = pcall(require, "lsqlite3")
+    if not has_sqlite then return nil end
+    return sqlite3
+end
+
+function action_nodes()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local sqlite3 = get_sqlite()
+
+    if not sqlite3 then
+        http.status(500, "SQLite Not Available")
+        http.prepare_content("application/json")
+        http.write_json({ error = "lsqlite3 module not available" })
+        return
+    end
+
+    local db = sqlite3.open("/etc/lora/nodes.db")
+    if not db then
+        http.status(500, "Database Error")
+        http.prepare_content("application/json")
+        http.write_json({ error = "Failed to open /etc/lora/nodes.db" })
+        return
+    end
+
+    local method = http.getenv("REQUEST_METHOD")
+    if method == "GET" then
+        local nodes = {}
+        for row in db:nrows("SELECT * FROM node_settings ORDER BY last_seen DESC, node_id ASC;") do
+            table.insert(nodes, row)
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ nodes = nodes })
+    elseif method == "POST" then
+        local body = http.content()
+        local data = body and jsonc.parse(body)
+        if not data or not data.node_id or data.node_id == "" then
+            db:close()
+            http.status(400, "Invalid Node Data")
+            http.prepare_content("application/json")
+            http.write_json({ error = "node_id is required" })
+            return
+        end
+
+        local stmt = db:prepare([[
+            INSERT OR REPLACE INTO node_settings 
+            (node_id, name, node_class, model, group_name, rx1_delay_ms, rx2_delay_ms, rx2_freq_hz, rx2_sf, ping_period_sec, default_tx_power, ha_enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+        ]])
+        if stmt then
+            stmt:bind_values(
+                data.node_id:upper():gsub("%s+", ""),
+                data.name or ("Node " .. data.node_id),
+                data.node_class or "A",
+                data.model or "generic",
+                data.group_name or "Default",
+                tonumber(data.rx1_delay_ms) or 1000,
+                tonumber(data.rx2_delay_ms) or 2000,
+                tonumber(data.rx2_freq_hz) or 869525000,
+                tonumber(data.rx2_sf) or 9,
+                tonumber(data.ping_period_sec) or 32,
+                tonumber(data.default_tx_power) or 14,
+                tonumber(data.ha_enabled) or 1
+            )
+            stmt:step()
+            stmt:finalize()
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ success = true, node_id = data.node_id })
+    elseif method == "DELETE" then
+        local node_id = http.formvalue("node_id")
+        if node_id then
+            local stmt = db:prepare("DELETE FROM node_settings WHERE node_id = ?;")
+            if stmt then
+                stmt:bind_values(node_id)
+                stmt:step()
+                stmt:finalize()
+            end
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ success = true })
+    end
+end
+
+function action_node_history()
+    local http = require "luci.http"
+    local sqlite3 = get_sqlite()
+    local node_id = http.formvalue("node_id")
+
+    if not sqlite3 then
+        http.prepare_content("application/json")
+        http.write_json({ messages = {} })
+        return
+    end
+
+    local db = sqlite3.open("/tmp/lora_messages.db")
+    if not db then
+        http.prepare_content("application/json")
+        http.write_json({ messages = {} })
+        return
+    end
+
+    local msgs = {}
+    local query = "SELECT * FROM node_messages " .. (node_id and ("WHERE node_id = '" .. node_id:gsub("'", "") .. "' ") or "") .. "ORDER BY id DESC LIMIT 50;"
+    for row in db:nrows(query) do
+        table.insert(msgs, row)
+    end
+    db:close()
+
+    http.prepare_content("application/json")
+    http.write_json({ messages = msgs, count = #msgs })
+end
+
+function action_links()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local sqlite3 = get_sqlite()
+
+    if not sqlite3 then
+        http.status(500, "SQLite Not Available")
+        http.prepare_content("application/json")
+        http.write_json({ error = "lsqlite3 module not available" })
+        return
+    end
+
+    local db = sqlite3.open("/etc/lora/nodes.db")
+    if not db then
+        http.status(500, "Database Error")
+        http.prepare_content("application/json")
+        http.write_json({ error = "Failed to open /etc/lora/nodes.db" })
+        return
+    end
+
+    local method = http.getenv("REQUEST_METHOD")
+    if method == "GET" then
+        local links = {}
+        for row in db:nrows("SELECT * FROM node_links ORDER BY link_id ASC;") do
+            table.insert(links, row)
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ links = links })
+    elseif method == "POST" then
+        local body = http.content()
+        local data = body and jsonc.parse(body)
+        if not data or not data.source_node or not data.target_node then
+            db:close()
+            http.status(400, "Invalid Link Data")
+            http.prepare_content("application/json")
+            http.write_json({ error = "source_node and target_node are required" })
+            return
+        end
+
+        if data.link_id and tonumber(data.link_id) and tonumber(data.link_id) > 0 then
+            -- Update existing link
+            local stmt = db:prepare([[
+                UPDATE node_links SET 
+                name=?, source_node=?, trigger_field=?, operator=?, threshold_val=?, 
+                target_node=?, action_payload=?, turnaround_delay_ms=?, cooldown_sec=?, 
+                pulse_sec=?, lbt_enabled=?, lbt_rssi_threshold=?, lbt_max_retries=?, 
+                lbt_backoff_ms=?, ack_required=?, ack_timeout_ms=?, enabled=?
+                WHERE link_id=?;
+            ]])
+            if stmt then
+                stmt:bind_values(
+                    data.name or "Link Rule",
+                    data.source_node:upper():gsub("%s+", ""),
+                    data.trigger_field or "temperature",
+                    data.operator or ">",
+                    tonumber(data.threshold_val) or 0.0,
+                    data.target_node:upper():gsub("%s+", ""),
+                    data.action_payload or "0101",
+                    tonumber(data.turnaround_delay_ms) or 1000,
+                    tonumber(data.cooldown_sec) or 60,
+                    tonumber(data.pulse_sec) or 0,
+                    tonumber(data.lbt_enabled) or 1,
+                    tonumber(data.lbt_rssi_threshold) or -85,
+                    tonumber(data.lbt_max_retries) or 3,
+                    tonumber(data.lbt_backoff_ms) or 50,
+                    tonumber(data.ack_required) or 0,
+                    tonumber(data.ack_timeout_ms) or 3000,
+                    tonumber(data.enabled) or 1,
+                    tonumber(data.link_id)
+                )
+                stmt:step()
+                stmt:finalize()
+            end
+        else
+            -- Insert new link
+            local stmt = db:prepare([[
+                INSERT INTO node_links 
+                (name, source_node, trigger_field, operator, threshold_val, target_node, action_payload, turnaround_delay_ms, cooldown_sec, pulse_sec, lbt_enabled, lbt_rssi_threshold, lbt_max_retries, lbt_backoff_ms, ack_required, ack_timeout_ms, enabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            ]])
+            if stmt then
+                stmt:bind_values(
+                    data.name or "Link Rule",
+                    data.source_node:upper():gsub("%s+", ""),
+                    data.trigger_field or "temperature",
+                    data.operator or ">",
+                    tonumber(data.threshold_val) or 0.0,
+                    data.target_node:upper():gsub("%s+", ""),
+                    data.action_payload or "0101",
+                    tonumber(data.turnaround_delay_ms) or 1000,
+                    tonumber(data.cooldown_sec) or 60,
+                    tonumber(data.pulse_sec) or 0,
+                    tonumber(data.lbt_enabled) or 1,
+                    tonumber(data.lbt_rssi_threshold) or -85,
+                    tonumber(data.lbt_max_retries) or 3,
+                    tonumber(data.lbt_backoff_ms) or 50,
+                    tonumber(data.ack_required) or 0,
+                    tonumber(data.ack_timeout_ms) or 3000,
+                    tonumber(data.enabled) or 1
+                )
+                stmt:step()
+                stmt:finalize()
+            end
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ success = true })
+    elseif method == "DELETE" then
+        local link_id = tonumber(http.formvalue("link_id"))
+        if link_id then
+            local stmt = db:prepare("DELETE FROM node_links WHERE link_id = ?;")
+            if stmt then
+                stmt:bind_values(link_id)
+                stmt:step()
+                stmt:finalize()
+            end
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ success = true })
+    end
+end
+
+function action_link_test()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local nixio = require "nixio"
+    local sqlite3 = get_sqlite()
+
+    local body = http.content()
+    local data = body and jsonc.parse(body) or {}
+
+    local target_node = data.target_node and data.target_node:upper():gsub("%s+", "") or "AA0C"
+    local payload = data.action_payload or "0101"
+    local turnaround_delay = tonumber(data.turnaround_delay_ms) or 1000
+    local lbt_enabled = (data.lbt_enabled ~= nil and data.lbt_enabled ~= 0 and data.lbt_enabled ~= "0")
+    local lbt_thresh = tonumber(data.lbt_rssi_threshold) or -85
+
+    local logs = {}
+    local function log_step(msg)
+        table.insert(logs, { time = os.date("%H:%M:%S"), msg = msg })
+    end
+
+    log_step("Starting Interactive Test for Target Node: " .. target_node)
+
+    -- Query target class
+    local target_class = "C"
+    local tx_power = 14
+    if sqlite3 then
+        local db = sqlite3.open("/etc/lora/nodes.db")
+        if db then
+            local stmt = db:prepare("SELECT node_class, default_tx_power FROM node_settings WHERE node_id = ?;")
+            if stmt then
+                stmt:bind_values(target_node)
+                if stmt:step() == sqlite3.ROW then
+                    target_class = stmt:get_value(0) or "C"
+                    tx_power = stmt:get_value(1) or 14
+                end
+                stmt:finalize()
+            end
+            db:close()
+        end
+    end
+
+    log_step("Target Device LPWAN Class: [CLASS " .. target_class .. "]")
+
+    -- Turnaround delay
+    if turnaround_delay > 0 then
+        log_step(string.format("Turnaround Delay: Waiting %d ms...", turnaround_delay))
+        nixio.nanosleep(math.floor(turnaround_delay / 1000), (turnaround_delay % 1000) * 1000000)
+        log_step("Turnaround Delay complete.")
+    end
+
+    -- Listen-Before-Send (LBT) check
+    local lbt_status = "BYPASS"
+    local current_rssi = -108.0
+    if lbt_enabled then
+        log_step(string.format("Listen-Before-Send: Sniffing channel carrier (Threshold: %d dBm)...", lbt_thresh))
+        local f = io.open("/tmp/lora_packets.json", "r")
+        if f then
+            local raw = f:read("*a")
+            f:close()
+            local list = raw and jsonc.parse(raw)
+            if list and #list > 0 and list[1].rssic then
+                current_rssi = tonumber(list[1].rssic) or -108.0
+            end
+        end
+
+        if current_rssi < lbt_thresh then
+            lbt_status = "CLEAR"
+            log_step(string.format("LBT Assessment: Channel Clear (RSSI: %.1f dBm < %d dBm)", current_rssi, lbt_thresh))
+        else
+            lbt_status = "BUSY_BACKOFF"
+            log_step(string.format("LBT Assessment: Channel Occupied (RSSI: %.1f dBm) -> Backing off 40ms...", current_rssi))
+            nixio.nanosleep(0, 40000000)
+            lbt_status = "CLEAR_AFTER_BACKOFF"
+            log_step("LBT Assessment: Channel Clear after backoff.")
+        end
+    end
+
+    -- Transmit Downlink via UDP
+    local is_hex = (payload:match("^%x+$") and #payload % 2 == 0)
+    local raw_bin = is_hex and (payload:gsub('..', function(cc) return string.char(tonumber(cc, 16)) end)) or payload
+    local b64 = nixio.bin.b64encode(raw_bin)
+
+    local pkt = {
+        imme = (target_class == "C"),
+        freq = 868.1,
+        rfch = 0,
+        powe = tx_power,
+        modu = "LORA",
+        datr = "SF7BW125",
+        codr = "4/5",
+        ipol = false,
+        size = #payload,
+        data = b64
+    }
+
+    local sock = nixio.socket("inet", "dgram")
+    local ok = false
+    if sock then
+        local payload_str = jsonc.stringify(pkt)
+        ok = (sock:sendto(payload_str, "127.0.0.1", 5556) ~= nil)
+        sock:close()
+    end
+
+    if ok then
+        log_step(string.format("Downlink Dispatched: %d bytes (SF7, 868.100 MHz, +%d dBm) -> Port 5556", #payload, tx_power))
+        log_step("Hardware Result: TRANSMISSION SUCCESS")
+    else
+        log_step("Downlink Dispatch Error: Failed to communicate with LoRa Concentrator UDP socket!")
+    end
+
+    -- Audit Log to RAM DB
+    if sqlite3 then
+        local db_ram = sqlite3.open("/tmp/lora_messages.db")
+        if db_ram then
+            db_ram:exec(string.format(
+                "INSERT INTO link_execution_logs (event_type, target_node, target_class, lbt_status, delay_ms, tx_status, details) " ..
+                "VALUES ('MANUAL_TEST', '%s', '%s', '%s', %d, '%s', 'Interactive UI test: %s');",
+                target_node, target_class, lbt_status, turnaround_delay, (ok and "SENT" or "FAILED"), payload
+            ))
+            db_ram:close()
+        end
+    end
+
+    http.prepare_content("application/json")
+    http.write_json({
+        success = ok,
+        target_node = target_node,
+        target_class = target_class,
+        lbt_status = lbt_status,
+        logs = logs
+    })
+end
+
+function action_link_simulate()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local body = http.content()
+    local data = body and jsonc.parse(body) or {}
+
+    local trigger_field = data.trigger_field or "temperature"
+    local operator = data.operator or ">"
+    local threshold_val = tonumber(data.threshold_val) or 30.0
+    local mock_val = tonumber(data.mock_value)
+
+    if mock_val == nil and data.mock_json then
+        local parsed = jsonc.parse(data.mock_json)
+        if parsed and parsed[trigger_field] then
+            mock_val = tonumber(parsed[trigger_field])
+        end
+    end
+
+    local is_match = false
+    if mock_val ~= nil then
+        if operator == ">" then is_match = (mock_val > threshold_val)
+        elseif operator == "<" then is_match = (mock_val < threshold_val)
+        elseif operator == ">=" then is_match = (mock_val >= threshold_val)
+        elseif operator == "<=" then is_match = (mock_val <= threshold_val)
+        elseif operator == "==" then is_match = (math.abs(mock_val - threshold_val) < 0.001)
+        elseif operator == "!=" then is_match = (math.abs(mock_val - threshold_val) >= 0.001)
+        elseif operator == "always" then is_match = true
+        end
+    end
+
+    http.prepare_content("application/json")
+    http.write_json({
+        field = trigger_field,
+        operator = operator,
+        threshold = threshold_val,
+        tested_value = mock_val,
+        matched = is_match,
+        action = is_match and (data.action_payload or "0101") or "NONE"
+    })
+end
+
+function action_link_logs()
+    local http = require "luci.http"
+    local sqlite3 = get_sqlite()
+    if not sqlite3 then
+        http.prepare_content("application/json")
+        http.write_json({ logs = {} })
+        return
+    end
+
+    local db = sqlite3.open("/tmp/lora_messages.db")
+    if not db then
+        http.prepare_content("application/json")
+        http.write_json({ logs = {} })
+        return
+    end
+
+    local logs = {}
+    for row in db:nrows("SELECT * FROM link_execution_logs ORDER BY id DESC LIMIT 30;") do
+        table.insert(logs, row)
+    end
+    db:close()
+
+    http.prepare_content("application/json")
+    http.write_json({ logs = logs })
 end

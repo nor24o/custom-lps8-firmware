@@ -25,7 +25,16 @@ A lean, high-performance, and unified firmware build system and custom applicati
   3. *Layer 3 (Hardware Watchdog)*: Concentrator hardware auto-reset after 10 consecutive HAL errors and UDP socket auto-reconnection upon network recovery.
 - **Full Semtech SX1302 HAL 2.1.0 Feature Set**: Concentrator temperature monitoring, 1-µs hardware timestamp counter, live radio status (`TX_STATUS`/`RX_STATUS`), extended RF metadata (channel noise floor `rssic`, SNR dynamic range `snr_min..snr_max`, frequency offset `foff` Hz, hex payload preview), microsecond timestamped downlinks, Continuous Wave RF tone generator (`MOD_CW`), instant transmission abort (`lgw_abort_tx`), and selective multi-SF mask (`sf_mask`).
 - **Custom Multi-Scheme Payload Decoder**: Built directly into LuCI (**LoRa Gateway -> Payload Decoder**). Features rule-based scheme matching (by Hex Header/Prefix like `aa0b`, `aa0c`, exact size, regex, or custom condition), support for JavaScript decoders (TTN/ChirpStack style), visual no-code field slicers, plain ASCII auto-decode, and Cayenne LPP. Integrates live with Realtime Status so every packet row displays decoded values and provides an interactive click-to-inspect packet modal.
-- **Native LuCI Web Interface**: Dedicated top-level navigation tab **"LoRa Gateway"** containing Realtime Status, Pin & GPIO Diagnostics, Settings & Config, Payload Decoder, Hardware Pinout & Map, and Gateway Logs.
+- **Dual-Database SQLite Engine (Zero Flash Wear)**: Integrates `libsqlite3`, `lsqlite3`, and `sqlite3-cli`. Protects the 16 MB SPI NOR flash from write degradation by splitting data: persistent node settings and linking rules reside in `/etc/lora/nodes.db` on flash, while high-frequency telemetry is kept in `/tmp/lora_messages.db` in RAM (`tmpfs`) with an automatic SQLite trigger maintaining a rolling 50-message circular buffer per node.
+- **LPWAN Classes (Class A, B, C) & Autonomous Edge Linking**: Built into LuCI (**LoRa Gateway -> Node Registry & Linking**).
+  - *Class A*: Battery-powered nodes with downlinks queued and dispatched at exact hardware microsecond timestamps (`uplink_tmst + rx1_delay_us`) during the RX1/RX2 window.
+  - *Class B*: Periodic ping slot scheduling.
+  - *Class C*: Always-listening mains actuators (valves, relays) with instant downlink dispatch ($\le 50\text{ ms}$).
+  - *Listen-Before-Send (LBT / Carrier Sense)*: Sniffs channel noise floor before transmission with automated randomized backoff to avoid RF collisions.
+  - *Turnaround Delays & Debounce Cooldowns*: Configurable RX timing windows and debounce timers to avoid packet storms.
+  - *Interactive Test & Diagnostic Console*: Live hardware downlink dispatcher and dry-run rule simulation directly in the web UI.
+- **End-Device Reference Code & Documentation**: Complete, production-ready Arduino / ESP32 firmware for Class A and Class C nodes in `examples/devices/` and architectural guide in `docs/LPWAN_DEVICE_CLASSES_AND_LINKING.md`.
+- **Native LuCI Web Interface**: Dedicated top-level navigation tab **"LoRa Gateway"** containing Realtime Status, Pin & GPIO Diagnostics, Settings & Config, Node Registry & Linking, Payload Decoder, Hardware Pinout & Map, and Gateway Logs.
 - **2.4 GHz WiFi**: Powered by `kmod-ath9k`, `wpad-mini`, and `iwinfo` for Access Point or Client (STA) uplink backhaul.
 
 ---
