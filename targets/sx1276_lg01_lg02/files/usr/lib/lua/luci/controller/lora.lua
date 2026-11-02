@@ -28,6 +28,7 @@ function index()
     entry({"admin", "lora", "api_link_test"}, call("action_link_test")).leaf = true
     entry({"admin", "lora", "api_link_simulate"}, call("action_link_simulate")).leaf = true
     entry({"admin", "lora", "api_link_logs"}, call("action_link_logs")).leaf = true
+    entry({"admin", "lora", "api_mqtt"}, call("action_mqtt")).leaf = true
 end
 
 local function read_config_json()
@@ -980,4 +981,68 @@ function action_link_logs()
 
     http.prepare_content("application/json")
     http.write_json({ logs = logs })
+end
+
+function action_mqtt()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local sys = require "luci.sys"
+    local nixio = require "nixio"
+
+    local cfg = read_config_json()
+    local method = http.getenv("REQUEST_METHOD")
+
+    if method == "GET" then
+        local mqtt_cfg = cfg.mqtt or {
+            enabled = true,
+            server = "192.168.1.100",
+            port = 1883,
+            user = "",
+            password = "",
+            discovery_prefix = "homeassistant",
+            state_prefix = "lora"
+        }
+
+        local is_reachable = false
+        local test_sock = nixio.socket("inet", "stream")
+        if test_sock then
+            test_sock:setopt("socket", "rcvtimeo", 1)
+            test_sock:setopt("socket", "sndtimeo", 1)
+            if test_sock:connect(mqtt_cfg.server or "127.0.0.1", tonumber(mqtt_cfg.port) or 1883) then
+                is_reachable = true
+            end
+            test_sock:close()
+        end
+
+        local pid_str = sys.exec("pgrep -f lora_mqtt_bridge.lua 2>/dev/null"):match("(%d+)")
+        local is_running = (pid_str ~= nil)
+
+        http.prepare_content("application/json")
+        http.write_json({
+            mqtt = mqtt_cfg,
+            broker_reachable = is_reachable,
+            bridge_running = is_running
+        })
+    elseif method == "POST" then
+        local body = http.content()
+        local data = body and jsonc.parse(body)
+        if not data then
+            http.status(400, "Invalid JSON")
+            http.prepare_content("application/json")
+            http.write_json({ error = "Invalid JSON" })
+            return
+        end
+
+        cfg.mqtt = data
+        local f = io.open("/etc/lora/config.json", "w")
+        if f then
+            f:write(jsonc.stringify(cfg, true))
+            f:close()
+        end
+
+        sys.call("killall lora_mqtt_bridge.lua 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+
+        http.prepare_content("application/json")
+        http.write_json({ success = true, mqtt = cfg.mqtt })
+    end
 end

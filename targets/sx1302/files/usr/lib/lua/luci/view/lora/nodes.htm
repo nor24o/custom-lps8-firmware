@@ -155,6 +155,7 @@
     <div class="lora-nav-tabs">
         <div class="lora-nav-tab active" onclick="switchTab('nodes')">📡 Node Registry (<span id="node-count">0</span>)</div>
         <div class="lora-nav-tab" onclick="switchTab('links')">🔗 Device Linking & Automations (<span id="link-count">0</span>)</div>
+        <div class="lora-nav-tab" onclick="switchTab('mqtt')">🏠 Home Assistant MQTT</div>
         <div class="lora-nav-tab" onclick="switchTab('testing')">⚡ Test & Diagnostics Console</div>
         <div class="lora-nav-tab" onclick="switchTab('logs')">📜 Execution Audit Log</div>
     </div>
@@ -212,6 +213,100 @@
             <div id="links-container">
                 <div style="text-align:center; padding:25px; color:#777;"><%:Loading linking rules from SQLite...%></div>
             </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- TAB: HOME ASSISTANT MQTT INTEGRATION                                   -->
+    <!-- ====================================================================== -->
+    <div id="tab-mqtt" class="tab-pane" style="display:none;">
+        <div class="lora-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <div>
+                    <h3><%:Home Assistant MQTT Auto-Discovery & Bidirectional Bridge%></h3>
+                    <div style="font-size:12px; color:#666;">
+                        <%:Automatically exposes LoRa nodes to Home Assistant via MQTT Discovery. Enables instant bidirectional control (switches, valves, relays) and categorized device cards.%>
+                    </div>
+                </div>
+                <div>
+                    <span id="mqtt-status-badge" class="status-pill pill-blue"><%:Checking broker...%></span>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+                <!-- MQTT Broker Configuration Form -->
+                <div style="background:#fdfdfd; border:1px solid #e1e4e8; border-radius:6px; padding:16px;">
+                    <h4 style="margin-top:0; color:#2c3e50;"><%:MQTT Broker Settings%></h4>
+                    
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label><%:Broker Host / IP:%></label>
+                            <input type="text" id="mqtt-server" placeholder="e.g. 192.168.1.100 or homeassistant.local" />
+                        </div>
+                        <div class="form-field">
+                            <label><%:Port:%></label>
+                            <input type="number" id="mqtt-port" value="1883" />
+                        </div>
+                        <div class="form-field">
+                            <label><%:Username (optional):%></label>
+                            <input type="text" id="mqtt-user" placeholder="e.g. homeassistant" />
+                        </div>
+                        <div class="form-field">
+                            <label><%:Password (optional):%></label>
+                            <input type="password" id="mqtt-pass" placeholder="••••••••" />
+                        </div>
+                        <div class="form-field">
+                            <label><%:Discovery Prefix:%></label>
+                            <input type="text" id="mqtt-discovery-prefix" value="homeassistant" />
+                        </div>
+                        <div class="form-field">
+                            <label><%:LoRa State & Command Root:%></label>
+                            <input type="text" id="mqtt-state-prefix" value="lora" />
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:14px;">
+                        <label><input type="checkbox" id="mqtt-enable" checked /> <%:Enable MQTT Bridge & Discovery Publishing%></label>
+                    </div>
+
+                    <button class="cbi-button cbi-button-apply" style="width:100%; padding:9px;" onclick="saveMqttConfig()">
+                        <%:💾 Save Settings & Synchronize Home Assistant Discovery%>
+                    </button>
+                </div>
+
+                <!-- How It Works in Home Assistant -->
+                <div style="background:#fdfdfd; border:1px solid #e1e4e8; border-radius:6px; padding:16px;">
+                    <h4 style="margin-top:0; color:#2c3e50;"><%:Home Assistant Device Architecture%></h4>
+                    <p style="font-size:12px; color:#555; line-height:1.6; margin-bottom:10px;">
+                        When a LoRa node transmits or is registered in SQLite, the gateway automatically registers it in Home Assistant over MQTT Discovery.
+                    </p>
+                    <ul style="font-size:12px; color:#444; line-height:1.7; padding-left:18px; margin:0 0 14px;">
+                        <li><strong>Device Grouping:</strong> All metrics for a node (Temperature, Battery, RSSI, Switch) appear under <strong>one unified Device Card</strong> in Home Assistant.</li>
+                        <li><strong>Areas & Groups:</strong> The node's <code>group_name</code> is set as the <code>suggested_area</code> (e.g. "Garden", "Indoor").</li>
+                        <li><strong>Bidirectional Downlinks:</strong> When you toggle a switch in Home Assistant, HA publishes to <code>lora/&lt;NODE&gt;/set</code>. The gateway checks LBT, transmits the LoRa frame, and updates the switch state immediately.</li>
+                        <li><strong>Snappy MQTT:</strong> Instant sub-second updates without web polling or HTTP overhead.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Mapped Home Assistant Devices & Entities Table -->
+            <h4 style="margin-bottom:8px; color:#2c3e50;"><%:Active Home Assistant Devices & Topic Mappings%></h4>
+            <table class="cbi-section-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead>
+                    <tr style="background:#f1f4f8; text-align:left;">
+                        <th style="padding:8px;"><%:Node ID%></th>
+                        <th style="padding:8px;"><%:Device Name%></th>
+                        <th style="padding:8px;"><%:Device Class%></th>
+                        <th style="padding:8px;"><%:HA Area%></th>
+                        <th style="padding:8px;"><%:Telemetry State Topic%></th>
+                        <th style="padding:8px;"><%:Downlink Command Topic%></th>
+                        <th style="padding:8px;"><%:Exposed Entities%></th>
+                    </tr>
+                </thead>
+                <tbody id="ha-devices-tbody">
+                    <tr><td colspan="7" style="text-align:center; padding:15px; color:#777;"><%:Loading Home Assistant entity mappings...%></td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -527,8 +622,97 @@ function switchTab(name) {
 
     if (name === 'nodes') { tabs[0].classList.add('active'); loadNodes(); }
     else if (name === 'links') { tabs[1].classList.add('active'); loadLinks(); }
-    else if (name === 'testing') { tabs[2].classList.add('active'); }
-    else if (name === 'logs') { tabs[3].classList.add('active'); loadAuditLogs(); }
+    else if (name === 'mqtt') { tabs[2].classList.add('active'); loadMqttConfig(); }
+    else if (name === 'testing') { tabs[3].classList.add('active'); }
+    else if (name === 'logs') { tabs[4].classList.add('active'); loadAuditLogs(); }
+}
+
+function loadMqttConfig() {
+    fetch('<%=url("admin/lora/api_mqtt")%>')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var m = data.mqtt || {};
+            document.getElementById('mqtt-server').value = m.server || '192.168.1.100';
+            document.getElementById('mqtt-port').value = m.port || 1883;
+            document.getElementById('mqtt-user').value = m.user || '';
+            document.getElementById('mqtt-pass').value = m.password || '';
+            document.getElementById('mqtt-discovery-prefix').value = m.discovery_prefix || 'homeassistant';
+            document.getElementById('mqtt-state-prefix').value = m.state_prefix || 'lora';
+            document.getElementById('mqtt-enable').checked = (m.enabled !== false);
+
+            var badge = document.getElementById('mqtt-status-badge');
+            if (data.broker_reachable) {
+                badge.className = 'status-pill pill-green';
+                badge.textContent = '🟢 Broker Connected (' + (m.server || '') + ':' + (m.port || 1883) + ')';
+            } else {
+                badge.className = 'status-pill pill-red';
+                badge.textContent = '🔴 Broker Unreachable (' + (m.server || '') + ')';
+            }
+            renderMqttEntitiesTable();
+        });
+}
+
+function saveMqttConfig() {
+    var payload = {
+        enabled: document.getElementById('mqtt-enable').checked,
+        server: document.getElementById('mqtt-server').value.trim(),
+        port: parseInt(document.getElementById('mqtt-port').value) || 1883,
+        user: document.getElementById('mqtt-user').value.trim(),
+        password: document.getElementById('mqtt-pass').value.trim(),
+        discovery_prefix: document.getElementById('mqtt-discovery-prefix').value.trim() || 'homeassistant',
+        state_prefix: document.getElementById('mqtt-state-prefix').value.trim() || 'lora'
+    };
+
+    fetch('<%=url("admin/lora/api_mqtt")%>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+      .then(function(res) {
+          if (res.success) {
+              alert('MQTT settings saved and Home Assistant Discovery synchronized!');
+              loadMqttConfig();
+          } else {
+              alert(res.error || 'Failed to save MQTT config');
+          }
+      });
+}
+
+function renderMqttEntitiesTable() {
+    var tbody = document.getElementById('ha-devices-tbody');
+    tbody.innerHTML = '';
+    if (g_nodes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:15px; color:#888;">No nodes registered yet.</td></tr>';
+        return;
+    }
+
+    var stateRoot = document.getElementById('mqtt-state-prefix').value || 'lora';
+
+    g_nodes.forEach(function(n) {
+        var tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #eee';
+
+        var cls = (n.node_class || 'A').toUpperCase();
+        var badgeCls = cls === 'C' ? 'class-c' : (cls === 'B' ? 'class-b' : 'class-a');
+        var entities = '<span class="status-pill pill-blue">sensor.' + n.node_id.toLowerCase() + '_temperature</span> ' +
+                       '<span class="status-pill pill-blue">sensor.' + n.node_id.toLowerCase() + '_battery</span> ' +
+                       '<span class="status-pill pill-blue">sensor.' + n.node_id.toLowerCase() + '_rssi</span>';
+        if (cls === 'C') {
+            entities += ' <span class="status-pill pill-orange">switch.' + n.node_id.toLowerCase() + '_switch</span>';
+        }
+
+        var cmdTopic = (cls === 'C') ? (stateRoot + '/' + n.node_id + '/set') : '<em>N/A (Class A Sleep)</em>';
+
+        tr.innerHTML = 
+            '<td style="padding:8px; font-weight:bold; color:#0366d6;">' + escapeHtml(n.node_id) + '</td>' +
+            '<td style="padding:8px;">' + escapeHtml(n.name || '-') + '</td>' +
+            '<td style="padding:8px;"><span class="class-badge ' + badgeCls + '">Class ' + cls + '</span></td>' +
+            '<td style="padding:8px;"><span class="status-pill pill-blue">' + escapeHtml(n.group_name || 'Default') + '</span></td>' +
+            '<td style="padding:8px;"><code>' + stateRoot + '/' + escapeHtml(n.node_id) + '/state</code></td>' +
+            '<td style="padding:8px;"><code>' + cmdTopic + '</code></td>' +
+            '<td style="padding:8px;">' + entities + '</td>';
+        tbody.appendChild(tr);
+    });
 }
 
 function loadNodes() {

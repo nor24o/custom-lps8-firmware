@@ -80,7 +80,7 @@ done
 # Package list for LPS8:
 # LuCI web UI, LoRa hardware drivers, sysadmin tools.
 # Explicitly stripped: DHCP servers, firewall, iptables, ppp routing bloat
-PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap wpad-mini iwinfo libiwinfo-lua nano htop libsqlite3 lsqlite3 sqlite3-cli -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c"
+PACKAGES="kmod-spi-dev kmod-spi-gpio-custom kmod-i2c-core kmod-usb-core kmod-usb2 uhttpd luci-mod-admin-full luci-theme-bootstrap wpad-mini iwinfo libiwinfo-lua nano htop libsqlite3 lsqlite3 sqlite3-cli mosquitto-client-nossl -dnsmasq -firewall -iptables -ip6tables -ppp -ppp-mod-pppoe -odhcpd -odhcpd-ipv6only -odhcp6c"
 
 # Ensure squashfs uses XZ compression (Dragino kernel 4.9 lacks zlib squashfs decompression)
 if [ -f "$IMAGEBUILDER_DIR/.config" ] && ! grep -q 'CONFIG_SQUASHFS_XZ=y' "$IMAGEBUILDER_DIR/.config"; then

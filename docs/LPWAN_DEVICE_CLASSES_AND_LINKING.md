@@ -166,3 +166,52 @@ When the linking engine or LuCI dispatches a downlink, it transmits a JSON datag
 - `imme`: `true` for **Class C** (instant TX); `false` for **Class A** (timestamped TX).
 - `tmst`: Hardware timestamp in microseconds (used when `imme = false`).
 - `data`: Standard Base64-encoded binary payload.
+
+---
+
+## 6. Home Assistant MQTT Auto-Discovery & Bidirectional Downlink Control
+
+The gateway features a native Home Assistant MQTT bridge (`/usr/bin/lora_mqtt_bridge.lua`) that automatically discovers and manages all LoRa nodes over MQTT with sub-second responsiveness.
+
+### Device Grouping & Categories in Home Assistant
+When a node is discovered or transmits, the gateway automatically publishes standard Home Assistant MQTT discovery payloads with a unified `device` block:
+
+```json
+{
+  "name": "Irrigation Valve Actuator",
+  "unique_id": "lora_AA0C_switch",
+  "state_topic": "lora/AA0C/state",
+  "command_topic": "lora/AA0C/set",
+  "payload_on": "ON",
+  "payload_off": "OFF",
+  "device": {
+    "identifiers": ["lora_AA0C"],
+    "name": "Irrigation Valve Actuator",
+    "model": "LoRa Actuator (Class C)",
+    "manufacturer": "Custom Dragino Gateway",
+    "suggested_area": "Garden"
+  }
+}
+```
+
+- **Unified Device Card**: In Home Assistant (Settings $\rightarrow$ Devices & Services $\rightarrow$ MQTT), all entities associated with `lora_AA0C` (e.g. Switch, RSSI, Battery) are automatically grouped together under **one device card**.
+- **Categorization**: The node's `group_name` in SQLite is mapped directly to Home Assistant's `suggested_area` (e.g. "Garden", "Greenhouse", "Living Room").
+
+### Bidirectional Control Pipeline (Downlinks from Home Assistant)
+
+```mermaid
+flowchart LR
+    HA["Home Assistant Dashboard<br/>(Toggle Switch 'ON')"] -->|"Publish 'ON'<br/>Topic: lora/AA0C/set"| Broker["MQTT Broker<br/>(Mosquitto)"]
+    Broker -->|"mosquitto_sub listener"| Bridge["lora_mqtt_bridge.lua<br/>(Dragino Gateway)"]
+    Bridge -->|"1. LBT Noise Sniff<br/>2. Translate 'ON' -> 0x0101"| HAL["Concentrator UDP 5556<br/>(raw_lora_app)"]
+    HAL -->|"LoRa TX (868.1 MHz, SF7)"| Node["Target Actuator Node<br/>(Class C Valve / Relay)"]
+    Bridge -->|"Publish State: {'state':'ON'}<br/>Topic: lora/AA0C/state"| Broker
+    Broker -->|"Instant UI confirmation"| HA
+```
+
+1. **User Action:** You toggle a switch or run an automation in Home Assistant.
+2. **Command Dispatch:** Home Assistant publishes `ON` or `OFF` to `lora/<NODE_ID>/set`.
+3. **Gateway Ingestion:** The gateway's `lora_mqtt_bridge.lua` receives the message in real-time.
+4. **LBT & Downlink:** It checks the node's class in SQLite, sniffs the RF channel for carrier activity, and dispatches the binary frame over LoRa.
+5. **State Synchronization:** It immediately updates `lora/<NODE_ID>/state` so the switch state in Home Assistant reflects reality without lag.
+

@@ -15,6 +15,7 @@ local jsonc   = require "luci.jsonc"
 local DB_NODES_PATH = "/etc/lora/nodes.db"
 local DB_RAM_PATH   = "/tmp/lora_messages.db"
 local PACKETS_JSON  = "/tmp/lora_packets.json"
+local CONFIG_PATH   = "/etc/lora/config.json"
 local PORT_DOWN     = 5556
 
 -- Open Databases
@@ -28,6 +29,39 @@ end
 
 -- Ensure databases are initialized
 os.execute("/usr/bin/lora_db_init.sh >/dev/null 2>&1")
+
+local function publish_mqtt_telemetry(node_id, metrics)
+    local f = io.open(CONFIG_PATH, "r")
+    if not f then return end
+    local content = f:read("*a")
+    f:close()
+    local cfg = jsonc.parse(content) or {}
+    local m = cfg.mqtt or {}
+    if m.enabled == false then return end
+
+    local host = m.server or "127.0.0.1"
+    local port = tonumber(m.port) or 1883
+    local prefix = m.state_prefix or "lora"
+    local auth = ""
+    if m.user and m.user ~= "" then
+        auth = auth .. " -u " .. nixio.shellquote(m.user)
+    end
+    if m.password and m.password ~= "" then
+        auth = auth .. " -P " .. nixio.shellquote(m.password)
+    end
+
+    local payload = jsonc.stringify(metrics)
+    local topic = prefix .. "/" .. node_id .. "/state"
+    local cmd = string.format(
+        "mosquitto_pub -h %s -p %d %s -t %s -m %s 2>/dev/null &",
+        nixio.shellquote(host),
+        port,
+        auth,
+        nixio.shellquote(topic),
+        nixio.shellquote(payload)
+    )
+    os.execute(cmd)
+end
 
 local function base64_encode(data)
     return nixio.bin.b64encode(data)
@@ -325,6 +359,12 @@ local function ingest_packet(pkt)
         "UPDATE node_settings SET last_seen = CURRENT_TIMESTAMP, last_rssi = %.1f, last_snr = %.1f WHERE node_id = '%s';",
         tonumber(pkt.rssi) or -100.0, tonumber(pkt.snr) or 0.0, node_id
     ))
+
+    -- 2.1 Publish Live Telemetry to MQTT for Home Assistant
+    metrics.rssi = tonumber(pkt.rssi)
+    metrics.snr  = tonumber(pkt.snr)
+    metrics.freq = tonumber(pkt.freq)
+    publish_mqtt_telemetry(node_id, metrics)
 
     -- 3. Check for pending Class A downlinks
     if pkt.tmst then
