@@ -181,6 +181,39 @@ Test binaries and the complete OpenWrt system on PC without physical Dragino har
 
 ---
 
+## Release v1.0.0 (Current Stable Release)
+
+This release marks the fully tested and operational milestone across all target Dragino hardware:
+- **Dragino LPS8 (SX1302)**: Verified 8-channel multi-SF concentrator operation, live on-die temperature telemetry (STTS751), hardware microsecond counters, and dual SX1250 RF frontends.
+- **Dragino LG01 / LG02 (SX1276)**: Verified single/dual-channel operation with independent frequency/SF/bandwidth tuning.
+- **OpenWrt Kernel 4.9 Compatibility**: Enforced XZ SquashFS compression across ImageBuilder to eliminate zlib kernel panic bootloops.
+- **Zero-Bloat Network Architecture**: Pure L2 bridge client without rogue DHCP servers or firewall overhead.
+- **Live Diagnostics & Decoder Studio**: Real-time 1.5s stream, CRC error filter toggle, multi-scheme payload decoder engine with click-to-inspect modal.
+- **Automated Flasher**: Direct device flashing and live-sync script (`upload_firmware.sh` / `flash_device.sh`) with remote RAM, MD5, and `sysupgrade -T` validation.
+
+---
+
+## Roadmap & Future Enhancements
+
+The following architectural enhancements are planned for subsequent updates:
+
+### 1. Payload Error-Proofing & Forward Error Correction (FEC)
+- **PHY-Level Hamming FEC**: Utilizing LoRa Coding Rate `CR 4/7` and `CR 4/8` (Hamming code) on nodes to enable the SX1302 baseband to automatically correct single bit-flips in hardware before delivering payload bytes.
+- **Application-Layer FEC (AL-FEC / Reed-Solomon)**: Implementation of lightweight Reed-Solomon RS(n, k) decoding in `raw_lora_app` / LuCI so packets with corrupted bits or damaged bytes can be mathematically reconstructed.
+- **Fuzzy Header / Channel Matching**: Bit-distance tolerant matching for known sensor signatures (e.g. `AA0B` / `AA0C`) to decode telemetry even when RF noise flips non-critical header bits.
+
+### 2. Elaborated Multi-Sensor Decoder Engine
+- **Programmable JavaScript Runtime**: Running sandboxed JavaScript payload formatters (ChirpStack / TTN style) directly on the gateway.
+- **Arbitrary Bitfield Unpacking**: Support for non-byte-aligned sensor structures (e.g., 3-bit status flags, 12-bit ADC readings, sign-extended integers).
+- **Threshold Alerting & Anomaly Detection**: User-defined rules triggering local GPIO pins, buzzer/LED alerts, or webhook events when telemetry exceeds limits.
+
+### 3. Direct Application Forwarding (No Third-Party Cloud Required)
+- **Native MQTT Client**: Forwarding decoded JSON telemetry directly from the gateway to local MQTT brokers (Home Assistant, Node-RED, ThingsBoard, Mosquitto) on topics such as `lora/<node_id>/telemetry`.
+- **HTTP Webhook / REST POST**: Configurable outbound POST requests delivering decoded payloads directly to external web applications or databases.
+- **Local SQLite / InfluxDB Logging**: Option to store time-series telemetry on local storage or USB drive.
+
+---
+
 ## Technical Specifications
 
 For full internal daemon flowcharts, wire protocol byte layouts, and hardware timing diagrams, see [ARCHITECTURE.md](ARCHITECTURE.md).
