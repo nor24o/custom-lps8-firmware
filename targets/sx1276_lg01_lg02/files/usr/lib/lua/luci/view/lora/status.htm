@@ -240,6 +240,9 @@
                 <label style="cursor: pointer; font-size: 13px;">
                     <input type="checkbox" id="chk-decode-payloads" checked="checked" onchange="toggleDecodePayloads()" /> <%:Decode Payloads%>
                 </label>
+                <label style="cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" id="chk-hide-crc" onchange="toggleHideCrc()" /> <%:Hide CRC Errors%>
+                </label>
                 <button type="button" class="cbi-button" onclick="clearPacketTable()"><%:Clear Feed%></button>
                 <a href="<%=luci.dispatcher.build_url('admin/lora/decoder')%>" class="cbi-button cbi-button-action" style="font-size: 12px; padding: 4px 10px; text-decoration: none;">⚙ <%:Payload Decoders%> (<span id="span-decoders-count">...</span>)</a>
             </div>
@@ -467,7 +470,11 @@ function updatePackets() {
                     var tr = document.createElement("tr");
                     var statBadge = '<span class="sig-badge sig-good">CRC OK</span>';
                     if (p.status && p.status.indexOf("BAD") !== -1) {
+                        tr.className = "row-crc-err";
                         statBadge = '<span class="sig-badge sig-low">CRC ERR</span>';
+                        if (document.getElementById("chk-hide-crc") && document.getElementById("chk-hide-crc").checked) {
+                            tr.style.display = "none";
+                        }
                     } else if (p.status && p.status.indexOf("NO_CRC") !== -1) {
                         statBadge = '<span class="sig-badge sig-med">NO CRC</span>';
                     }
@@ -662,6 +669,14 @@ function copyModalHex() {
         input.select();
         document.execCommand("copy");
         alert("Copied: " + hexVal);
+    }
+}
+
+function toggleHideCrc() {
+    var hide = document.getElementById("chk-hide-crc").checked;
+    var rows = document.querySelectorAll("#tbody-packets tr.row-crc-err");
+    for (var i = 0; i < rows.length; i++) {
+        rows[i].style.display = hide ? "none" : "";
     }
 }
 
