@@ -30,6 +30,10 @@ end
 -- Ensure databases are initialized
 os.execute("/usr/bin/lora_db_init.sh >/dev/null 2>&1")
 
+local function shellquote(s)
+    return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
 local function publish_mqtt_telemetry(node_id, metrics)
     local f = io.open(CONFIG_PATH, "r")
     if not f then return end
@@ -44,21 +48,21 @@ local function publish_mqtt_telemetry(node_id, metrics)
     local prefix = m.state_prefix or "lora"
     local auth = ""
     if m.user and m.user ~= "" then
-        auth = auth .. " -u " .. nixio.shellquote(m.user)
+        auth = auth .. " -u " .. shellquote(m.user)
     end
     if m.password and m.password ~= "" then
-        auth = auth .. " -P " .. nixio.shellquote(m.password)
+        auth = auth .. " -P " .. shellquote(m.password)
     end
 
     local payload = jsonc.stringify(metrics)
     local topic = prefix .. "/" .. node_id .. "/state"
     local cmd = string.format(
         "mosquitto_pub -h %s -p %d %s -t %s -m %s 2>/dev/null &",
-        nixio.shellquote(host),
+        shellquote(host),
         port,
         auth,
-        nixio.shellquote(topic),
-        nixio.shellquote(payload)
+        shellquote(topic),
+        shellquote(payload)
     )
     os.execute(cmd)
 end

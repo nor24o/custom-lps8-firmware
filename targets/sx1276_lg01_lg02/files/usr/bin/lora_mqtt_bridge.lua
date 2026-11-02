@@ -38,13 +38,17 @@ local MQTT_PASS    = mqtt_cfg.password or ""
 local HA_PREFIX    = mqtt_cfg.discovery_prefix or "homeassistant"
 local TOPIC_ROOT   = mqtt_cfg.state_prefix or "lora"
 
+local function shellquote(s)
+    return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
 local function build_auth_flags()
     local flags = ""
     if MQTT_USER ~= "" then
-        flags = flags .. " -u " .. nixio.shellquote(MQTT_USER)
+        flags = flags .. " -u " .. shellquote(MQTT_USER)
     end
     if MQTT_PASS ~= "" then
-        flags = flags .. " -P " .. nixio.shellquote(MQTT_PASS)
+        flags = flags .. " -P " .. shellquote(MQTT_PASS)
     end
     return flags
 end
@@ -55,12 +59,12 @@ local function mqtt_publish(topic, payload, retain)
     if not MQTT_ENABLED then return end
     local cmd = string.format(
         "mosquitto_pub -h %s -p %d %s %s -t %s -m %s 2>/dev/null",
-        nixio.shellquote(MQTT_HOST),
+        shellquote(MQTT_HOST),
         MQTT_PORT,
         AUTH_FLAGS,
         retain and "-r" or "",
-        nixio.shellquote(topic),
-        nixio.shellquote(payload)
+        shellquote(topic),
+        shellquote(payload)
     )
     os.execute(cmd)
 end
@@ -237,7 +241,7 @@ sync_all_discovery()
 -- 2. Spawn mosquitto_sub listening for Home Assistant commands (lora/+/set)
 local sub_cmd = string.format(
     "mosquitto_sub -h %s -p %d %s -t '%s/+/set' -v 2>/dev/null",
-    nixio.shellquote(MQTT_HOST),
+    shellquote(MQTT_HOST),
     MQTT_PORT,
     AUTH_FLAGS,
     TOPIC_ROOT

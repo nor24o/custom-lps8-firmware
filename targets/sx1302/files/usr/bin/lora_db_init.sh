@@ -17,7 +17,8 @@ mkdir -p /etc/lora /var/log /tmp
 if [ ! -f "$DB_NODES" ] || [ ! -s "$DB_NODES" ]; then
     echo "[lora_db_init] Initializing persistent database at $DB_NODES..."
     sqlite3 "$DB_NODES" <<'EOF'
-PRAGMA journal_mode = WAL;
+PRAGMA journal_mode = MEMORY;
+PRAGMA synchronous = OFF;
 
 -- Node Registry & Profiles
 CREATE TABLE IF NOT EXISTS node_settings (
