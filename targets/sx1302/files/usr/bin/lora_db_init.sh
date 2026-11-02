@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS node_settings (
     node_class          TEXT NOT NULL DEFAULT 'A', -- 'A' (Battery/RX1), 'B' (Ping Slots), 'C' (Always Listening)
     model               TEXT DEFAULT 'generic',
     group_name          TEXT DEFAULT 'Default',
+    is_configured       INTEGER DEFAULT 0,         -- 0 = Auto-Discovered (New/Pending), 1 = Configured
     rx1_delay_ms        INTEGER DEFAULT 1000,
     rx2_delay_ms        INTEGER DEFAULT 2000,
     rx2_freq_hz         INTEGER DEFAULT 869525000,
@@ -66,16 +67,19 @@ CREATE TABLE IF NOT EXISTS node_links (
 );
 
 -- Seed Reference Nodes
-INSERT OR IGNORE INTO node_settings (node_id, name, node_class, model, group_name, rx1_delay_ms)
-VALUES ('AA0B', 'Living Room Sensor', 'A', 'temperature_sensor', 'Indoor', 1000);
+INSERT OR IGNORE INTO node_settings (node_id, name, node_class, model, group_name, rx1_delay_ms, is_configured)
+VALUES ('AA0B', 'Living Room Sensor', 'A', 'temperature_sensor', 'Indoor', 1000, 1);
 
-INSERT OR IGNORE INTO node_settings (node_id, name, node_class, model, group_name, default_tx_power)
-VALUES ('AA0C', 'Irrigation Valve Actuator', 'C', 'relay_valve', 'Garden', 14);
+INSERT OR IGNORE INTO node_settings (node_id, name, node_class, model, group_name, default_tx_power, is_configured)
+VALUES ('AA0C', 'Irrigation Valve Actuator', 'C', 'relay_valve', 'Garden', 14, 1);
 
 -- Seed Reference Linking Rule
 INSERT OR IGNORE INTO node_links (link_id, name, source_node, trigger_field, operator, threshold_val, target_node, action_payload, turnaround_delay_ms, cooldown_sec, lbt_enabled)
 VALUES (1, 'Overheat Protection Valve', 'AA0B', 'temperature', '>', 30.0, 'AA0C', '0101', 1000, 60, 1);
 EOF
+else
+    # Schema Migration for existing databases
+    sqlite3 "$DB_NODES" "ALTER TABLE node_settings ADD COLUMN is_configured INTEGER DEFAULT 1;" 2>/dev/null || true
 fi
 
 # ==============================================================================

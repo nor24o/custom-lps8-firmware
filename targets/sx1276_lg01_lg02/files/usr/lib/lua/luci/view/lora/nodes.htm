@@ -66,6 +66,15 @@
 .pill-orange{ background: #fef9e7; color: #d35400; border: 1px solid #f9e79f; }
 .pill-red   { background: #fdedec; color: #c0392b; border: 1px solid #f5b7b1; }
 
+.discovery-banner {
+    background: #fff9e6;
+    border: 1px solid #ffe082;
+    border-left: 5px solid #f59e0b;
+    border-radius: 6px;
+    padding: 12px 18px;
+    margin-bottom: 16px;
+}
+
 .rule-box {
     background: #fafbfc;
     border: 1px solid #e1e4e8;
@@ -164,6 +173,17 @@
     <!-- TAB 1: NODE REGISTRY                                                   -->
     <!-- ====================================================================== -->
     <div id="tab-nodes" class="tab-pane">
+        <!-- Auto-Discovery Notification Banner -->
+        <div id="discovery-alert" class="discovery-banner" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <strong style="color:#b45309; font-size:13px;">✨ Auto-Discovered LoRa Devices (<span id="unconfigured-count">0</span>):</strong>
+                    <span id="unconfigured-list" style="margin-left:8px; font-weight:600; color:#1e293b;"></span>
+                    <div style="font-size:12px; color:#64748b; margin-top:3px;"><%:These devices transmitted packets and were automatically captured in SQLite. Click "Adopt & Configure" to set their Name, LPWAN Class, and Home Assistant Area.%></div>
+                </div>
+            </div>
+        </div>
+
         <div class="lora-card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
                 <h3><%:Known LoRa Nodes%></h3>
@@ -179,6 +199,7 @@
                         <th style="padding:10px;"><%:Node ID%></th>
                         <th style="padding:10px;"><%:Friendly Name%></th>
                         <th style="padding:10px;"><%:LPWAN Class%></th>
+                        <th style="padding:10px;"><%:Status%></th>
                         <th style="padding:10px;"><%:Group / Area%></th>
                         <th style="padding:10px;"><%:Signal (RSSI / SNR)%></th>
                         <th style="padding:10px;"><%:Last Seen%></th>
@@ -186,7 +207,7 @@
                     </tr>
                 </thead>
                 <tbody id="nodes-tbody">
-                    <tr><td colspan="7" style="text-align:center; padding:20px; color:#777;"><%:Loading nodes from SQLite...%></td></tr>
+                    <tr><td colspan="8" style="text-align:center; padding:20px; color:#777;"><%:Loading nodes from SQLite...%></td></tr>
                 </tbody>
             </table>
         </div>
@@ -730,8 +751,25 @@ function loadNodes() {
 function renderNodesTable() {
     var tbody = document.getElementById('nodes-tbody');
     tbody.innerHTML = '';
+
+    // Auto-Discovery Inbox detection
+    var unconfigured = g_nodes.filter(function(n) {
+        return !n.is_configured || n.is_configured === 0 || n.is_configured === '0';
+    });
+    var alertBanner = document.getElementById('discovery-alert');
+    if (unconfigured.length > 0) {
+        alertBanner.style.display = 'block';
+        document.getElementById('unconfigured-count').textContent = unconfigured.length;
+        var unconfListHtml = unconfigured.map(function(u) {
+            return '<span class="status-pill pill-orange" style="margin-right:4px;">' + escapeHtml(u.node_id) + '</span>';
+        }).join('');
+        document.getElementById('unconfigured-list').innerHTML = unconfListHtml;
+    } else {
+        alertBanner.style.display = 'none';
+    }
+
     if (g_nodes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#888;">No nodes registered yet. Transmit from a sensor or click Register New Node.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#888;">No nodes registered yet. Transmit from a sensor or click Register New Node.</td></tr>';
         return;
     }
 
@@ -743,6 +781,15 @@ function renderNodesTable() {
         var badgeCls = cls === 'C' ? 'class-c' : (cls === 'B' ? 'class-b' : 'class-a');
         var clsLabel = cls === 'C' ? 'Class C (Mains / Instant)' : (cls === 'B' ? 'Class B (Ping Slots)' : 'Class A (Battery / RX1)');
 
+        var isAdopted = (n.is_configured === 1 || n.is_configured === '1');
+        var statusBadge = isAdopted 
+            ? '<span class="status-pill pill-green">🟢 Active</span>' 
+            : '<span class="status-pill pill-orange" style="font-weight:bold;">✨ Auto-Discovered</span>';
+
+        var adoptBtn = isAdopted
+            ? '<button class="cbi-button cbi-button-action" style="margin-right:4px;" onclick="openNodeModal(\'' + n.node_id + '\')">✏️ Edit</button>'
+            : '<button class="cbi-button cbi-button-apply" style="margin-right:4px; font-weight:bold; background:#e67e22; border-color:#d35400;" onclick="openNodeModal(\'' + n.node_id + '\')">⚙️ Adopt & Configure</button>';
+
         var rssiStr = (n.last_rssi !== null && n.last_rssi !== undefined) ? (n.last_rssi + ' dBm') : '-';
         var snrStr  = (n.last_snr !== null && n.last_snr !== undefined) ? (n.last_snr + ' dB') : '-';
         var lastSeen = n.last_seen || 'Never';
@@ -751,11 +798,14 @@ function renderNodesTable() {
             '<td style="padding:10px; font-weight:bold; color:#0366d6;">' + escapeHtml(n.node_id) + '</td>' +
             '<td style="padding:10px;">' + escapeHtml(n.name || '-') + '</td>' +
             '<td style="padding:10px;"><span class="class-badge ' + badgeCls + '">' + clsLabel + '</span></td>' +
+            '<td style="padding:10px;">' + statusBadge + '</td>' +
             '<td style="padding:10px;"><span class="status-pill pill-blue">' + escapeHtml(n.group_name || 'Default') + '</span></td>' +
             '<td style="padding:10px;"><code>' + rssiStr + ' / ' + snrStr + '</code></td>' +
             '<td style="padding:10px; font-size:12px; color:#555;">' + lastSeen + '</td>' +
             '<td style="padding:10px; text-align:right;">' +
-                '<button class="cbi-button cbi-button-action" style="margin-right:6px;" onclick="openHistoryModal(\'' + n.node_id + '\')">📊 Last 50</button>' +
+                adoptBtn +
+                '<button class="cbi-button cbi-button-action" style="margin-right:4px;" title="Create linking rule from this device" onclick="createLinkForNode(\'' + n.node_id + '\')">🔗 Link</button>' +
+                '<button class="cbi-button cbi-button-action" style="margin-right:4px;" onclick="openHistoryModal(\'' + n.node_id + '\')">📊 Last 50</button>' +
                 '<button class="cbi-button cbi-button-reset" onclick="deleteNode(\'' + n.node_id + '\')">🗑️</button>' +
             '</td>';
         tbody.appendChild(tr);
@@ -848,11 +898,39 @@ function closeHistoryModal() {
     document.getElementById('history-modal').style.display = 'none';
 }
 
-function openNodeModal() {
+function openNodeModal(node_id) {
+    if (node_id) {
+        var n = g_nodes.find(function(item) { return item.node_id === node_id; });
+        var isAdopted = n && (n.is_configured === 1 || n.is_configured === '1');
+        document.getElementById('node-modal-title').textContent = isAdopted ? ('Edit Node: ' + node_id) : ('Adopt & Configure: ' + node_id);
+        document.getElementById('nm-id').value = node_id;
+        document.getElementById('nm-id').readOnly = true;
+        document.getElementById('nm-name').value = (n && n.name) ? n.name : ('Node ' + node_id);
+        document.getElementById('nm-class').value = (n && n.node_class) ? n.node_class : 'A';
+        document.getElementById('nm-group').value = (n && n.group_name && n.group_name !== 'Unassigned') ? n.group_name : 'Default';
+        document.getElementById('nm-rx1').value = (n && n.rx1_delay_ms) ? n.rx1_delay_ms : 1000;
+        document.getElementById('nm-powe').value = (n && n.default_tx_power) ? n.default_tx_power : 14;
+    } else {
+        document.getElementById('node-modal-title').textContent = '<%:Register New Node%>';
+        document.getElementById('nm-id').value = '';
+        document.getElementById('nm-id').readOnly = false;
+        document.getElementById('nm-name').value = '';
+        document.getElementById('nm-class').value = 'A';
+        document.getElementById('nm-group').value = 'Default';
+        document.getElementById('nm-rx1').value = 1000;
+        document.getElementById('nm-powe').value = 14;
+    }
     document.getElementById('node-modal').style.display = 'flex';
 }
 function closeNodeModal() {
     document.getElementById('node-modal').style.display = 'none';
+}
+
+function createLinkForNode(node_id) {
+    switchTab('links');
+    openLinkModal();
+    var srcSel = document.getElementById('lm-source');
+    if (srcSel) srcSel.value = node_id;
 }
 
 function saveNode() {

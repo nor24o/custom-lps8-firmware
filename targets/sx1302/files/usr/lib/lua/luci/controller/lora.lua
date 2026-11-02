@@ -570,9 +570,23 @@ function action_nodes()
         end
 
         local stmt = db:prepare([[
-            INSERT OR REPLACE INTO node_settings 
-            (node_id, name, node_class, model, group_name, rx1_delay_ms, rx2_delay_ms, rx2_freq_hz, rx2_sf, ping_period_sec, default_tx_power, ha_enabled, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+            INSERT INTO node_settings 
+            (node_id, name, node_class, model, group_name, rx1_delay_ms, rx2_delay_ms, rx2_freq_hz, rx2_sf, ping_period_sec, default_tx_power, ha_enabled, is_configured, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            ON CONFLICT(node_id) DO UPDATE SET
+                name=excluded.name,
+                node_class=excluded.node_class,
+                model=excluded.model,
+                group_name=excluded.group_name,
+                rx1_delay_ms=excluded.rx1_delay_ms,
+                rx2_delay_ms=excluded.rx2_delay_ms,
+                rx2_freq_hz=excluded.rx2_freq_hz,
+                rx2_sf=excluded.rx2_sf,
+                ping_period_sec=excluded.ping_period_sec,
+                default_tx_power=excluded.default_tx_power,
+                ha_enabled=excluded.ha_enabled,
+                is_configured=1,
+                updated_at=CURRENT_TIMESTAMP;
         ]])
         if stmt then
             stmt:bind_values(
@@ -593,6 +607,11 @@ function action_nodes()
             stmt:finalize()
         end
         db:close()
+
+        -- Re-sync Home Assistant discovery to reflect adopted / updated node
+        local sys = require "luci.sys"
+        sys.call("killall lora_mqtt_bridge.lua 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+
         http.prepare_content("application/json")
         http.write_json({ success = true, node_id = data.node_id })
     elseif method == "DELETE" then

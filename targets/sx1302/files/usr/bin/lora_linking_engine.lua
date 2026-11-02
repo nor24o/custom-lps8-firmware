@@ -350,9 +350,9 @@ local function ingest_packet(pkt)
         ins_stmt:finalize()
     end
 
-    -- 2. Update persistent node registry on Flash
+    -- 2. Update persistent node registry on Flash (Auto-Discovery)
     db_nodes:exec(string.format(
-        "INSERT OR IGNORE INTO node_settings (node_id, name, node_class) VALUES ('%s', 'Node %s', 'A');",
+        "INSERT OR IGNORE INTO node_settings (node_id, name, node_class, is_configured, group_name) VALUES ('%s', 'New Node %s', 'A', 0, 'Unassigned');",
         node_id, node_id
     ))
     db_nodes:exec(string.format(

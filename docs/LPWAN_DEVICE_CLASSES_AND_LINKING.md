@@ -215,3 +215,34 @@ flowchart LR
 4. **LBT & Downlink:** It checks the node's class in SQLite, sniffs the RF channel for carrier activity, and dispatches the binary frame over LoRa.
 5. **State Synchronization:** It immediately updates `lora/<NODE_ID>/state` so the switch state in Home Assistant reflects reality without lag.
 
+---
+
+## 7. Zero-Touch Automatic Node Discovery & Adoption Workflow
+
+You **do not** need to manually register nodes before they can transmit. The gateway operates on a **zero-touch auto-discovery** model:
+
+```mermaid
+flowchart TD
+    Node["New LoRa Sensor Powers On<br/>(Transmits First Packet)"] --> GW["Dragino Gateway<br/>(Ingests Packet)"]
+    GW --> SQL["SQLite /etc/lora/nodes.db<br/>(Auto-creates row: is_configured = 0)"]
+    GW --> RAM["RAM /tmp/lora_messages.db<br/>(Stores packet in rolling 50-msg buffer)"]
+    SQL --> UI["Web UI: LoRa Node Registry<br/>(Banner: '✨ Auto-Discovered LoRa Devices Detected')"]
+    UI --> Adopt["User clicks '⚙️ Adopt & Configure'"]
+    Adopt --> Config["Assign Friendly Name, LPWAN Class (A/B/C),<br/>& Home Assistant Area (e.g. 'Garden')"]
+    Config --> HA["Auto-Syncs with Home Assistant MQTT"]
+```
+
+### Auto-Discovery Lifecycle
+1. **Packet Detection:** The moment an unknown node transmits (e.g. `B827`), `lora_linking_engine.lua` automatically inserts it into `/etc/lora/nodes.db` with `is_configured = 0` and `group_name = 'Unassigned'`.
+2. **Buffer Capture:** Its decoded telemetry is saved immediately to the circular 50-message buffer in RAM.
+3. **Web UI Alert:** The Node Registry tab highlights the node with a `✨ Auto-Discovered` badge and displays the alert banner at the top of the page.
+4. **Adoption & Customization:**
+   - Click **⚙️ Adopt & Configure** on the node card.
+   - Choose its Friendly Name (e.g. `Greenhouse Soil Probe`).
+   - Select LPWAN Class (`Class A` for battery sensors, `Class C` for continuous actuators).
+   - Set Area / Group (e.g. `Greenhouse`).
+   - Click **Save Node to SQLite**.
+5. **Home Assistant Registration:** The gateway immediately updates Home Assistant via MQTT Discovery under the specified Area.
+6. **Edge Automation:** Click **🔗 Link** next to the adopted node to configure autonomous edge linking rules (e.g. if temperature exceeds 30°C, trigger valve `AA0C`).
+
+
