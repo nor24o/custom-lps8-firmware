@@ -4,11 +4,15 @@
 -- Compatible with Dragino LPS8 (SX1302) & LG01/LG02 (SX1276)
 --
 -- Features:
---   1. Auto-publishes Home Assistant MQTT Discovery for all registered nodes.
---   2. Groups entities under a single unified Device Card with Area/Group in HA.
---   3. Publishes live telemetry to `lora/<NODE_ID>/state`.
---   4. Subscribes to `lora/+/set` for bidirectional downlinks from Home Assistant.
---   5. Performs Listen-Before-Send (LBT) and dispatches LoRa downlinks to port 5556.
+--   1. Gateway Self-Discovery: Exposes Dragino Gateway as a primary Device in Home Assistant
+--      (Concentrator Temp, RX Uplinks, TX Downlinks, CRC Errors, Active Nodes, Radio State, Uptime, Restart Button).
+--   2. Gateway Topology: Links all discovered LoRa end devices to the Gateway via `via_device`.
+--   3. Auto-publishes Home Assistant MQTT Discovery for all registered nodes.
+--   4. Groups entities under a single unified Device Card with Area/Group in HA.
+--   5. Periodically publishes gateway telemetry to `lora/gateway/state`.
+--   6. Subscribes to `lora/+/set` for bidirectional downlinks from Home Assistant.
+--   7. Subscribes to `lora/gateway/restart` to trigger concentrator restart from HA.
+--   8. Performs Listen-Before-Send (LBT) and dispatches LoRa downlinks to port 5556.
 
 local sqlite3 = require "lsqlite3"
 local nixio   = require "nixio"
@@ -18,6 +22,7 @@ local CONFIG_PATH   = "/etc/lora/config.json"
 local DB_NODES_PATH = "/etc/lora/nodes.db"
 local PACKETS_JSON  = "/tmp/lora_packets.json"
 local PORT_DOWN     = 5556
+local STATUS_PORT   = 5557
 
 local function read_config()
     local f = io.open(CONFIG_PATH, "r")
@@ -69,9 +74,239 @@ local function mqtt_publish(topic, payload, retain)
     os.execute(cmd)
 end
 
--- Publish Home Assistant MQTT Discovery Configs for a Node
+-- Query live concentrator telemetry from TCP status port 5557 (pure Lua non-blocking socket)
+local function query_gateway_status()
+    local s = nixio.socket("inet", "stream")
+    if not s then return nil end
+    s:setopt("socket", "rcvtimeo", 2)
+    s:setopt("socket", "sndtimeo", 2)
+    local ok = s:connect("127.0.0.1", STATUS_PORT)
+    if not ok then
+        s:close()
+        return nil
+    end
+    local chunks = {}
+    while true do
+        local chunk = s:recv(1024)
+        if not chunk or #chunk == 0 then break end
+        table.insert(chunks, chunk)
+    end
+    s:close()
+    local raw = table.concat(chunks)
+    return raw and jsonc.parse(raw)
+end
+
+-- Query system network IP (for configuration_url link in Home Assistant)
+local function get_gateway_ip()
+    local ubus_ok, ubus = pcall(require, "ubus")
+    if ubus_ok and ubus then
+        local conn = ubus.connect()
+        if conn then
+            local status = conn:call("network.interface.lan", "status", {})
+            if status and status["ipv4-address"] and status["ipv4-address"][1] then
+                return status["ipv4-address"][1].address
+            end
+        end
+    end
+    local p = io.popen("ip -4 addr show eth0 2>/dev/null | grep -o 'inet [0-9.]*' | cut -d' ' -f2")
+    if p then
+        local ip = p:read("*l")
+        p:close()
+        if ip and ip ~= "" then return ip end
+    end
+    return "127.0.0.1"
+end
+
+-- Retrieve hardware details for Gateway Device Discovery
+local function get_gateway_info()
+    local stat = query_gateway_status() or {}
+    local eui = stat.eui
+    if not eui or eui == "" then
+        local f = io.open("/sys/class/net/eth0/address", "r")
+        if f then
+            local mac = f:read("*l") or ""
+            f:close()
+            eui = mac:gsub(":", "")
+        end
+    end
+    eui = (eui and eui ~= "") and eui:lower() or "dragino01"
+
+    local ip = get_gateway_ip()
+    local model = "Dragino LPS8 (SX1302)"
+    if nixio.fs.access("/usr/bin/raw_lora_app") then
+        model = "Dragino LPS8 (SX1302 8-CH)"
+    elseif nixio.fs.access("/usr/bin/lg02_pkt_fwd") or nixio.fs.access("/usr/bin/sx1276_app") then
+        model = "Dragino LG01/LG02 (SX1276)"
+    end
+
+    return {
+        eui = eui,
+        ip = ip,
+        model = model,
+        stat = stat
+    }
+end
+
+local g_gw_info = get_gateway_info()
+
+-- Count registered nodes in SQLite
+local function count_active_nodes()
+    local count = 0
+    local db = sqlite3.open(DB_NODES_PATH)
+    if db then
+        local stmt = db:prepare("SELECT count(*) FROM node_settings;")
+        if stmt then
+            if stmt:step() == sqlite3.ROW then
+                count = stmt:get_value(0) or 0
+            end
+            stmt:finalize()
+        end
+        db:close()
+    end
+    return count
+end
+
+-- ==============================================================================
+-- Home Assistant MQTT Discovery: Gateway Self-Discovery
+-- ==============================================================================
+local function publish_gateway_discovery()
+    if not MQTT_ENABLED then return end
+    local gw = g_gw_info
+    local gw_id = gw.eui
+    local gw_device_id = "dragino_gateway_" .. gw_id
+
+    local gw_device = {
+        identifiers = { gw_device_id },
+        name = "Dragino LoRa Gateway",
+        model = gw.model,
+        manufacturer = "Dragino",
+        sw_version = "v1.1.0",
+        configuration_url = "http://" .. gw.ip .. "/"
+    }
+
+    local state_topic = TOPIC_ROOT .. "/gateway/state"
+
+    -- 1. Concentrator Chip Temperature Sensor
+    local temp_config = {
+        name = "LoRa Concentrator Temperature",
+        unique_id = "dragino_gw_" .. gw_id .. "_temp",
+        state_topic = state_topic,
+        value_template = "{{ value_json.temp_c | default(none) }}",
+        unit_of_measurement = "°C",
+        device_class = "temperature",
+        state_class = "measurement",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/sensor/dragino_gw_%s/temp/config", HA_PREFIX, gw_id), jsonc.stringify(temp_config), true)
+
+    -- 2. Uplink Packets Received (Counter)
+    local rx_config = {
+        name = "LoRa Uplinks Received",
+        unique_id = "dragino_gw_" .. gw_id .. "_rx",
+        state_topic = state_topic,
+        value_template = "{{ value_json.rx | default(0) }}",
+        state_class = "total_increasing",
+        entity_category = "diagnostic",
+        icon = "mdi:radio-tower",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/sensor/dragino_gw_%s/rx/config", HA_PREFIX, gw_id), jsonc.stringify(rx_config), true)
+
+    -- 3. Downlink Packets Transmitted (Counter)
+    local tx_config = {
+        name = "LoRa Downlinks Sent",
+        unique_id = "dragino_gw_" .. gw_id .. "_tx",
+        state_topic = state_topic,
+        value_template = "{{ value_json.tx | default(0) }}",
+        state_class = "total_increasing",
+        entity_category = "diagnostic",
+        icon = "mdi:transmit-tower",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/sensor/dragino_gw_%s/tx/config", HA_PREFIX, gw_id), jsonc.stringify(tx_config), true)
+
+    -- 4. CRC Errors (Counter)
+    local crc_config = {
+        name = "LoRa CRC Errors",
+        unique_id = "dragino_gw_" .. gw_id .. "_crc_err",
+        state_topic = state_topic,
+        value_template = "{{ value_json.crc_err | default(0) }}",
+        state_class = "total_increasing",
+        entity_category = "diagnostic",
+        icon = "mdi:alert-circle-outline",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/sensor/dragino_gw_%s/crc_err/config", HA_PREFIX, gw_id), jsonc.stringify(crc_config), true)
+
+    -- 5. Active Registered Nodes Count
+    local nodes_config = {
+        name = "Active LoRa Nodes",
+        unique_id = "dragino_gw_" .. gw_id .. "_active_nodes",
+        state_topic = state_topic,
+        value_template = "{{ value_json.active_nodes | default(0) }}",
+        icon = "mdi:devices",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/sensor/dragino_gw_%s/active_nodes/config", HA_PREFIX, gw_id), jsonc.stringify(nodes_config), true)
+
+    -- 6. Radio State (LISTENING, TX_FREE)
+    local state_config = {
+        name = "Radio State",
+        unique_id = "dragino_gw_" .. gw_id .. "_radio_state",
+        state_topic = state_topic,
+        value_template = "{{ value_json.rx_status | default('LISTENING') }}",
+        entity_category = "diagnostic",
+        icon = "mdi:signal-distance-variant",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/sensor/dragino_gw_%s/radio_state/config", HA_PREFIX, gw_id), jsonc.stringify(state_config), true)
+
+    -- 7. Gateway System Uptime
+    local uptime_config = {
+        name = "Gateway Uptime",
+        unique_id = "dragino_gw_" .. gw_id .. "_uptime",
+        state_topic = state_topic,
+        value_template = "{{ (value_json.uptime_s | default(0) / 3600) | round(1) }}",
+        unit_of_measurement = "h",
+        entity_category = "diagnostic",
+        icon = "mdi:clock-outline",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/sensor/dragino_gw_%s/uptime/config", HA_PREFIX, gw_id), jsonc.stringify(uptime_config), true)
+
+    -- 8. Radio Connectivity (Binary Sensor)
+    local conn_config = {
+        name = "Radio Online",
+        unique_id = "dragino_gw_" .. gw_id .. "_online",
+        state_topic = state_topic,
+        value_template = "{{ 'ON' if (value_json.rx_status | default('LISTENING')) == 'LISTENING' else 'OFF' }}",
+        device_class = "connectivity",
+        entity_category = "diagnostic",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/binary_sensor/dragino_gw_%s/online/config", HA_PREFIX, gw_id), jsonc.stringify(conn_config), true)
+
+    -- 9. Restart LoRa Concentrator (Button)
+    local restart_config = {
+        name = "Restart LoRa Concentrator",
+        unique_id = "dragino_gw_" .. gw_id .. "_restart",
+        command_topic = TOPIC_ROOT .. "/gateway/restart",
+        payload_press = "PRESS",
+        device_class = "restart",
+        entity_category = "config",
+        device = gw_device
+    }
+    mqtt_publish(string.format("%s/button/dragino_gw_%s/restart/config", HA_PREFIX, gw_id), jsonc.stringify(restart_config), true)
+end
+
+-- ==============================================================================
+-- Home Assistant MQTT Discovery: Child LoRa Nodes
+-- ==============================================================================
 local function publish_ha_discovery(node)
     if not MQTT_ENABLED then return end
+    local gw = g_gw_info
+    local gw_device_id = "dragino_gateway_" .. gw.eui
+
     local node_id = node.node_id
     local name = node.name or ("Node " .. node_id)
     local cls = node.node_class or "A"
@@ -83,7 +318,8 @@ local function publish_ha_discovery(node)
         model = "LoRa Device (Class " .. cls .. ")",
         manufacturer = "Custom Dragino Gateway",
         suggested_area = area,
-        sw_version = "v1.1.0"
+        sw_version = "v1.1.0",
+        via_device = gw_device_id
     }
 
     -- 1. Temperature Sensor (if model is sensor or default)
@@ -125,7 +361,7 @@ local function publish_ha_discovery(node)
     mqtt_publish(string.format("%s/sensor/lora_%s/rssi/config", HA_PREFIX, node_id), jsonc.stringify(rssi_config), true)
 
     -- 4. Actuator / Switch Entity (for Class C actuators or relays)
-    if cls == "C" or (node.model and node.model:find("valve") or node.model:find("relay") or node.model:find("actuator")) then
+    if cls == "C" or (node.model and (node.model:find("valve") or node.model:find("relay") or node.model:find("actuator"))) then
         local switch_config = {
             name = name .. " Actuator",
             unique_id = "lora_" .. node_id .. "_switch",
@@ -142,14 +378,36 @@ local function publish_ha_discovery(node)
     end
 end
 
--- Auto-Publish Discovery for all registered nodes in SQLite
+-- Auto-Publish Discovery for Gateway and all registered nodes in SQLite
 local function sync_all_discovery()
+    publish_gateway_discovery()
     local db = sqlite3.open(DB_NODES_PATH)
     if not db then return end
     for row in db:nrows("SELECT * FROM node_settings WHERE ha_enabled = 1;") do
         publish_ha_discovery(row)
     end
     db:close()
+end
+
+-- Publish Gateway Live Telemetry to `lora/gateway/state`
+local function publish_gateway_telemetry()
+    if not MQTT_ENABLED then return end
+    local stat = query_gateway_status() or {}
+    local active_count = count_active_nodes()
+
+    local payload_tbl = {
+        temp_c       = stat.temp_c or 30.0,
+        rx           = stat.rx or 0,
+        tx           = stat.tx or 0,
+        crc_err      = stat.crc_err or 0,
+        rx_status    = stat.rx_status or "LISTENING",
+        tx_status    = stat.tx_status or "TX_FREE",
+        uptime_s     = stat.uptime_s or 0,
+        active_nodes = active_count
+    }
+
+    local topic = TOPIC_ROOT .. "/gateway/state"
+    mqtt_publish(topic, jsonc.stringify(payload_tbl), true)
 end
 
 -- Measure Channel RSSI (Listen-Before-Send)
@@ -231,40 +489,74 @@ local function dispatch_lora_downlink(node_id, cmd_payload)
 end
 
 -- ==============================================================================
--- Main MQTT Subscriber & Discovery Loop
+-- Main MQTT Supervisor & Background Ticker Loop
 -- ==============================================================================
-print(string.format("[MQTT] Starting Home Assistant MQTT Bridge (Broker: %s:%d)...", MQTT_HOST, MQTT_PORT))
+print(string.format("[MQTT] Starting Home Assistant Gateway & LoRa Bridge (Broker: %s:%d)...", MQTT_HOST, MQTT_PORT))
 
--- 1. Initial sync of Home Assistant Discovery Configs
+-- 1. Initial sync of Home Assistant Discovery Configs (Gateway + Nodes)
 sync_all_discovery()
+publish_gateway_telemetry()
 
--- 2. Spawn mosquitto_sub listening for Home Assistant commands (lora/+/set)
+-- 2. Fork dedicated background worker for periodic Gateway Telemetry & Node discovery refresh
+local ticker_pid = nixio.fork()
+if ticker_pid == 0 then
+    -- Ticker child process
+    local last_active_nodes = count_active_nodes()
+    local tick_count = 0
+    while true do
+        publish_gateway_telemetry()
+        tick_count = tick_count + 1
+
+        -- Every 30s (3 ticks) or when node count changes, sync discovery
+        local current_nodes = count_active_nodes()
+        if (current_nodes ~= last_active_nodes) or (tick_count % 3 == 0) then
+            last_active_nodes = current_nodes
+            sync_all_discovery()
+        end
+
+        nixio.nanosleep(10, 0)
+        -- Terminate if parent died
+        if nixio.getppid() == 1 then
+            os.exit(0)
+        end
+    end
+    os.exit(0)
+end
+
+-- 3. Main process: mosquitto_sub listener loop for HA Commands & Gateway Restarts
 local sub_cmd = string.format(
-    "mosquitto_sub -h %s -p %d %s -t '%s/+/set' -v 2>/dev/null",
+    "mosquitto_sub -h %s -p %d %s -t '%s/+/set' -t '%s/gateway/restart' -v 2>/dev/null",
     shellquote(MQTT_HOST),
     MQTT_PORT,
     AUTH_FLAGS,
+    TOPIC_ROOT,
     TOPIC_ROOT
 )
 
-local sub_pipe = io.popen(sub_cmd)
-if not sub_pipe then
-    io.stderr:write("[MQTT] Failed to spawn mosquitto_sub listener!\n")
-    os.exit(1)
-end
-
-for line in sub_pipe:lines() do
-    -- Format: lora/AA0C/set ON
-    local topic, payload = line:match("^(%S+)%s+(.*)$")
-    if topic and payload then
-        local node_id = topic:match(TOPIC_ROOT .. "/([^/]+)/set")
-        if node_id then
-            node_id = node_id:upper()
-            payload = payload:gsub("^%s+", ""):gsub("%s+$", "")
-            print(string.format("[MQTT-RECV] Downlink Command from Home Assistant for [%s]: %s", node_id, payload))
-            dispatch_lora_downlink(node_id, payload)
+while true do
+    local sub_pipe = io.popen(sub_cmd)
+    if sub_pipe then
+        for line in sub_pipe:lines() do
+            local topic, payload = line:match("^(%S+)%s*(.*)$")
+            if topic then
+                payload = (payload or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                if topic == TOPIC_ROOT .. "/gateway/restart" then
+                    print("[MQTT-RECV] Concentrator Restart command from Home Assistant!")
+                    os.execute("killall raw_lora_app sx1276_app lg02_pkt_fwd 2>/dev/null")
+                else
+                    local node_id = topic:match(TOPIC_ROOT .. "/([^/]+)/set")
+                    if node_id then
+                        node_id = node_id:upper()
+                        print(string.format("[MQTT-RECV] Downlink Command from Home Assistant for [%s]: %s", node_id, payload))
+                        dispatch_lora_downlink(node_id, payload)
+                    end
+                end
+            end
         end
+        sub_pipe:close()
     end
-end
 
-sub_pipe:close()
+    -- If mosquitto_sub dropped or broker restarted, wait 5s and reconnect
+    print("[MQTT] mosquitto_sub disconnected. Reconnecting in 5 seconds...")
+    nixio.nanosleep(5, 0)
+end

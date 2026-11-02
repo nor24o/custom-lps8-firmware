@@ -247,12 +247,23 @@ if [ "$LIVE_SYNC" = true ]; then
         sshpass -p "$PASS" ssh -n -o StrictHostKeyChecking=no "$USER@$DEVICE_IP" "[ ! -f /etc/lora/decoders.json ] && cp /tmp/decoders_def.json /etc/lora/decoders.json || true; rm -f /tmp/decoders_def.json"
     fi
 
+    # 2.1 Deploy SQLite & Automation Daemons
+    for s in lora_db_init.sh lora_keepalive.sh lora_linking_engine.lua lora_mqtt_bridge.lua lora_sync_config.sh; do
+        if [ -f "$TARGET_FILES/usr/bin/$s" ]; then
+            echo -e "${BLUE}[*] Uploading /usr/bin/$s...${NC}"
+            sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$TARGET_FILES/usr/bin/$s" "$USER@$DEVICE_IP:/usr/bin/$s"
+            sshpass -p "$PASS" ssh -n -o StrictHostKeyChecking=no "$USER@$DEVICE_IP" "chmod 755 /usr/bin/$s"
+        fi
+    done
+
     # 3. Deploy LuCI views & controllers
     echo -e "${BLUE}[*] Uploading LuCI controllers and views...${NC}"
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$TARGET_FILES/usr/lib/lua/luci/controller/lora.lua" "$USER@$DEVICE_IP:/usr/lib/lua/luci/controller/lora.lua"
-    sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$TARGET_FILES/usr/lib/lua/luci/view/lora/status.htm" "$USER@$DEVICE_IP:/usr/lib/lua/luci/view/lora/status.htm"
-    sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$TARGET_FILES/usr/lib/lua/luci/view/lora/decoder.htm" "$USER@$DEVICE_IP:/usr/lib/lua/luci/view/lora/decoder.htm"
-    [ -f "$TARGET_FILES/usr/lib/lua/luci/view/lora/config.htm" ] && sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$TARGET_FILES/usr/lib/lua/luci/view/lora/config.htm" "$USER@$DEVICE_IP:/usr/lib/lua/luci/view/lora/config.htm"
+    for v in status.htm decoder.htm nodes.htm diag.htm config.htm; do
+        if [ -f "$TARGET_FILES/usr/lib/lua/luci/view/lora/$v" ]; then
+            sshpass -p "$PASS" scp -o StrictHostKeyChecking=no "$TARGET_FILES/usr/lib/lua/luci/view/lora/$v" "$USER@$DEVICE_IP:/usr/lib/lua/luci/view/lora/$v"
+        fi
+    done
 
     # 4. Clear cache and restart services
     echo -e "${BLUE}[*] Refreshing LuCI cache and restarting web server...${NC}"

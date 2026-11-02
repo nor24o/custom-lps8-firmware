@@ -245,4 +245,44 @@ flowchart TD
 5. **Home Assistant Registration:** The gateway immediately updates Home Assistant via MQTT Discovery under the specified Area.
 6. **Edge Automation:** Click **🔗 Link** next to the adopted node to configure autonomous edge linking rules (e.g. if temperature exceeds 30°C, trigger valve `AA0C`).
 
+---
+
+## 8. Gateway Self-Discovery & Child Device Topology in Home Assistant
+
+The Dragino Gateway automatically registers **itself** as a primary infrastructure device in Home Assistant while grouping all detected LoRa sensors and actuators underneath it as child devices.
+
+```mermaid
+flowchart TD
+    GW["🖥️ Dragino LoRa Gateway<br/>(LPS8 SX1302 / LG02 SX1276)"]
+    GW --> S1["🌡️ LoRa Concentrator Temp (°C)"]
+    GW --> S2["📡 LoRa Uplinks Received (counter)"]
+    GW --> S3["📶 LoRa Downlinks Sent (counter)"]
+    GW --> S4["⚠️ CRC Errors (diagnostic)"]
+    GW --> S5["🔢 Active LoRa Nodes"]
+    GW --> S6["🕒 Gateway Uptime"]
+    GW --> B1["🔄 Restart LoRa Concentrator (button)"]
+    GW -->|"via_device topology"| C1["🌱 Node AA0B (Living Room Sensor)"]
+    GW -->|"via_device topology"| C2["💧 Node AA0C (Water Valve Actuator)"]
+```
+
+### Gateway Entities in Home Assistant
+
+| Entity Name | Type | Topic | Function |
+|---|---|---|---|
+| **LoRa Concentrator Temperature** | `sensor` | `lora/gateway/state` | Live on-chip SX1302 thermal telemetry (`°C`). |
+| **LoRa Uplinks Received** | `sensor` | `lora/gateway/state` | Cumulative counter of successfully ingested packets. |
+| **LoRa Downlinks Sent** | `sensor` | `lora/gateway/state` | Cumulative counter of transmitted LoRa frames. |
+| **LoRa CRC Errors** | `sensor` | `lora/gateway/state` | RF integrity diagnostics for interference detection. |
+| **Active LoRa Nodes** | `sensor` | `lora/gateway/state` | Count of registered nodes currently managed by SQLite. |
+| **Radio State** | `sensor` | `lora/gateway/state` | Live status (`LISTENING`, `TX_FREE`, etc.). |
+| **Gateway Uptime** | `sensor` | `lora/gateway/state` | Concentrator daemon runtime in hours. |
+| **Radio Online** | `binary_sensor` | `lora/gateway/state` | Connectivity status (`ON` / `OFF`). |
+| **Restart LoRa Concentrator** | `button` | `lora/gateway/restart` | Sends `PRESS` to safely reset and re-initialize the LoRa radio without rebooting the router. |
+
+### Connected Child Devices Topology (`via_device`)
+Every LoRa sensor and actuator published to Home Assistant includes the Gateway EUI in its `via_device` attribute:
+- **In Home Assistant Gateway Card:** A dedicated **"Connected Devices"** panel lists all your LoRa nodes with one-click navigation to their sensors and switches.
+- **In Node Cards:** The card displays **"Connected via: Dragino LoRa Gateway"** and provides a one-click link back to the gateway and its LuCI web dashboard (`Visit Device`).
+
+
 
