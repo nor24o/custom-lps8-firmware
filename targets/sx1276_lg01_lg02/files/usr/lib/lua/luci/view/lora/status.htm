@@ -1,5 +1,5 @@
 <%+header%>
-<script type="text/javascript" src="<%=resource%>/lora_decoder.js"></script>
+<script type="text/javascript" src="<%=resource%>/lora_decoder.js?v=<%=os.time()%>"></script>
 
 <style type="text/css">
 .lora-container {
@@ -302,14 +302,17 @@
             <div style="margin-bottom: 12px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                     <label style="font-size: 12px; font-weight: 600; margin: 0;"><%:Decoded Interpretation%></label>
-                    <span id="pm-scheme-badge" style="background: #28a745; color: #fff; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600;"></span>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <span id="pm-node-badge" style="display: none; background: #0984e3; color: #fff; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: monospace;"></span>
+                        <span id="pm-scheme-badge" style="background: #28a745; color: #fff; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: 600;"></span>
+                    </div>
                 </div>
-                <div style="overflow-x: auto; max-height: 180px;">
-                    <table class="cbi-section-table" style="width: 100%; font-size: 12px;">
+                <div style="overflow-x: auto; max-height: 220px; border: 1px solid #e2e8f0; border-radius: 4px; background: #fff;">
+                    <table style="width: 100%; font-size: 12px; border-collapse: collapse; text-align: left;">
                         <thead>
-                            <tr class="cbi-section-table-titles">
-                                <th style="width: 35%;"><%:Field%></th>
-                                <th><%:Value%></th>
+                            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                <th style="width: 35%; padding: 7px 10px; font-weight: 700; color: #475569;"><%:Field%></th>
+                                <th style="padding: 7px 10px; font-weight: 700; color: #475569;"><%:Value%></th>
                             </tr>
                         </thead>
                         <tbody id="pm-decoded-tbody"></tbody>
@@ -627,9 +630,21 @@ function openPacketModal(idx) {
     document.getElementById("pm-hex").value = p.hex || "";
 
     var dec = p._decoded;
+    if (!dec && window.LoraDecoder && p.hex) {
+        dec = LoraDecoder.decodePacket(p);
+    }
+    var nodeBadge = document.getElementById("pm-node-badge");
     var badge = document.getElementById("pm-scheme-badge");
     var tbody = document.getElementById("pm-decoded-tbody");
     tbody.innerHTML = "";
+
+    if (dec && dec.nodeId) {
+        nodeBadge.innerText = "Node " + dec.nodeId;
+        nodeBadge.style.display = "inline-block";
+        nodeBadge.title = "Detected via " + (dec.nodeIdMethod || "Rule");
+    } else {
+        nodeBadge.style.display = "none";
+    }
 
     if (dec && dec.schemeId !== "none") {
         badge.innerText = dec.schemeName || "Decoded";
@@ -638,19 +653,22 @@ function openPacketModal(idx) {
 
         if (dec.error) {
             var tr = document.createElement("tr");
-            tr.innerHTML = '<td colspan="2" style="color:red; font-weight:bold;">Decoder Error: ' + dec.error + '</td>';
+            tr.innerHTML = '<td colspan="2" style="padding:8px 10px; color:red; font-weight:bold;">Decoder Error: ' + dec.error + '</td>';
             tbody.appendChild(tr);
         } else if (dec.data) {
             if (dec.nodeId) {
                 var trNode = document.createElement("tr");
-                trNode.innerHTML = '<td><strong style="color:#0984e3;">node_id (Detected)</strong></td><td><span style="background:#0984e3; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-family:monospace;">' + dec.nodeId + '</span> <span style="font-size:11px; color:#555;">(' + (dec.nodeIdMethod || 'Rule') + ')</span></td>';
+                trNode.style.background = "#eff6ff";
+                trNode.style.borderBottom = "1px solid #bfdbfe";
+                trNode.innerHTML = '<td style="padding:6px 10px;"><strong style="color:#0984e3;">node_id (Detected)</strong></td><td style="padding:6px 10px;"><span style="background:#0984e3; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-family:monospace; font-size:13px;">' + dec.nodeId + '</span> <span style="font-size:11px; color:#64748b; margin-left:6px;">(' + (dec.nodeIdMethod || 'Rule') + ')</span></td>';
                 tbody.appendChild(trNode);
             }
             for (var k in dec.data) {
                 if (!dec.data.hasOwnProperty(k)) continue;
                 var val = dec.data[k];
                 var tr = document.createElement("tr");
-                tr.innerHTML = '<td><strong>' + k + '</strong></td><td>' + (typeof val === "object" ? JSON.stringify(val) : val) + '</td>';
+                tr.style.borderBottom = "1px solid #f1f5f9";
+                tr.innerHTML = '<td style="padding:6px 10px; font-family:monospace; color:#334155;"><strong>' + k + '</strong></td><td style="padding:6px 10px; font-family:monospace; color:#0f172a; font-weight:600;">' + (typeof val === "object" ? JSON.stringify(val) : val) + '</td>';
                 tbody.appendChild(tr);
             }
         }
@@ -659,7 +677,8 @@ function openPacketModal(idx) {
         badge.innerText = "Raw / No Match";
         badge.style.background = "#7f8c8d";
         var tr = document.createElement("tr");
-        tr.innerHTML = '<td><strong>hex</strong></td><td>' + (p.hex || "") + '</td>';
+        tr.style.borderBottom = "1px solid #f1f5f9";
+        tr.innerHTML = '<td style="padding:6px 10px; font-family:monospace;"><strong>hex</strong></td><td style="padding:6px 10px; font-family:monospace;">' + (p.hex || "") + '</td>';
         tbody.appendChild(tr);
         document.getElementById("pm-json").innerText = JSON.stringify({ hex: p.hex }, null, 2);
     }

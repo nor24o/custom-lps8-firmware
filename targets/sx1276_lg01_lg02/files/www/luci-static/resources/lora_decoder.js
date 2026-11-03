@@ -459,12 +459,14 @@
     // -------------------------------------------------------------------------
 
     LoraDecoder.executeScheme = function(scheme, bytes, hex, packetInfo) {
-        var decType = scheme.type || 'js';
+        var decType = scheme.type || (scheme.jsCode ? 'js' : 'ctv');
 
         try {
             if (decType === 'ctv' || decType === 'tlv') {
                 var ctvRes = LoraDecoder.decodeCtv(bytes, hex, scheme.dataOffset || 4);
-                return { success: true, data: ctvRes, error: null };
+                if (ctvRes && Object.keys(ctvRes).length > 0) {
+                    return { success: true, data: ctvRes, error: null };
+                }
             }
 
             if (decType === 'ascii') {
@@ -493,14 +495,16 @@
                 return { success: true, data: fResult, error: null };
             }
 
-            if (decType === 'js') {
+            if (decType === 'js' || scheme.jsCode) {
                 var jsCode = scheme.jsCode || '';
-                var fn = new Function('bytes', 'hex', 'pkt', jsCode);
-                var res = fn(bytes, hex, packetInfo || {});
-                if (typeof res !== 'object' || res === null) {
-                    res = { result: res };
+                if (jsCode.trim()) {
+                    var fn = new Function('bytes', 'hex', 'pkt', jsCode);
+                    var res = fn(bytes, hex, packetInfo || {});
+                    if (typeof res !== 'object' || res === null) {
+                        res = { result: res };
+                    }
+                    return { success: true, data: res, error: null };
                 }
-                return { success: true, data: res, error: null };
             }
         } catch(err) {
             return {
@@ -508,6 +512,18 @@
                 data: null,
                 error: err.message || String(err)
             };
+        }
+
+        // Intelligent Fallback: if packet begins with NetID 0xAA, decode via CTV
+        if (bytes && bytes.length >= 4 && bytes[0] === 0xAA) {
+            var autoCtv = LoraDecoder.decodeCtv(bytes, hex, 4);
+            if (autoCtv && Object.keys(autoCtv).length > 0) {
+                return {
+                    success: true,
+                    data: autoCtv,
+                    error: null
+                };
+            }
         }
 
         return {

@@ -1,5 +1,5 @@
 <%+header%>
-<script type="text/javascript" src="<%=resource%>/lora_decoder.js"></script>
+<script type="text/javascript" src="<%=resource%>/lora_decoder.js?v=<%=os.time()%>"></script>
 
 <style>
 .lora-card {
@@ -139,7 +139,7 @@
         <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px;">
             <div style="flex: 2; min-width: 280px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Payload (HEX)%></label>
-                <input type="text" id="test-hex" value="aa0c6400011109c402050ce4" style="width: 100%; padding: 7px; font-family: monospace; font-size: 13px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. aa0c6400011109c4... or aa0b6437..." />
+                <input type="text" id="test-hex" value="aa0c6400011109c402050ce4" style="width: 100%; padding: 7px; font-family: monospace; font-size: 13px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. aa0c6400011109c4... or aa0b6437..." oninput="runTestDecode()" />
             </div>
             <div style="flex: 1; min-width: 220px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Load Recent Packet%></label>
@@ -491,6 +491,7 @@ function loadSchemes() {
             document.getElementById("global-nodeid-prefix").value = globalRule.prefix || "";
         }
         renderSchemesList();
+        runTestDecode();
     });
 }
 
