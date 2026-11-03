@@ -8,8 +8,8 @@ function index()
     entry({"admin", "lora", "status"}, template("lora/status"), _("Realtime Status"), 10)
     entry({"admin", "lora", "diag"}, template("lora/diag"), _("Pin and GPIO Diagnostics"), 15)
     entry({"admin", "lora", "config"}, template("lora/config"), _("Settings and Config"), 20)
-    entry({"admin", "lora", "nodes"}, template("lora/nodes"), _("Node Registry & Linking"), 21)
-    entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoder"), 22)
+    entry({"admin", "lora", "nodes"}, template("lora/nodes"), _("Node Registry and Linking"), 21)
+    entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoders"), 22)
     entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout and Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
 
@@ -571,6 +571,9 @@ function action_nodes()
         http.write_json({ error = "Failed to open /etc/lora/nodes.db" })
         return
     end
+    db:busy_timeout(5000)
+    db:exec("PRAGMA journal_mode = MEMORY;")
+    db:exec("PRAGMA synchronous = OFF;")
 
     local method = http.getenv("REQUEST_METHOD")
     if method == "GET" then
@@ -701,6 +704,9 @@ function action_links()
         http.write_json({ error = "Failed to open /etc/lora/nodes.db" })
         return
     end
+    db:busy_timeout(5000)
+    db:exec("PRAGMA journal_mode = MEMORY;")
+    db:exec("PRAGMA synchronous = OFF;")
 
     local method = http.getenv("REQUEST_METHOD")
     if method == "GET" then

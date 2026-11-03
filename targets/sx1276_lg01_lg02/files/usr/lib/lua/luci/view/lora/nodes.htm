@@ -532,6 +532,15 @@
                 <label><%:Default TX Power (dBm):%></label>
                 <input type="number" id="nm-powe" value="14" />
             </div>
+            <div class="form-field" style="grid-column: span 2; margin-top: 6px; background: #f0f7ff; padding: 10px 12px; border-radius: 4px; border: 1px solid #cce5ff;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; color: #004085; margin: 0;">
+                    <input type="checkbox" id="nm-ha" checked />
+                    <%:Expose Node to Home Assistant via MQTT Auto-Discovery%>
+                </label>
+                <span style="font-size: 11px; color: #555; display: block; margin-top: 4px; margin-left: 24px;">
+                    <%:When checked and assigned to a Category/Area (e.g. Living Room, Garden), all decoded sensors, signal metrics, and sequence counters are published to Home Assistant. Unassigned or unchecked nodes are hidden from Home Assistant.%>
+                </span>
+            </div>
         </div>
 
         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
@@ -783,8 +792,19 @@ function renderNodesTable() {
 
         var isAdopted = (n.is_configured === 1 || n.is_configured === '1');
         var statusBadge = isAdopted 
-            ? '<span class="status-pill pill-green">🟢 Active</span>' 
-            : '<span class="status-pill pill-orange" style="font-weight:bold;">✨ Auto-Discovered</span>';
+            ? '<span class="status-pill pill-green">🟢 Adopted</span>' 
+            : '<span class="status-pill pill-orange" style="font-weight:bold;">✨ Inbox (Pending)</span>';
+
+        var haBadge = '';
+        if (isAdopted) {
+            if ((n.ha_enabled === 1 || n.ha_enabled === '1') && n.group_name && n.group_name !== 'Unassigned' && n.group_name !== 'Uncategorized') {
+                haBadge = '<span class="status-pill pill-blue" title="Exposed to Home Assistant" style="background:#0984e3; color:#fff; font-weight:600; margin-left:4px;">HA Active</span>';
+            } else {
+                haBadge = '<span class="status-pill" title="Hidden from Home Assistant (Disabled or Unassigned Category)" style="background:#b2bec3; color:#2d3436; font-size:10px; margin-left:4px;">HA Off</span>';
+            }
+        } else {
+            haBadge = '<span class="status-pill" title="Hidden from Home Assistant until Adopted &amp; Categorized" style="background:#dfe6e9; color:#636e72; font-size:10px; margin-left:4px;">Not in HA</span>';
+        }
 
         var adoptBtn = isAdopted
             ? '<button class="cbi-button cbi-button-action" style="margin-right:4px;" onclick="openNodeModal(\'' + n.node_id + '\')">✏️ Edit</button>'
@@ -799,7 +819,7 @@ function renderNodesTable() {
             '<td style="padding:10px;">' + escapeHtml(n.name || '-') + '</td>' +
             '<td style="padding:10px;"><span class="class-badge ' + badgeCls + '">' + clsLabel + '</span></td>' +
             '<td style="padding:10px;">' + statusBadge + '</td>' +
-            '<td style="padding:10px;"><span class="status-pill pill-blue">' + escapeHtml(n.group_name || 'Default') + '</span></td>' +
+            '<td style="padding:10px;"><span class="status-pill pill-blue">' + escapeHtml(n.group_name || 'Unassigned') + '</span> ' + haBadge + '</td>' +
             '<td style="padding:10px;"><code>' + rssiStr + ' / ' + snrStr + '</code></td>' +
             '<td style="padding:10px; font-size:12px; color:#555;">' + lastSeen + '</td>' +
             '<td style="padding:10px; text-align:right;">' +
@@ -910,6 +930,7 @@ function openNodeModal(node_id) {
         document.getElementById('nm-group').value = (n && n.group_name && n.group_name !== 'Unassigned') ? n.group_name : 'Default';
         document.getElementById('nm-rx1').value = (n && n.rx1_delay_ms) ? n.rx1_delay_ms : 1000;
         document.getElementById('nm-powe').value = (n && n.default_tx_power) ? n.default_tx_power : 14;
+        document.getElementById('nm-ha').checked = (n && n.ha_enabled !== undefined) ? (n.ha_enabled === 1 || n.ha_enabled === '1') : true;
     } else {
         document.getElementById('node-modal-title').textContent = '<%:Register New Node%>';
         document.getElementById('nm-id').value = '';
@@ -919,6 +940,7 @@ function openNodeModal(node_id) {
         document.getElementById('nm-group').value = 'Default';
         document.getElementById('nm-rx1').value = 1000;
         document.getElementById('nm-powe').value = 14;
+        document.getElementById('nm-ha').checked = true;
     }
     document.getElementById('node-modal').style.display = 'flex';
 }
@@ -942,7 +964,8 @@ function saveNode() {
         node_class: document.getElementById('nm-class').value,
         group_name: document.getElementById('nm-group').value.trim(),
         rx1_delay_ms: parseInt(document.getElementById('nm-rx1').value) || 1000,
-        default_tx_power: parseInt(document.getElementById('nm-powe').value) || 14
+        default_tx_power: parseInt(document.getElementById('nm-powe').value) || 14,
+        ha_enabled: document.getElementById('nm-ha').checked ? 1 : 0
     };
 
     fetch('<%=url("admin/lora/api_nodes")%>', {

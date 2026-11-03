@@ -29,6 +29,12 @@ if not db_nodes or not db_ram then
     io.stderr:write("[ENGINE] Failed to open SQLite databases!\n")
     os.exit(1)
 end
+db_nodes:busy_timeout(5000)
+db_ram:busy_timeout(5000)
+db_nodes:exec("PRAGMA journal_mode = MEMORY;")
+db_nodes:exec("PRAGMA synchronous = OFF;")
+db_ram:exec("PRAGMA journal_mode = MEMORY;")
+db_ram:exec("PRAGMA synchronous = OFF;")
 
 -- Ensure databases are initialized
 os.execute("/usr/bin/lora_db_init.sh >/dev/null 2>&1")
@@ -701,8 +707,9 @@ local function ingest_packet(pkt)
     end
 
     -- 2. Update persistent node registry on Flash (Auto-Discovery)
+    -- Newly discovered nodes default to ha_enabled = 0 and is_configured = 0 until adopted & categorized by user
     db_nodes:exec(string.format(
-        "INSERT OR IGNORE INTO node_settings (node_id, name, node_class, is_configured, group_name) VALUES ('%s', 'New Node %s', 'A', 0, 'Unassigned');",
+        "INSERT OR IGNORE INTO node_settings (node_id, name, node_class, is_configured, group_name, ha_enabled) VALUES ('%s', 'Node %s', 'A', 0, 'Unassigned', 0);",
         node_id, node_id
     ))
     db_nodes:exec(string.format(
@@ -710,11 +717,32 @@ local function ingest_packet(pkt)
         tonumber(pkt.rssi) or -100.0, tonumber(pkt.snr) or 0.0, node_id
     ))
 
-    -- 2.1 Publish Live Telemetry to MQTT for Home Assistant
-    metrics.rssi = tonumber(pkt.rssi)
-    metrics.snr  = tonumber(pkt.snr)
-    metrics.freq = tonumber(pkt.freq)
-    publish_mqtt_telemetry(node_id, metrics)
+    -- 2.1 Publish Live Telemetry to MQTT for Home Assistant (only for adopted & categorized nodes)
+    local should_pub = false
+    local n_stmt = db_nodes:prepare("SELECT ha_enabled, is_configured, group_name FROM node_settings WHERE node_id = ?;")
+    if n_stmt then
+        n_stmt:bind_values(node_id)
+        if n_stmt:step() == sqlite3.ROW then
+            local ha_en = n_stmt:get_value(0) or 0
+            local is_cfg = n_stmt:get_value(1) or 0
+            local grp = n_stmt:get_value(2) or "Unassigned"
+            if ha_en == 1 and is_cfg == 1 and grp ~= "Unassigned" and grp ~= "Uncategorized" and grp ~= "" then
+                should_pub = true
+            end
+        end
+        n_stmt:finalize()
+    end
+
+    if should_pub then
+        metrics.rssi      = tonumber(pkt.rssi)
+        metrics.snr       = tonumber(pkt.snr)
+        metrics.freq      = tonumber(pkt.freq)
+        metrics.datr      = pkt.datr
+        metrics.hex       = pkt.hex
+        metrics.size      = tonumber(pkt.size)
+        metrics.last_seen = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        publish_mqtt_telemetry(node_id, metrics)
+    end
 
     -- 3. Check for pending Class A downlinks
     if pkt.tmst then
