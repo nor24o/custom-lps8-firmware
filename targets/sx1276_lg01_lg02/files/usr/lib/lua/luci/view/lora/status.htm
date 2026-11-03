@@ -156,15 +156,15 @@
 </style>
 
 <div class="lora-container">
-    <h2><span class="live-dot"></span><%:Dragino LG01 / LG02 LoRa Gateway Status%></h2>
-    <p class="description"><%:Live telemetry from /usr/bin/lg02_pkt_fwd (TCP status port 5557 and /etc/lora/config.json).%></p>
+    <h2><span class="live-dot"></span><%:Dragino LPS8 LoRa Gateway Status (SX1302)%></h2>
+    <p class="description"><%:Live telemetry from /usr/bin/raw_lora_app (TCP status port 5557 and /etc/lora/config.json).%></p>
 
     <!-- TOP OVERVIEW CARD -->
     <div class="lora-card">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div>
                 <span id="service-badge" class="badge-stopped"><%:CHECKING...%></span>
-                <span style="margin-left: 10px; font-weight: 600;" id="hw-title">lg02_pkt_fwd (Dual SX1276) (/dev/spidev1.0, RST GPIO 8 / 23)</span>
+                <span style="margin-left: 10px; font-weight: 600;" id="hw-title">raw_lora_app (SX1302 Concentrator) (/dev/spidev1.0, RST GPIO 23)</span>
                 <span style="margin-left: 15px; color: #6c757d;" id="service-uptime"></span>
             </div>
             <div>
@@ -223,9 +223,9 @@
             <div style="font-size: 11px; color: #888;"><%:Depth / Dropped%></div>
         </div>
         <div class="lora-stat-box">
-            <div class="lora-stat-lbl"><%:SX1276 Transceivers%></div>
-            <div class="lora-stat-val" id="cnt-temp" style="color: #6f42c1; font-size: 18px; line-height: 1.5;">2x Active</div>
-            <div style="font-size: 11px; color: #888;" id="cnt-chdet"><%:Dual Radio (RX + TX)%></div>
+            <div class="lora-stat-lbl"><%:SX1302 Temp%></div>
+            <div class="lora-stat-val" id="cnt-temp" style="color: #6f42c1;">—</div>
+            <div style="font-size: 11px; color: #888;" id="cnt-chdet"><%:Thermal sensor%></div>
         </div>
     </div>
 
@@ -364,7 +364,7 @@
                 </div>
                 <div style="flex: 1; min-width: 180px;">
                     <label style="font-size: 12px; font-weight: 600; display: block;"><%:ASCII Payload (auto Base64)%></label>
-                    <input type="text" id="tx-ascii" value="PING_FROM_LG02" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;" />
+                    <input type="text" id="tx-ascii" value="PING_FROM_LPS8_SX1302" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;" />
                 </div>
                 <div>
                     <button type="button" class="cbi-button cbi-button-apply" onclick="sendTestTx()"><%:Transmit Now%></button>
@@ -429,7 +429,7 @@ function updateStatus() {
                 document.getElementById("val-rf1").innerText = (data.rf1_mhz || 868.5).toFixed(3);
                 document.getElementById("val-sync").innerText = data.syncword || "private (0x12)";
                 document.getElementById("val-pa").innerText = data.pa_gpio || "(disabled)";
-                document.getElementById("hw-title").innerText = (data.daemon || "lg02_pkt_fwd (Dual SX1276)") + " (" + (data.spi_path || "/dev/spidev1.0") + ", RST GPIO " + (data.reset_gpio || "8 / 23") + ")";
+                document.getElementById("hw-title").innerText = (data.daemon || "raw_lora_app (SX1302 Concentrator)") + " (" + (data.spi_path || "/dev/spidev1.0") + ", RST GPIO " + (data.reset_gpio || "23") + ")";
 
                 document.getElementById("cnt-rx").innerText = data.rx_count || 0;
                 document.getElementById("cnt-tx").innerText = data.tx_count || 0;
@@ -437,9 +437,17 @@ function updateStatus() {
                 document.getElementById("cnt-txerr").innerText = data.tx_err || 0;
                 document.getElementById("cnt-q").innerText = (data.q_depth || 0) + " / " + (data.q_drop || 0);
                 document.getElementById("val-instcnt").innerText = (data.inst_cnt_us || 0) + " us";
-                document.getElementById("val-radiost").innerText = (data.rx_status || "RX_OFF") + " / " + (data.tx_status || "TX_OFF");
-                document.getElementById("cnt-temp").innerText = "RX: SF" + (data.rx_sf || 7) + " | TX: SF" + (data.tx_sf || 9);
-                document.getElementById("cnt-chdet").innerText = "BW " + (data.rx_bw || 125) + "k / " + (data.tx_bw || 125) + "k";
+                document.getElementById("val-radiost").innerText = (data.rx_status || "LISTENING (8-CH)") + " / " + (data.tx_status || "TX_FREE");
+                if (data.temp_ok && data.temp_c !== undefined && data.temp_c !== 0) {
+                    document.getElementById("cnt-temp").innerText = data.temp_c.toFixed(1) + " °C";
+                    document.getElementById("cnt-chdet").innerText = "On-die sensor (STTS751)";
+                } else if (data.rx_sf !== undefined) {
+                    document.getElementById("cnt-temp").innerText = "RX: SF" + data.rx_sf + " | TX: SF" + (data.tx_sf || data.rx_sf);
+                    document.getElementById("cnt-chdet").innerText = "BW " + (data.rx_bw || 125) + "k / " + (data.tx_bw || 125) + "k";
+                } else {
+                    document.getElementById("cnt-temp").innerText = "SF7..SF12 (8-CH)";
+                    document.getElementById("cnt-chdet").innerText = "Multi-SF Concurrent";
+                }
             } catch(e) {}
         }
     };
@@ -491,7 +499,9 @@ function updatePackets() {
                     if (dec && dec.schemeId !== "none") {
                         var bColor = (dec.schemeId === "fallback_ascii" ? "#00b894" : (dec.success ? "#28a745" : "#e74c3c"));
                         var sumText = dec.error ? ('<span style="color:red">Error: ' + dec.error + '</span>') : dec.summary;
+                        var nodeBadge = dec.nodeId ? ('<span style="background: #0984e3; color: #fff; padding: 1px 5px; border-radius: 2px; font-weight: 700; font-size: 10px; margin-right: 4px;" title="Detected via ' + (dec.nodeIdMethod || 'Rule') + '">Node ' + dec.nodeId + '</span>') : '';
                         decHtml = '<div class="payload-dec-box" style="margin-top: 3px; font-size: 11px; background: #f0f7ff; border: 1px solid #d0e3ff; border-radius: 3px; padding: 2px 6px;">' +
+                            nodeBadge +
                             '<span style="background: ' + bColor + '; color: #fff; padding: 1px 4px; border-radius: 2px; font-weight: 600; font-size: 9px; margin-right: 4px;">' + (dec.schemeName || "Decoded") + '</span>' +
                             '<span style="color: #24292e;">' + sumText + '</span>' +
                         '</div>';
@@ -631,6 +641,11 @@ function openPacketModal(idx) {
             tr.innerHTML = '<td colspan="2" style="color:red; font-weight:bold;">Decoder Error: ' + dec.error + '</td>';
             tbody.appendChild(tr);
         } else if (dec.data) {
+            if (dec.nodeId) {
+                var trNode = document.createElement("tr");
+                trNode.innerHTML = '<td><strong style="color:#0984e3;">node_id (Detected)</strong></td><td><span style="background:#0984e3; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-family:monospace;">' + dec.nodeId + '</span> <span style="font-size:11px; color:#555;">(' + (dec.nodeIdMethod || 'Rule') + ')</span></td>';
+                tbody.appendChild(trNode);
+            }
             for (var k in dec.data) {
                 if (!dec.data.hasOwnProperty(k)) continue;
                 var val = dec.data[k];

@@ -53,8 +53,10 @@
 .badge-default { background: #7f8c8d; }
 .badge-js { background: #6c5ce7; }
 .badge-fields { background: #27ae60; }
+.badge-ctv { background: #e84393; }
 .badge-ascii { background: #00b894; }
 .badge-lpp { background: #d63031; }
+.badge-nodeid { background: #0984e3; }
 
 .byte-pill {
     display: inline-block;
@@ -99,7 +101,7 @@
 .modal-content {
     background: #fff;
     border-radius: 8px;
-    max-width: 820px;
+    max-width: 860px;
     width: 100%;
     max-height: 90vh;
     overflow-y: auto;
@@ -120,24 +122,24 @@
 </style>
 
 <div class="cbi-map">
-    <h2><a id="content" name="content"><%:LoRa Payload Custom Decoders%></a></h2>
+    <h2><a id="content" name="content"><%:LoRa Payload Custom Decoders & Node ID Routing%></a></h2>
     <div class="cbi-map-descr">
-        <%:Configure multi-scheme payload decoders to automatically parse received LoRa RF packets based on headers, prefixes, payload size, or patterns. Schemes are evaluated in order; the first matching scheme decodes the packet.%>
+        <%:Configure multi-scheme payload decoders to automatically parse received LoRa RF packets and extract Node IDs. Schemes match by NetID, headers, prefixes, payload size, or patterns to route telemetry to SQLite and Home Assistant.%>
     </div>
 
     <!-- WORKBENCH & TEST SIMULATOR -->
     <div class="lora-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-            <h3><%:Interactive Decoder Test Workbench%></h3>
+            <h3><%:Interactive Decoder & Node ID Test Workbench%></h3>
             <span style="font-size: 12px; color: #666;">
-                <%:Test any HEX payload against configured schemes%>
+                <%:Test any HEX payload to verify Node ID extraction and telemetry decoding%>
             </span>
         </div>
 
         <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px;">
             <div style="flex: 2; min-width: 280px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Payload (HEX)%></label>
-                <input type="text" id="test-hex" value="aa0b64370111084002050fac" style="width: 100%; padding: 7px; font-family: monospace; font-size: 13px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. aa0b6437... or 50494e47..." />
+                <input type="text" id="test-hex" value="aa0c6400011109c402050ce4" style="width: 100%; padding: 7px; font-family: monospace; font-size: 13px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. aa0c6400011109c4... or aa0b6437..." />
             </div>
             <div style="flex: 1; min-width: 220px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Load Recent Packet%></label>
@@ -152,6 +154,15 @@
 
         <!-- TEST RESULT CONTAINER -->
         <div id="test-result-box" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px;">
+            
+            <!-- NODE ID DETECTION HERO BANNER -->
+            <div id="test-nodeid-box" style="display: flex; align-items: center; gap: 12px; background: #eaf4ff; border: 1px solid #b8daff; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; flex-wrap: wrap;">
+                <span style="font-size: 13px; font-weight: 600; color: #004085;"><%:🆔 Detected Node ID:%></span>
+                <span id="test-nodeid-badge" style="background: #0984e3; color: #fff; font-size: 14px; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-family: monospace;">AA0C</span>
+                <span id="test-nodeid-method" style="font-size: 12px; color: #004085; background: #d0e7ff; padding: 2px 8px; border-radius: 3px;"><%:NetID (0xAA) + SenderID (0x0C)%></span>
+                <span style="font-size: 12px; color: #555; margin-left: auto;"><%:MQTT Topic:%> <code id="test-mqtt-topic" style="color: #d63031; font-weight: 600;">lora/AA0C/state</code></span>
+            </div>
+
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <div>
                     <span id="test-match-badge" class="scheme-badge badge-prefix"><%:Matched: Scheme%></span>
@@ -178,9 +189,48 @@
 
             <!-- RAW JSON VIEW -->
             <details>
-                <summary style="font-size: 11px; color: #4a5568; cursor: pointer; font-weight: 600;"><%:View Raw JSON Output%></summary>
+                <summary style="font-size: 11px; color: #4a5568; cursor: pointer; font-weight: 600;"><%:View Raw JSON Telemetry%></summary>
                 <pre id="test-json-out" style="background: #2d3748; color: #edf2f7; padding: 10px; border-radius: 4px; font-size: 11px; margin-top: 6px; max-height: 200px; overflow-y: auto;"></pre>
             </details>
+        </div>
+    </div>
+
+    <!-- GLOBAL DEFAULT NODE ID EXTRACTION POLICY -->
+    <div class="lora-card" style="border-left: 4px solid #0984e3;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+            <h3 style="border-bottom-color: #0984e3;"><%:Global Default Node ID Detection & Fallback%></h3>
+            <span style="font-size: 12px; color: #666;"><%:Default behavior when not overridden by a specific scheme%></span>
+        </div>
+        <p style="font-size: 12px; color: #555; margin-top: 0; margin-bottom: 12px;">
+            <%:Choose how the gateway identifies nodes across different network schemas (e.g. NetID+SenderID, Single-byte SenderID, Custom Offset, or Smart Auto-Detect).%>
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
+            <div style="flex: 2; min-width: 240px;">
+                <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Global Strategy%></label>
+                <select id="global-nodeid-source" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="auto"><%:✨ Smart Auto-Detect (NetID 0xAA -> NetID+SenderID, else 2-Byte Header)%></option>
+                    <option value="net_sender"><%:NetID + SenderID (Byte 0 = NetID 0xAA, Byte 1 = SenderID 0x0C -> AA0C)%></option>
+                    <option value="sender_only"><%:SenderID Only (Byte 1, e.g. 0C or 12)%></option>
+                    <option value="header"><%:First 2 Bytes (Offset 0, e.g. AA0B)%></option>
+                    <option value="single"><%:First 1 Byte (Offset 0, e.g. 0C)%></option>
+                    <option value="devaddr"><%:LoRaWAN DevAddr (4 Bytes at Offset 1)%></option>
+                </select>
+            </div>
+            <div style="flex: 1; min-width: 160px;">
+                <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Output Format%></label>
+                <select id="global-nodeid-format" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="net_hex"><%:Hex Combined (e.g. AA0C)%></option>
+                    <option value="hex"><%:Hex Only (e.g. 0C)%></option>
+                    <option value="decimal"><%:Decimal Integer (e.g. 12)%></option>
+                </select>
+            </div>
+            <div style="flex: 1; min-width: 140px;">
+                <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Optional Prefix%></label>
+                <input type="text" id="global-nodeid-prefix" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. NODE_ or empty" />
+            </div>
+            <div>
+                <button type="button" class="cbi-button cbi-button-apply" style="padding: 6px 14px;" onclick="saveGlobalNodeId()"><%:Save Global Setting%></button>
+            </div>
         </div>
     </div>
 
@@ -202,7 +252,6 @@
         </div>
 
         <div id="schemes-container">
-            <!-- Dynamic schemes list populated via JS -->
             <div style="text-align: center; color: #888; padding: 30px;"><%:Loading decoder schemes...%></div>
         </div>
     </div>
@@ -220,7 +269,7 @@
         <div style="display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px;">
             <div style="flex: 2; min-width: 220px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Scheme Name%></label>
-                <input type="text" id="m-name" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. Sensor Node AA0B" />
+                <input type="text" id="m-name" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. NetID+SenderID Universal TLV" />
             </div>
             <div style="flex: 1; min-width: 140px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Status%></label>
@@ -235,14 +284,14 @@
             <input type="text" id="m-desc" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" placeholder="Optional notes about this device / scheme" />
         </div>
 
-        <!-- MATCH CONDITION SECTION -->
+        <!-- 1. MATCH CONDITION SECTION -->
         <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
             <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #2d3748;"><%:1. Match Condition (When to apply this scheme)%></h4>
             <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
                 <div style="flex: 1; min-width: 180px;">
                     <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Match Type%></label>
                     <select id="m-match-type" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" onchange="updateMatchFields()">
-                        <option value="prefix"><%:Hex Prefix / Header (e.g. aa0b)%></option>
+                        <option value="prefix"><%:Hex Prefix / Header (e.g. aa or aa0c)%></option>
                         <option value="size"><%:Exact Payload Size (Bytes)%></option>
                         <option value="regex"><%:Hex Regex Pattern%></option>
                         <option value="condition"><%:Custom JS Condition%></option>
@@ -250,43 +299,101 @@
                     </select>
                 </div>
                 <div style="flex: 2; min-width: 220px;" id="box-match-val">
-                    <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;" id="lbl-match-val"><%:Match Value (Hex)%></label>
-                    <input type="text" id="m-match-val" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;" placeholder="e.g. aa0b or 50494e47" />
+                    <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;" id="lbl-match-val"><%:Match Value (Hex Prefix)%></label>
+                    <input type="text" id="m-match-val" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;" placeholder="e.g. aa or aa0c or 5049" />
                 </div>
             </div>
             <div id="box-match-cond" style="display: none; margin-top: 10px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Condition Function (returns true/false)%></label>
-                <textarea id="m-match-cond" class="code-editor" style="height: 70px;" placeholder="// return bytes[0] === 0xaa && bytes[1] === 0x0b;"></textarea>
+                <textarea id="m-match-cond" class="code-editor" style="height: 70px;" placeholder="// return bytes[0] === 0xaa && bytes[1] === 0x0c;"></textarea>
             </div>
         </div>
 
-        <!-- DECODER METHOD SECTION -->
+        <!-- 2. NODE ID DETECTION STRATEGY -->
+        <div style="background: #f0f7ff; border: 1px solid #c8e1ff; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #004085;"><%:2. Node ID Detection Strategy (How this scheme identifies the device)%></h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 10px;">
+                <div style="flex: 2; min-width: 220px;">
+                    <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Node ID Source%></label>
+                    <select id="m-nodeid-source" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" onchange="updateModalNodeIdFields()">
+                        <option value="auto"><%:✨ Auto (Inherit from Global / Smart Cascade)%></option>
+                        <option value="net_sender"><%:NetID + SenderID (Byte 0 = NetID 0xAA, Byte 1 = SenderID 0x0C -> AA0C)%></option>
+                        <option value="sender_only"><%:SenderID Only (Byte 1, e.g. 0C or 12)%></option>
+                        <option value="offset"><%:Custom Byte Offset & Length (e.g. Offset 1, Length 1)%></option>
+                        <option value="field"><%:From Decoded Output Property (e.g. senderId or node_id)%></option>
+                        <option value="header"><%:First 2 Bytes (Offset 0, e.g. AA0B)%></option>
+                        <option value="single"><%:First 1 Byte (Offset 0, e.g. 0C)%></option>
+                        <option value="devaddr"><%:LoRaWAN DevAddr (4 Bytes at Offset 1)%></option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 140px;">
+                    <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Output Format%></label>
+                    <select id="m-nodeid-format" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                        <option value="net_hex"><%:Hex Combined (e.g. AA0C)%></option>
+                        <option value="hex"><%:Hex Only (e.g. 0C)%></option>
+                        <option value="decimal"><%:Decimal Integer (e.g. 12)%></option>
+                        <option value="ascii"><%:ASCII Text%></option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 120px;">
+                    <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Prefix%></label>
+                    <input type="text" id="m-nodeid-prefix" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. NODE_" />
+                </div>
+            </div>
+
+            <!-- CONDITIONAL OFFSET & LENGTH -->
+            <div id="box-nodeid-offset" style="display: none; margin-top: 8px; background: #fff; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 120px;">
+                        <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 2px;"><%:Byte Offset (0-based)%></label>
+                        <input type="number" id="m-nodeid-offset" value="1" min="0" max="64" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px;" />
+                    </div>
+                    <div style="flex: 1; min-width: 120px;">
+                        <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 2px;"><%:Length (Bytes)%></label>
+                        <input type="number" id="m-nodeid-length" value="1" min="1" max="16" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px;" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONDITIONAL FIELD NAME -->
+            <div id="box-nodeid-field" style="display: none; margin-top: 8px; background: #fff; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 2px;"><%:Property Name in Decoded Output%></label>
+                <input type="text" id="m-nodeid-field" value="senderId" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. senderId, node_id, or dev_id" />
+            </div>
+        </div>
+
+        <!-- 3. DECODER METHOD SECTION -->
         <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-                <h4 style="margin: 0; font-size: 14px; color: #2d3748;"><%:2. Decoder Method (How to decode payload)%></h4>
+                <h4 style="margin: 0; font-size: 14px; color: #2d3748;"><%:3. Decoder Method (How to decode payload)%></h4>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <label style="font-size: 12px; font-weight: 600;"><%:Preset Template:%></label>
                     <select id="m-template-sel" style="padding: 4px 8px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px;" onchange="applyTemplate(this.value)">
                         <option value=""><%:-- Load Template --%></option>
+                        <option value="aa_tlv"><%:NetID + SenderID + TLV (AA 0C 64 00 01 11 ...)%></option>
                         <option value="aa0b"><%:Sensor Node AA0B (Temp / Volt / Seq)%></option>
                         <option value="aa0c"><%:Sensor Node AA0C (Telemetry / Battery)%></option>
-                        <option value="ascii"><%:Plain ASCII String%></option>
-                        <option value="cayenne"><%:Cayenne LPP Standard%></option>
+                        <option value="single_byte"><%:Single Byte Node ID (Offset 0 or 1)%></option>
                         <option value="fields_demo"><%:Visual Field Slicer Example%></option>
+                        <option value="cayenne"><%:Cayenne LPP Standard%></option>
+                        <option value="ascii"><%:Plain ASCII String%></option>
                         <option value="lht65"><%:Dragino LHT65 Sensor%></option>
                     </select>
                 </div>
             </div>
 
             <!-- TYPE RADIO SELECTOR -->
-            <div style="margin-bottom: 12px;">
-                <label style="margin-right: 18px; cursor: pointer;">
-                    <input type="radio" name="m-dec-type" value="js" checked="checked" onchange="updateDecoderTypeFields()" /> <strong><%:JavaScript Function%></strong> (TTN / ChirpStack)
+            <div style="margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 14px;">
+                <label style="cursor: pointer;">
+                    <input type="radio" name="m-dec-type" value="ctv" checked="checked" onchange="updateDecoderTypeFields()" /> <strong><%:TLV / Channel-Type-Value%></strong>
                 </label>
-                <label style="margin-right: 18px; cursor: pointer;">
-                    <input type="radio" name="m-dec-type" value="fields" onchange="updateDecoderTypeFields()" /> <strong><%:Visual Field Extractor%></strong> (No-Code)
+                <label style="cursor: pointer;">
+                    <input type="radio" name="m-dec-type" value="fields" onchange="updateDecoderTypeFields()" /> <strong><%:Visual Field Extractor%></strong>
                 </label>
-                <label style="margin-right: 18px; cursor: pointer;">
+                <label style="cursor: pointer;">
+                    <input type="radio" name="m-dec-type" value="js" onchange="updateDecoderTypeFields()" /> <strong><%:JavaScript Function%></strong>
+                </label>
+                <label style="cursor: pointer;">
                     <input type="radio" name="m-dec-type" value="ascii" onchange="updateDecoderTypeFields()" /> <strong><%:Plain ASCII%></strong>
                 </label>
                 <label style="cursor: pointer;">
@@ -294,8 +401,18 @@
                 </label>
             </div>
 
+            <!-- CTV / TLV INFO -->
+            <div id="box-dec-ctv" style="padding: 12px; background: #fff0f6; border: 1px solid #ffd6e7; border-radius: 4px; font-size: 12px; color: #9e1059;">
+                <strong><%:Dynamic Channel-Type-Value (TLV) Protocol:%></strong><br/>
+                <%:Parses packets starting with NetID, SenderID, GatewayID, Seq followed by dynamic Channel records (e.g. Channel 1 Type 0x11 Temperature, Channel 2 Type 0x05 Battery in mV, Digital states, Analog inputs). Data offset begins at byte 4 by default.%>
+                <div style="margin-top: 8px;">
+                    <label style="font-weight: 600;"><%:Channels Data Offset (byte index):%></label>
+                    <input type="number" id="m-ctv-offset" value="4" min="0" max="16" style="width: 70px; padding: 3px 6px; border: 1px solid #ccc; border-radius: 3px;" />
+                </div>
+            </div>
+
             <!-- JS CODE EDITOR -->
-            <div id="box-dec-js">
+            <div id="box-dec-js" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                     <span style="font-size: 11px; color: #555;"><code>function decode(bytes, hex, pkt) { return { ... }; }</code></span>
                     <div style="font-size: 11px;">
@@ -354,6 +471,7 @@
 
 <script type="text/javascript">//<![CDATA[
 var g_schemes = [];
+var g_globalNodeId = { source: "auto", format: "net_hex", prefix: "" };
 var g_editingIndex = -1;
 var g_apiEndpoint = '<%=luci.dispatcher.build_url("admin/lora/api_decoders")%>';
 var g_packetsApi = '<%=luci.dispatcher.build_url("admin/lora/api_packets")%>';
@@ -364,9 +482,27 @@ window.onload = function() {
 };
 
 function loadSchemes() {
-    LoraDecoder.loadSchemes(g_apiEndpoint, function(err, schemes) {
+    LoraDecoder.loadSchemes(g_apiEndpoint, function(err, schemes, globalRule) {
         g_schemes = schemes || LoraDecoder.getDefaultSchemes();
+        if (globalRule) {
+            g_globalNodeId = globalRule;
+            document.getElementById("global-nodeid-source").value = globalRule.source || "auto";
+            document.getElementById("global-nodeid-format").value = globalRule.format || "net_hex";
+            document.getElementById("global-nodeid-prefix").value = globalRule.prefix || "";
+        }
         renderSchemesList();
+    });
+}
+
+function saveGlobalNodeId() {
+    g_globalNodeId = {
+        source: document.getElementById("global-nodeid-source").value,
+        format: document.getElementById("global-nodeid-format").value,
+        prefix: document.getElementById("global-nodeid-prefix").value.trim()
+    };
+    LoraDecoder.globalNodeId = g_globalNodeId;
+    saveAllSchemes(function() {
+        alert("Global Node ID detection strategy saved successfully!");
     });
 }
 
@@ -434,7 +570,10 @@ function renderSchemesList() {
 
         var typeBadgeClass = "badge-js";
         var typeBadgeText = "JavaScript";
-        if (s.type === "fields") {
+        if (s.type === "ctv" || s.type === "tlv") {
+            typeBadgeClass = "badge-ctv";
+            typeBadgeText = "TLV / Channels";
+        } else if (s.type === "fields") {
             typeBadgeClass = "badge-fields";
             typeBadgeText = "Visual Fields (" + (s.fields ? s.fields.length : 0) + ")";
         } else if (s.type === "ascii") {
@@ -443,6 +582,22 @@ function renderSchemesList() {
         } else if (s.type === "cayenne_lpp") {
             typeBadgeClass = "badge-lpp";
             typeBadgeText = "Cayenne LPP";
+        }
+
+        var nodeRule = s.nodeId || {};
+        var nodeBadgeText = "Node ID: Auto";
+        if (nodeRule.source === "net_sender") {
+            nodeBadgeText = "Node ID: NetID + SenderID";
+        } else if (nodeRule.source === "sender_only") {
+            nodeBadgeText = "Node ID: SenderID (Byte 1)";
+        } else if (nodeRule.source === "offset") {
+            nodeBadgeText = "Node ID: Offset " + (nodeRule.offset || 0) + " (" + (nodeRule.length || 1) + "B)";
+        } else if (nodeRule.source === "field") {
+            nodeBadgeText = "Node ID: Field '" + (nodeRule.fieldName || "senderId") + "'";
+        } else if (nodeRule.source === "header") {
+            nodeBadgeText = "Node ID: Header (2B)";
+        } else if (nodeRule.source === "single") {
+            nodeBadgeText = "Node ID: First Byte";
         }
 
         var descHtml = s.description ? ('<div style="font-size: 12px; color: #666; margin-top: 4px;">' + s.description + '</div>') : '';
@@ -455,6 +610,7 @@ function renderSchemesList() {
                     '<div style="margin-top: 6px;">' +
                         '<span class="scheme-badge ' + badgeClass + '">' + badgeText + '</span>' +
                         '<span class="scheme-badge ' + typeBadgeClass + '">' + typeBadgeText + '</span>' +
+                        '<span class="scheme-badge badge-nodeid">' + nodeBadgeText + '</span>' +
                         (s.enabled ? '<span style="color:#27ae60; font-size:11px; font-weight:600;">● Active</span>' : '<span style="color:#7f8c8d; font-size:11px;">○ Disabled</span>') +
                     '</div>' +
                     descHtml +
@@ -512,12 +668,18 @@ function openSchemeModal(idx) {
         document.getElementById("m-match-val").value = s.matchValue || "";
         document.getElementById("m-match-cond").value = s.matchCondition || "";
 
-        var decType = s.type || "js";
-        var radios = document.getElementsByName("m-dec-type");
-        for (var i = 0; i < radios.length; i++) {
-            radios[i].checked = (radios[i].value === decType);
-        }
+        // Node ID fields
+        var nRule = s.nodeId || {};
+        document.getElementById("m-nodeid-source").value = nRule.source || "auto";
+        document.getElementById("m-nodeid-format").value = nRule.format || "net_hex";
+        document.getElementById("m-nodeid-prefix").value = nRule.prefix || "";
+        document.getElementById("m-nodeid-offset").value = (nRule.offset !== undefined) ? nRule.offset : 1;
+        document.getElementById("m-nodeid-length").value = nRule.length || 1;
+        document.getElementById("m-nodeid-field").value = nRule.fieldName || "senderId";
 
+        var decType = s.type || "ctv";
+        setRadioVal("m-dec-type", decType);
+        document.getElementById("m-ctv-offset").value = (s.dataOffset !== undefined) ? s.dataOffset : 4;
         document.getElementById("m-js-code").value = s.jsCode || "";
         renderFieldRows(s.fields || []);
     } else {
@@ -526,27 +688,24 @@ function openSchemeModal(idx) {
         document.getElementById("m-desc").value = "";
         document.getElementById("m-enabled").checked = true;
         document.getElementById("m-match-type").value = "prefix";
-        document.getElementById("m-match-val").value = "";
+        document.getElementById("m-match-val").value = "aa";
         document.getElementById("m-match-cond").value = "";
 
-        var radios = document.getElementsByName("m-dec-type");
-        for (var i = 0; i < radios.length; i++) {
-            radios[i].checked = (radios[i].value === "js");
-        }
+        document.getElementById("m-nodeid-source").value = "net_sender";
+        document.getElementById("m-nodeid-format").value = "net_hex";
+        document.getElementById("m-nodeid-prefix").value = "";
+        document.getElementById("m-nodeid-offset").value = 1;
+        document.getElementById("m-nodeid-length").value = 1;
+        document.getElementById("m-nodeid-field").value = "senderId";
 
-        document.getElementById("m-js-code").value = 
-            "// Custom decoder\n" +
-            "var header = hex.substring(0, 4);\n" +
-            "var temp = ((bytes[2] << 8) | bytes[3]) / 10;\n" +
-            "return {\n" +
-            "    device: header,\n" +
-            "    temperature: temp + ' °C'\n" +
-            "};";
-
+        setRadioVal("m-dec-type", "ctv");
+        document.getElementById("m-ctv-offset").value = 4;
+        document.getElementById("m-js-code").value = "";
         renderFieldRows([]);
     }
 
     updateMatchFields();
+    updateModalNodeIdFields();
     updateDecoderTypeFields();
 }
 
@@ -563,7 +722,7 @@ function updateMatchFields() {
     if (mt === "prefix") {
         boxVal.style.display = "block";
         boxCond.style.display = "none";
-        lblVal.innerText = "Match Value (Hex Prefix)";
+        lblVal.innerText = "Match Value (Hex Prefix, e.g. aa)";
     } else if (mt === "size") {
         boxVal.style.display = "block";
         boxCond.style.display = "none";
@@ -581,16 +740,23 @@ function updateMatchFields() {
     }
 }
 
+function updateModalNodeIdFields() {
+    var src = document.getElementById("m-nodeid-source").value;
+    document.getElementById("box-nodeid-offset").style.display = (src === "offset") ? "block" : "none";
+    document.getElementById("box-nodeid-field").style.display = (src === "field") ? "block" : "none";
+}
+
 function getSelectedDecoderType() {
     var radios = document.getElementsByName("m-dec-type");
     for (var i = 0; i < radios.length; i++) {
         if (radios[i].checked) return radios[i].value;
     }
-    return "js";
+    return "ctv";
 }
 
 function updateDecoderTypeFields() {
     var dt = getSelectedDecoderType();
+    document.getElementById("box-dec-ctv").style.display = (dt === "ctv" ? "block" : "none");
     document.getElementById("box-dec-js").style.display = (dt === "js" ? "block" : "none");
     document.getElementById("box-dec-fields").style.display = (dt === "fields" ? "block" : "none");
     document.getElementById("box-dec-ascii").style.display = (dt === "ascii" ? "block" : "none");
@@ -665,10 +831,20 @@ function insertJsSnippet(type) {
 function applyTemplate(tplName) {
     if (!tplName) return;
 
-    if (tplName === "aa0b") {
+    if (tplName === "aa_tlv") {
+        document.getElementById("m-name").value = "NetID + SenderID + TLV (AA 0C 64 ...)";
+        document.getElementById("m-desc").value = "Universal decoder for AA NetID, SenderID, GatewayID, Seq and dynamic Channel-Type-Value sensors";
+        document.getElementById("m-match-type").value = "prefix";
+        document.getElementById("m-match-val").value = "aa";
+        document.getElementById("m-nodeid-source").value = "net_sender";
+        document.getElementById("m-nodeid-format").value = "net_hex";
+        setRadioVal("m-dec-type", "ctv");
+        document.getElementById("m-ctv-offset").value = 4;
+    } else if (tplName === "aa0b") {
         document.getElementById("m-name").value = "Sensor Node AA0B";
         document.getElementById("m-match-type").value = "prefix";
         document.getElementById("m-match-val").value = "aa0b";
+        document.getElementById("m-nodeid-source").value = "net_sender";
         setRadioVal("m-dec-type", "js");
         document.getElementById("m-js-code").value = 
             "var header = hex.substring(0, 4).toUpperCase();\n" +
@@ -686,6 +862,7 @@ function applyTemplate(tplName) {
         document.getElementById("m-name").value = "Sensor Node AA0C";
         document.getElementById("m-match-type").value = "prefix";
         document.getElementById("m-match-val").value = "aa0c";
+        document.getElementById("m-nodeid-source").value = "net_sender";
         setRadioVal("m-dec-type", "js");
         document.getElementById("m-js-code").value = 
             "var header = hex.substring(0, 4).toUpperCase();\n" +
@@ -699,17 +876,32 @@ function applyTemplate(tplName) {
             "    voltage: +(volt_raw / 1000).toFixed(2) + ' V',\n" +
             "    extra: hex.substring(16)\n" +
             "};";
+    } else if (tplName === "single_byte") {
+        document.getElementById("m-name").value = "Single-Byte Node ID (Offset 0)";
+        document.getElementById("m-nodeid-source").value = "single";
+        document.getElementById("m-nodeid-format").value = "hex";
+        setRadioVal("m-dec-type", "fields");
+        renderFieldRows([
+            { name: "node_id", offset: 0, length: 1, type: "hex", scale: 1, unit: "" },
+            { name: "temperature", offset: 1, length: 2, type: "int16_be", scale: 0.1, unit: "°C" },
+            { name: "battery", offset: 3, length: 2, type: "uint16_be", scale: 0.001, unit: "V" }
+        ]);
     } else if (tplName === "ascii") {
         document.getElementById("m-name").value = "ASCII Ping / Message";
         document.getElementById("m-match-type").value = "condition";
         document.getElementById("m-match-cond").value = "return bytes.length > 0 && bytes.every(function(b) { return b >= 32 && b <= 126; });";
+        document.getElementById("m-nodeid-source").value = "auto";
         setRadioVal("m-dec-type", "ascii");
     } else if (tplName === "cayenne") {
         document.getElementById("m-name").value = "Cayenne LPP Standard";
         document.getElementById("m-match-type").value = "default";
+        document.getElementById("m-nodeid-source").value = "auto";
         setRadioVal("m-dec-type", "cayenne_lpp");
     } else if (tplName === "fields_demo") {
         document.getElementById("m-name").value = "Field Extractor Scheme";
+        document.getElementById("m-nodeid-source").value = "offset";
+        document.getElementById("m-nodeid-offset").value = 0;
+        document.getElementById("m-nodeid-length").value = 2;
         setRadioVal("m-dec-type", "fields");
         renderFieldRows([
             { name: "header", offset: 0, length: 2, type: "hex", scale: 1, unit: "" },
@@ -721,6 +913,7 @@ function applyTemplate(tplName) {
         document.getElementById("m-name").value = "Dragino LHT65 Sensor";
         document.getElementById("m-match-type").value = "size";
         document.getElementById("m-match-val").value = "11";
+        document.getElementById("m-nodeid-source").value = "auto";
         setRadioVal("m-dec-type", "js");
         document.getElementById("m-js-code").value = 
             "// Dragino LHT65 11-byte payload decoder\n" +
@@ -735,6 +928,7 @@ function applyTemplate(tplName) {
     }
 
     updateMatchFields();
+    updateModalNodeIdFields();
     updateDecoderTypeFields();
 }
 
@@ -754,6 +948,15 @@ function saveSchemeModal() {
     var matchCond = document.getElementById("m-match-cond").value.trim();
     var decType = getSelectedDecoderType();
 
+    var nodeIdRule = {
+        source: document.getElementById("m-nodeid-source").value,
+        format: document.getElementById("m-nodeid-format").value,
+        prefix: document.getElementById("m-nodeid-prefix").value.trim(),
+        offset: parseInt(document.getElementById("m-nodeid-offset").value, 10) || 0,
+        length: parseInt(document.getElementById("m-nodeid-length").value, 10) || 1,
+        fieldName: document.getElementById("m-nodeid-field").value.trim() || "senderId"
+    };
+
     var scheme = {
         id: (g_editingIndex >= 0 && g_schemes[g_editingIndex].id) ? g_schemes[g_editingIndex].id : ("scheme_" + Date.now()),
         name: name,
@@ -762,10 +965,13 @@ function saveSchemeModal() {
         matchType: matchType,
         matchValue: matchVal,
         matchCondition: matchCond,
+        nodeId: nodeIdRule,
         type: decType
     };
 
-    if (decType === "js") {
+    if (decType === "ctv") {
+        scheme.dataOffset = parseInt(document.getElementById("m-ctv-offset").value, 10) || 4;
+    } else if (decType === "js") {
         scheme.jsCode = document.getElementById("m-js-code").value;
     } else if (decType === "fields") {
         scheme.fields = collectFieldRows();
@@ -794,7 +1000,16 @@ function testCurrentModalScheme() {
         matchType: document.getElementById("m-match-type").value,
         matchValue: document.getElementById("m-match-val").value.trim(),
         matchCondition: document.getElementById("m-match-cond").value.trim(),
+        nodeId: {
+            source: document.getElementById("m-nodeid-source").value,
+            format: document.getElementById("m-nodeid-format").value,
+            prefix: document.getElementById("m-nodeid-prefix").value.trim(),
+            offset: parseInt(document.getElementById("m-nodeid-offset").value, 10) || 0,
+            length: parseInt(document.getElementById("m-nodeid-length").value, 10) || 1,
+            fieldName: document.getElementById("m-nodeid-field").value.trim() || "senderId"
+        },
         type: getSelectedDecoderType(),
+        dataOffset: parseInt(document.getElementById("m-ctv-offset").value, 10) || 4,
         jsCode: document.getElementById("m-js-code").value,
         fields: collectFieldRows()
     };
@@ -802,13 +1017,14 @@ function testCurrentModalScheme() {
     var bytes = LoraDecoder.hexToBytes(testHex);
     var matched = LoraDecoder.matchScheme(scheme, bytes, testHex, { size: bytes.length, hex: testHex });
     var exec = LoraDecoder.executeScheme(scheme, bytes, testHex, { size: bytes.length, hex: testHex });
+    var node = LoraDecoder.extractNodeId(bytes, testHex, scheme, exec.data, g_globalNodeId);
 
     if (!matched) {
         alert("Match check: FALSE\nThis scheme's match condition does not match HEX: " + testHex);
     } else if (exec.error) {
         alert("Match: TRUE\nDecoder ERROR:\n" + exec.error);
     } else {
-        alert("Match: TRUE\nDecoded successfully:\n" + JSON.stringify(exec.data, null, 2));
+        alert("Match: TRUE\nDetected Node ID: " + node.id + " (" + node.method + ")\nDecoded Telemetry:\n" + JSON.stringify(exec.data, null, 2));
     }
 }
 
@@ -823,6 +1039,12 @@ function runTestDecode() {
 
     var box = document.getElementById("test-result-box");
     box.style.display = "block";
+
+    // Node ID Display
+    var nId = result.nodeId || "UNKNOWN";
+    document.getElementById("test-nodeid-badge").innerText = nId;
+    document.getElementById("test-nodeid-method").innerText = "Method: " + (result.nodeIdMethod || "Default");
+    document.getElementById("test-mqtt-topic").innerText = "lora/" + nId + "/state";
 
     var badge = document.getElementById("test-match-badge");
     badge.innerText = "Matched: " + (result.schemeName || "None");
@@ -863,12 +1085,16 @@ function runTestDecode() {
     document.getElementById("test-json-out").innerText = JSON.stringify(result.data, null, 2);
 }
 
-function saveAllSchemes() {
-    LoraDecoder.saveSchemes(g_apiEndpoint, g_schemes, function(err, resp) {
+function saveAllSchemes(cb) {
+    LoraDecoder.saveSchemes(g_apiEndpoint, g_schemes, g_globalNodeId, function(err, resp) {
         if (err) {
             alert("Error saving schemes to gateway: " + err.message);
         } else {
-            alert("Successfully saved " + g_schemes.length + " decoding schemes to /etc/lora/decoders.json!");
+            if (cb) {
+                cb();
+            } else {
+                alert("Successfully saved " + g_schemes.length + " decoding schemes & Node ID policies to /etc/lora/decoders.json!");
+            }
         }
     });
 }
@@ -876,13 +1102,14 @@ function saveAllSchemes() {
 function resetToDefaults() {
     if (confirm("Reset all decoding schemes to default templates? Any custom schemes will be replaced.")) {
         g_schemes = LoraDecoder.getDefaultSchemes();
+        g_globalNodeId = { source: "auto", format: "net_hex", prefix: "" };
         renderSchemesList();
         saveAllSchemes();
     }
 }
 
 function exportSchemes() {
-    var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ version: 1, updated: new Date().toISOString(), schemes: g_schemes }, null, 2));
+    var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ version: 1, updated: new Date().toISOString(), globalNodeId: g_globalNodeId, schemes: g_schemes }, null, 2));
     var dl = document.createElement("a");
     dl.setAttribute("href", dataStr);
     dl.setAttribute("download", "lora_decoders.json");
@@ -898,6 +1125,7 @@ function importSchemes(evt) {
             var parsed = JSON.parse(e.target.result);
             if (parsed && parsed.schemes && parsed.schemes.length) {
                 g_schemes = parsed.schemes;
+                if (parsed.globalNodeId) g_globalNodeId = parsed.globalNodeId;
                 renderSchemesList();
                 alert("Imported " + g_schemes.length + " schemes successfully! Remember to click 'Save to Gateway'.");
             } else {

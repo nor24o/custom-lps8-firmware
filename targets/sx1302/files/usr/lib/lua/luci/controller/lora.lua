@@ -258,8 +258,27 @@ function action_decoders()
         if not data then
             data = {
                 version = 1,
-                updated = "2026-11-01T18:00:00Z",
+                updated = "2026-11-03T02:00:00Z",
+                globalNodeId = {
+                    source = "auto",
+                    format = "net_hex",
+                    prefix = ""
+                },
                 schemes = {
+                    {
+                        id = "scheme_universal_tlv",
+                        name = "Universal NetID + SenderID + TLV (AA 0C 64 ...)",
+                        description = "Matches NetID 0xAA packets with SenderID, Target Gateway, Seq and dynamic Channel-Type-Value sensors",
+                        enabled = true,
+                        matchType = "prefix",
+                        matchValue = "aa",
+                        nodeId = {
+                            source = "net_sender",
+                            format = "net_hex"
+                        },
+                        type = "ctv",
+                        dataOffset = 4
+                    },
                     {
                         id = "scheme_aa0b",
                         name = "Sensor Node AA0B (Temp / Volt / Seq)",
@@ -267,6 +286,10 @@ function action_decoders()
                         enabled = true,
                         matchType = "prefix",
                         matchValue = "aa0b",
+                        nodeId = {
+                            source = "net_sender",
+                            format = "net_hex"
+                        },
                         type = "js",
                         jsCode = "// Decoder for AA0B packets (e.g. aa0b64370111084002050fac)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar temp_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    temperature: +(temp_raw / 10).toFixed(1) + \" °C\",\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
                     },

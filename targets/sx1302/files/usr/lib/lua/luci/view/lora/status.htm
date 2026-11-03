@@ -499,7 +499,9 @@ function updatePackets() {
                     if (dec && dec.schemeId !== "none") {
                         var bColor = (dec.schemeId === "fallback_ascii" ? "#00b894" : (dec.success ? "#28a745" : "#e74c3c"));
                         var sumText = dec.error ? ('<span style="color:red">Error: ' + dec.error + '</span>') : dec.summary;
+                        var nodeBadge = dec.nodeId ? ('<span style="background: #0984e3; color: #fff; padding: 1px 5px; border-radius: 2px; font-weight: 700; font-size: 10px; margin-right: 4px;" title="Detected via ' + (dec.nodeIdMethod || 'Rule') + '">Node ' + dec.nodeId + '</span>') : '';
                         decHtml = '<div class="payload-dec-box" style="margin-top: 3px; font-size: 11px; background: #f0f7ff; border: 1px solid #d0e3ff; border-radius: 3px; padding: 2px 6px;">' +
+                            nodeBadge +
                             '<span style="background: ' + bColor + '; color: #fff; padding: 1px 4px; border-radius: 2px; font-weight: 600; font-size: 9px; margin-right: 4px;">' + (dec.schemeName || "Decoded") + '</span>' +
                             '<span style="color: #24292e;">' + sumText + '</span>' +
                         '</div>';
@@ -639,6 +641,11 @@ function openPacketModal(idx) {
             tr.innerHTML = '<td colspan="2" style="color:red; font-weight:bold;">Decoder Error: ' + dec.error + '</td>';
             tbody.appendChild(tr);
         } else if (dec.data) {
+            if (dec.nodeId) {
+                var trNode = document.createElement("tr");
+                trNode.innerHTML = '<td><strong style="color:#0984e3;">node_id (Detected)</strong></td><td><span style="background:#0984e3; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-family:monospace;">' + dec.nodeId + '</span> <span style="font-size:11px; color:#555;">(' + (dec.nodeIdMethod || 'Rule') + ')</span></td>';
+                tbody.appendChild(trNode);
+            }
             for (var k in dec.data) {
                 if (!dec.data.hasOwnProperty(k)) continue;
                 var val = dec.data[k];
