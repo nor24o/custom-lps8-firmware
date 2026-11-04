@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+import socket
+import json
+import sys
+
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2.0)
+    s.connect(('127.0.0.1', 5557))
+    data = s.recv(1024).decode('utf-8')
+    s.close()
+    print(data.strip())
+except Exception as e:
+    print(json.dumps({'error': str(e)}))
+    sys.exit(1)

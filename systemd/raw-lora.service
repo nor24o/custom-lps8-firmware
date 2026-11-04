@@ -1,0 +1,14 @@
+[Unit]
+Description=SX1302 Custom LoRa Concentrator Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/raw_lora_app -c /etc/lora/config.json
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

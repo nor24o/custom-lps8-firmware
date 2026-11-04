@@ -1,0 +1,14 @@
+[Unit]
+Description=Bobcat G285 Device Management Web Interface
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/bobcat-web
+ExecStart=/usr/bin/python3 /opt/bobcat-web/app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

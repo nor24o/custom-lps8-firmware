@@ -1,7 +1,0 @@
-#!/bin/sh
-
-do_urandom_seed() {
-    [ -c /dev/urandom ] && [ -f /etc/urandom.seed ] && cat /etc/urandom.seed > /dev/urandom 2>/dev/null || true
-}
-
-boot_hook_add preinit_main do_urandom_seed

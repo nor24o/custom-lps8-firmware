@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+echo "=========================================="
+echo "    Bobcat 300 LoRa Concentrator Test     "
+echo "=========================================="
+/usr/local/bin/reset_lgw.sh start
+DEV="/dev/spidev5.0"
+[ -e "$DEV" ] || DEV="/dev/spidev1.0"
+echo "[+] Querying SX1302 Concentrator via $DEV..."
+cd /usr/local/bin && ./chip_id -d "$DEV"
+echo "=========================================="
+echo "SUCCESS: LoRa Concentrator SPI is working!"
+echo "=========================================="

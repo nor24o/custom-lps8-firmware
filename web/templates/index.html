@@ -1,0 +1,2284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bobcat G285 • Industrial LoRa Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="/static/lora_decoder.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0a0d14;
+      --card-bg: rgba(18, 24, 38, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #00f0ff;
+      --primary-glow: rgba(0, 240, 255, 0.25);
+      --accent: #7928ca;
+      --accent-glow: rgba(121, 40, 202, 0.3);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-main: 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-main);
+      background: var(--bg-dark);
+      background-image: radial-gradient(at 0% 0%, rgba(121, 40, 202, 0.15) 0px, transparent 50%),
+                        radial-gradient(at 100% 100%, rgba(0, 240, 255, 0.1) 0px, transparent 50%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 1.1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(10, 13, 20, 0.88);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+    .logo-badge {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #000;
+      font-weight: 800;
+      font-size: 1.1rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 8px;
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+    .brand h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .brand span {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      margin-left: 0.4rem;
+    }
+
+    .header-pills {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .pill-cyan {
+      border-color: rgba(0, 240, 255, 0.4);
+      color: var(--primary);
+      background: rgba(0, 240, 255, 0.08);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+    .status-dot-off {
+      background: var(--danger);
+      box-shadow: 0 0 8px var(--danger);
+    }
+
+    .container {
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.75rem 2rem;
+      flex: 1;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.6rem;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 0.6rem 1.1rem;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      white-space: nowrap;
+    }
+    .tab-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.4rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      position: relative;
+      margin-bottom: 1.25rem;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .card-val-big {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.25rem;
+    }
+
+    .progress-bar-bg {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 0.75rem;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #3b82f6);
+      border-radius: 9999px;
+      transition: width 0.4s ease;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-family: var(--font-main);
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.6rem 1.1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-sm {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #00b4d8);
+      color: #000;
+    }
+    .btn-primary:hover {
+      box-shadow: 0 0 15px var(--primary-glow);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--danger);
+    }
+    .btn-danger:hover {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn-success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--success);
+    }
+    .btn-success:hover {
+      background: var(--success);
+      color: #000;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.88rem;
+    }
+    .info-label { color: var(--text-muted); }
+    .info-value { font-family: var(--font-mono); font-weight: 500; }
+
+    /* Tables */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+    table.data-table th {
+      padding: 0.75rem 0.9rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    table.data-table td {
+      padding: 0.75rem 0.9rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+    }
+    table.data-table tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+    }
+    .badge-prefix { background: rgba(0, 240, 255, 0.2); color: var(--primary); border: 1px solid rgba(0, 240, 255, 0.4); }
+    .badge-size   { background: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.4); }
+    .badge-regex  { background: rgba(121, 40, 202, 0.2); color: #c084fc; border: 1px solid rgba(121, 40, 202, 0.4); }
+    .badge-cond   { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.4); }
+    .badge-default{ background: rgba(156, 163, 175, 0.2); color: var(--text-muted); border: 1px solid rgba(156, 163, 175, 0.3); }
+    .badge-class-a{ background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .badge-class-b{ background: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.4); }
+    .badge-class-c{ background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.4); }
+
+    /* Form Controls */
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+      font-weight: 500;
+    }
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.65rem 0.9rem;
+      color: #fff;
+      font-family: var(--font-main);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 10px var(--primary-glow);
+    }
+    .form-mono {
+      font-family: var(--font-mono) !important;
+    }
+    .code-editor {
+      width: 100%;
+      height: 180px;
+      background: #060910;
+      color: #38bdf8;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+      line-height: 1.45;
+      resize: vertical;
+      outline: none;
+    }
+
+    /* Byte Pills in Workbench */
+    .byte-pill {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 3px 6px;
+      margin: 2px;
+      font-family: var(--font-mono);
+    }
+    .byte-idx {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+    .byte-val {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 1rem;
+      backdrop-filter: blur(8px);
+    }
+    .modal-card {
+      background: #0f1422;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      padding: 1.75rem;
+      width: 100%;
+      max-width: 650px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+    }
+    .modal-card-lg {
+      max-width: 860px;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.75rem;
+    }
+    .modal-header h3 {
+      font-size: 1.1rem;
+      color: #fff;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      border-top: 1px solid var(--card-border);
+      padding-top: 1rem;
+    }
+
+    /* Switch toggle */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.15);
+      transition: .3s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute; content: "";
+      height: 18px; width: 18px;
+      left: 3px; bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: var(--primary); }
+    input:checked + .slider:before { transform: translateX(20px); background-color: #000; }
+
+    /* Console logs */
+    .console-log {
+      background: #060910;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: #38bdf8;
+      max-height: 240px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="logo-badge">BOBCAT</div>
+      <div>
+        <h1 id="header-hostname">bobcat-285</h1>
+        <span>RK3566 • G285 • EU868 Concentrator</span>
+      </div>
+    </div>
+    <div class="header-pills">
+      <div class="pill pill-cyan">
+        <span>EUI: <strong id="header-eui">0016C001F1500B48</strong></span>
+      </div>
+      <div class="pill">
+        <div id="status-dot-radio" class="status-dot"></div>
+        <span>Concentrator: <strong id="header-radio-status">RUNNING</strong></span>
+      </div>
+      <div class="pill">
+        <span>Uptime: <strong id="header-uptime">--</strong></span>
+      </div>
+      <div class="pill">
+        <span>CPU: <strong id="header-temp">--°C</strong></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('decoders')">🧩 Decoders & Workbench</button>
+      <button class="tab-btn" onclick="switchTab('nodes')">📱 Nodes & Home Assistant</button>
+      <button class="tab-btn" onclick="switchTab('links')">⚡ Device Automations</button>
+      <button class="tab-btn" onclick="switchTab('lora')">📡 RF Concentrator & TX</button>
+      <button class="tab-btn" onclick="switchTab('networking')">📶 Network & Wi-Fi</button>
+      <button class="tab-btn" onclick="switchTab('peripherals')">💡 RGB LED & Hardware</button>
+      <button class="tab-btn" onclick="switchTab('system')">⚙️ System Settings</button>
+    </div>
+
+    <!-- TAB 1: DASHBOARD -->
+    <div id="tab-dashboard" class="tab-content active">
+      <div class="grid-4">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">LoRa Uplinks (RX)</span>
+            <span class="pill pill-cyan" id="card-rx-status">LISTENING</span>
+          </div>
+          <div class="card-val-big" id="dash-rx-count">0</div>
+          <div class="info-row">
+            <span class="info-label">CRC Errors:</span>
+            <span class="info-value" id="dash-crc-err">0</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Active Radio Channels:</span>
+            <span class="info-value">8 Channels (Multi-SF)</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">LoRa Downlinks (TX)</span>
+            <span class="pill" id="card-tx-status">TX_FREE</span>
+          </div>
+          <div class="card-val-big" id="dash-tx-count">0</div>
+          <div class="info-row">
+            <span class="info-label">TX Power Default:</span>
+            <span class="info-value" id="dash-tx-power">27 dBm (500mW)</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Queue / Dropped:</span>
+            <span class="info-value" id="dash-q-info">0 / 0</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Registered Nodes</span>
+            <span class="pill">SQLite</span>
+          </div>
+          <div class="card-val-big" id="dash-active-nodes">0</div>
+          <div class="info-row">
+            <span class="info-label">Home Assistant Bridge:</span>
+            <span class="info-value" id="dash-ha-status">MQTT Connected</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Active Linking Rules:</span>
+            <span class="info-value" id="dash-link-rules">0 Rules</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Hardware Telemetry</span>
+            <span class="pill" id="card-concentrator-temp">30.0°C</span>
+          </div>
+          <div class="card-val-big" id="card-cpu-usage">--%</div>
+          <div class="progress-bar-bg">
+            <div id="cpu-bar" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+          <div class="info-row" style="margin-top: 0.6rem;">
+            <span class="info-label">RAM / LoadAvg:</span>
+            <span class="info-value" id="card-ram-brief">-- / --</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Concentrator RF Spectrum & Channel Activity -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">SX1302 8-Channel Demodulator & RF Radio Activity</span>
+          <span class="pill pill-cyan">Sync: Private (0x12)</span>
+        </div>
+        <div class="grid-4" id="channel-meters-grid">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- Recent Packets Table with Live Decoded Preview -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Live LoRa RF Packets Received</span>
+          <button class="btn btn-secondary btn-sm" onclick="loadRecentPackets()">↻ Refresh Packets</button>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Freq (MHz)</th>
+                <th>Data Rate</th>
+                <th>RSSI</th>
+                <th>SNR</th>
+                <th>Node ID</th>
+                <th>Payload (HEX)</th>
+                <th>Decoded Preview</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="dash-packets-tbody">
+              <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Listening for LoRa uplinks...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: DECODERS & WORKBENCH -->
+    <div id="tab-decoders" class="tab-content">
+      <!-- WORKBENCH & TEST SANDBOX -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Interactive Payload Decoder Workbench</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Real-time Client & Daemon Multi-Scheme Testing</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1rem;">
+          <div style="flex: 2; min-width: 280px;">
+            <label class="form-label">Payload (HEX or Text)</label>
+            <input type="text" id="test-hex" class="form-input form-mono" value="aa0b64370111084002050fac" placeholder="e.g. aa0b6437... or 50494e47...">
+          </div>
+          <div style="flex: 1; min-width: 200px;">
+            <label class="form-label">Select History Packet</label>
+            <select id="sel-history-pkts" class="form-select form-mono" onchange="loadSelectedPacket(this.value)">
+              <option value="">-- Load recent packet --</option>
+            </select>
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="runWorkbenchTest()">▶ Test Decode</button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.25rem;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); align-self: center;">Quick Test Samples:</span>
+          <button class="btn btn-secondary btn-sm" onclick="setTestSample('aa0b64370111084002050fac')">Sensor AA0B</button>
+          <button class="btn btn-secondary btn-sm" onclick="setTestSample('aa0c6401011107c302051067')">Actuator AA0C</button>
+          <button class="btn btn-secondary btn-sm" onclick="setTestSample('016700f5026864')">Cayenne LPP (Temp+Hum)</button>
+          <button class="btn btn-secondary btn-sm" onclick="setTestSample('50494e475f46524f4d5f4c505338')">ASCII ("PING_FROM_LPS8")</button>
+        </div>
+
+        <!-- Workbench Output Results -->
+        <div id="workbench-result-card" style="display: none; background: rgba(0,0,0,0.5); border: 1px solid var(--card-border); border-radius: 10px; padding: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Matched Scheme:</span>
+              <span id="res-scheme-badge" class="badge badge-prefix">SCHEME</span>
+              <strong id="res-scheme-name" style="font-size: 0.9rem;">--</strong>
+            </div>
+            <span id="res-status-pill" class="pill pill-cyan">SUCCESS</span>
+          </div>
+
+          <div style="margin-bottom: 0.75rem;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Byte Breakdown:</div>
+            <div id="res-byte-pills" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+          </div>
+
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Decoded JSON Output:</div>
+            <pre id="res-json-out" class="console-log" style="max-height: 140px;"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCHEMES LIST -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Configured Multi-Scheme Decoders (/etc/lora/decoders.json)</span>
+          <button class="btn btn-primary btn-sm" onclick="openSchemeModal()">+ Add New Scheme</button>
+        </div>
+        <div id="schemes-list-container">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: NODES & HOME ASSISTANT -->
+    <div id="tab-nodes" class="tab-content">
+      <!-- HOME ASSISTANT & MQTT CONFIGURATION -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Home Assistant MQTT Discovery & Gateway Topology</span>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <label class="switch">
+              <input type="checkbox" id="mqtt-enabled-switch" onchange="saveMqttConfig()">
+              <span class="slider"></span>
+            </label>
+            <span style="font-size: 0.85rem; font-weight: 600;">Enable MQTT Bridge</span>
+          </div>
+        </div>
+        <div class="grid-4" style="margin-bottom: 0.75rem;">
+          <div class="form-group">
+            <label class="form-label">Broker IP / Hostname</label>
+            <input type="text" id="mqtt-server" class="form-input form-mono" value="192.168.1.8" placeholder="e.g. 192.168.1.8">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Port</label>
+            <input type="number" id="mqtt-port" class="form-input form-mono" value="1883">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username (Optional)</label>
+            <input type="text" id="mqtt-user" class="form-input" placeholder="homeassistant">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password (Optional)</label>
+            <input type="password" id="mqtt-pass" class="form-input" placeholder="••••••••">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Home Assistant Discovery Prefix</label>
+            <input type="text" id="mqtt-discovery-prefix" class="form-input form-mono" value="homeassistant">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telemetry State Prefix</label>
+            <input type="text" id="mqtt-state-prefix" class="form-input form-mono" value="lora">
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+          <button class="btn btn-secondary" onclick="testMqttConnection()">🔌 Test Broker Connection</button>
+          <button class="btn btn-primary" onclick="saveMqttConfig()">💾 Save & Sync Discovery</button>
+        </div>
+      </div>
+
+      <!-- NODES REGISTRY TABLE -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Registered & Discovered LoRa End Devices</span>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" onclick="loadNodesTable()">↻ Refresh</button>
+            <button class="btn btn-primary btn-sm" onclick="openNodeModal()">+ Add Node</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Node ID</th>
+                <th>Device Name</th>
+                <th>Model</th>
+                <th>Class</th>
+                <th>Group / Area</th>
+                <th>Home Assistant</th>
+                <th>Last Signal</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="nodes-tbody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: DEVICE AUTOMATIONS & LINKING -->
+    <div id="tab-links" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Edge Device Linking & Rule Engine ("What is linked to what and how")</span>
+          <button class="btn btn-primary btn-sm" onclick="openLinkModal()">+ Create Automation Rule</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+          Automate direct node-to-node reactions directly on the gateway without cloud dependency. For example: If Living Room Sensor AA0B temperature exceeds 30°C, immediately dispatch downlink command <code>0101</code> to Valve Actuator AA0C.
+        </p>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Rule Name</th>
+                <th>Source Node</th>
+                <th>Trigger Condition</th>
+                <th>Target Node</th>
+                <th>Downlink Action</th>
+                <th>Timing & Debounce</th>
+                <th>LBT Carrier Sense</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="links-tbody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Realtime Audit Log -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Automation Execution & Audit Logs (/tmp/lora_messages.db)</span>
+          <button class="btn btn-secondary btn-sm" onclick="loadLinkLogs()">↻ Refresh Logs</button>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Rule ID</th>
+                <th>Event Type</th>
+                <th>Target Node</th>
+                <th>Status</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="link-logs-tbody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: RF CONCENTRATOR & TX -->
+    <div id="tab-lora" class="tab-content">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Concentrator Hardware Service</span>
+            <span class="pill" id="lora-service-badge">ACTIVE</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Service Daemon:</span>
+            <span class="info-value">raw_lora_app (SX1302 HAL 2.1.0)</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">SPI Bus Device:</span>
+            <span class="info-value">/dev/spidev5.0 (RK3566 SPI5)</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Reset Hardware Control:</span>
+            <span class="info-value">GPIO 149 (Power Enable: GPIO 125/122)</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Antenna & RF Frontend:</span>
+            <span class="info-value">EU868 Direct Coaxial to High-Gain Antenna</span>
+          </div>
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+            <button class="btn btn-primary" onclick="restartLoraService()">↻ Restart Daemon</button>
+            <button class="btn btn-secondary" onclick="stopLoraService()">⏹ Stop</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Manual LoRa Packet Transmitter</span>
+            <span class="pill pill-cyan">500 mW Max Power</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Payload HEX (or leave blank for test ping)</label>
+            <input type="text" id="tx-payload" class="form-input form-mono" placeholder="6b5a01fe02010101">
+          </div>
+          <div class="grid-3">
+            <div class="form-group">
+              <label class="form-label">Frequency (MHz)</label>
+              <input type="number" id="tx-freq" class="form-input form-mono" value="868.1" step="0.1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Spreading Factor</label>
+              <select id="tx-sf" class="form-select form-mono">
+                <option value="7" selected>SF7 (Fastest)</option>
+                <option value="8">SF8</option>
+                <option value="9">SF9</option>
+                <option value="10">SF10</option>
+                <option value="11">SF11</option>
+                <option value="12">SF12 (Longest Range)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Power (dBm)</label>
+              <select id="tx-pwr" class="form-select form-mono">
+                <option value="27" selected>27 dBm (500 mW)</option>
+                <option value="20">20 dBm (100 mW)</option>
+                <option value="14">14 dBm (25 mW)</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="width: 100%;" onclick="sendManualTxPacket()">📡 Transmit LoRa Downlink</button>
+        </div>
+      </div>
+
+      <!-- Live Service Journal -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Concentrator Systemd Journal Logs</span>
+          <button class="btn btn-secondary btn-sm" onclick="refreshLoraLogs()">↻ Refresh</button>
+        </div>
+        <pre id="lora-journal-pre" class="console-log" style="height: 220px;"></pre>
+      </div>
+    </div>
+
+    <!-- TAB 6: NETWORKING -->
+    <div id="tab-networking" class="tab-content">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Ethernet (eth0)</span>
+            <span class="pill pill-cyan">Client (DHCP)</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">IPv4 Address:</span>
+            <span class="info-value" id="net-eth-ip">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">MAC Address:</span>
+            <span class="info-value" id="net-eth-mac">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Default Gateway:</span>
+            <span class="info-value" id="net-eth-gw">--</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Wi-Fi (wlan0)</span>
+            <span class="pill" id="net-wifi-status">Disconnected</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Connected SSID:</span>
+            <span class="info-value" id="net-wifi-ssid">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Wi-Fi IP Address:</span>
+            <span class="info-value" id="net-wifi-ip">--</span>
+          </div>
+          <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+            <button class="btn btn-secondary" onclick="scanWifiNetworks()">🔍 Scan Wi-Fi</button>
+            <button class="btn btn-primary" onclick="openWifiModal()">📶 Connect to Wi-Fi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 7: PERIPHERALS & LED -->
+    <div id="tab-peripherals" class="tab-content">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">RGB Status LED Control</span>
+            <span class="pill">Hardware</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Front RGB Indicator configuration and direct color override:
+          </p>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+            <button class="btn btn-secondary" onclick="setLedColor('green')">🟢 Green</button>
+            <button class="btn btn-secondary" onclick="setLedColor('blue')">🔵 Blue</button>
+            <button class="btn btn-secondary" onclick="setLedColor('red')">🔴 Red</button>
+            <button class="btn btn-secondary" onclick="setLedColor('yellow')">🟡 Yellow</button>
+            <button class="btn btn-secondary" onclick="setLedColor('cyan')">🌐 Cyan</button>
+            <button class="btn btn-secondary" onclick="setLedColor('off')">⚫ Turn Off</button>
+          </div>
+          <button class="btn btn-primary" style="width: 100%;" onclick="runLedTest()">💡 Run Full RGB LED Cycle Test</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">On-Board Sensors & Clock</span>
+            <span class="pill">I2C</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Concentrator SX1302:</span>
+            <span class="info-value" id="sens-lora-temp">30.0 °C</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">RK3566 CPU Core:</span>
+            <span class="info-value" id="sens-cpu-temp">-- °C</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Mali-G52 GPU:</span>
+            <span class="info-value" id="sens-gpu-temp">-- °C</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Security Crypto Chip:</span>
+            <span class="info-value">ATECC608A (I2C 0x60 / 0x58)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 8: SYSTEM SETTINGS -->
+    <div id="tab-system" class="tab-content">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Device Hostname</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Current Hostname</label>
+            <input type="text" id="sys-hostname-input" class="form-input form-mono" value="bobcat-285">
+          </div>
+          <button class="btn btn-primary" onclick="saveHostname()">💾 Update Hostname</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Power & Maintenance</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            Cleanly restart or shut down the Bobcat gateway.
+          </p>
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn-secondary" onclick="rebootSystem()">🔄 Reboot Gateway</button>
+            <button class="btn btn-danger" onclick="poweroffSystem()">⚡ Power Off</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- /container -->
+
+  <!-- MODALS -->
+
+  <!-- 1. Scheme Editor Modal -->
+  <div id="modal-scheme" class="modal-overlay">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3 id="modal-scheme-title">Edit Decoder Scheme</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeSchemeModal()">✕</button>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Scheme ID</label>
+          <input type="text" id="scheme-id" class="form-input form-mono" placeholder="scheme_custom">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Scheme Name</label>
+          <input type="text" id="scheme-name" class="form-input" placeholder="e.g. Weather Sensor Node">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" id="scheme-desc" class="form-input" placeholder="Matches packets starting with AA...">
+      </div>
+      <div class="grid-3">
+        <div class="form-group">
+          <label class="form-label">Match Type</label>
+          <select id="scheme-match-type" class="form-select form-mono">
+            <option value="prefix">Prefix (Header)</option>
+            <option value="size">Payload Size (Bytes)</option>
+            <option value="regex">Regex Pattern</option>
+            <option value="default">Default / Fallback</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Match Value</label>
+          <input type="text" id="scheme-match-val" class="form-input form-mono" placeholder="e.g. aa0b or 12">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Decoder Engine</label>
+          <select id="scheme-dec-type" class="form-select form-mono" onchange="toggleDecoderEditorType()">
+            <option value="js">JavaScript Code (TTN Format)</option>
+            <option value="ascii">Printable ASCII</option>
+            <option value="cayenne_lpp">Cayenne LPP Standard</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="editor-js-section" class="form-group">
+        <label class="form-label">JavaScript Decoder Code (arguments: bytes, hex, pkt)</label>
+        <textarea id="scheme-code" class="code-editor" placeholder="// JavaScript Decoder..."></textarea>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+        <input type="checkbox" id="scheme-enabled" checked style="accent-color: var(--primary);">
+        <label for="scheme-enabled" style="font-size: 0.85rem;">Enable this decoder scheme in active pipeline</label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeSchemeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveCurrentScheme()">Save Scheme</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Node Profile Modal -->
+  <div id="modal-node" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-node-title">Edit LoRa Node</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeNodeModal()">✕</button>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Node ID (Hex)</label>
+          <input type="text" id="node-id-input" class="form-input form-mono" placeholder="AA0B">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Friendly Name</label>
+          <input type="text" id="node-name-input" class="form-input" placeholder="Living Room Sensor">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Node LPWAN Class</label>
+          <select id="node-class-input" class="form-select form-mono">
+            <option value="A">Class A (Battery / RX1 Turnaround)</option>
+            <option value="B">Class B (Ping Slots)</option>
+            <option value="C">Class C (Mains Powered / Instant Listening)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Model / Profile</label>
+          <input type="text" id="node-model-input" class="form-input" placeholder="temperature_sensor, relay_valve...">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Group / Area (Home Assistant)</label>
+          <input type="text" id="node-group-input" class="form-input" placeholder="Indoor, Garden, Garage...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Default TX Power (dBm)</label>
+          <input type="number" id="node-pwr-input" class="form-input form-mono" value="27">
+        </div>
+      </div>
+      <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;">
+          <input type="checkbox" id="node-configured-chk" checked style="accent-color: var(--primary);"> Configured (Adopted)
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;">
+          <input type="checkbox" id="node-ha-chk" checked style="accent-color: var(--primary);"> Expose to Home Assistant
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeNodeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveNodeProfile()">Save Node Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Downlink Dispatch Modal -->
+  <div id="modal-downlink" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Dispatch LoRa Downlink</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeDownlinkModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target Node ID</label>
+        <input type="text" id="downlink-target-node" class="form-input form-mono" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Command / Payload</label>
+        <input type="text" id="downlink-payload-input" class="form-input form-mono" placeholder="e.g. 0101 or ON">
+      </div>
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <button class="btn btn-secondary btn-sm" onclick="setDownlinkPreset('ON')">ON (0101)</button>
+        <button class="btn btn-secondary btn-sm" onclick="setDownlinkPreset('OFF')">OFF (0100)</button>
+        <button class="btn btn-secondary btn-sm" onclick="setDownlinkPreset('PING')">ASCII Ping</button>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Power (dBm)</label>
+          <select id="downlink-power-select" class="form-select form-mono">
+            <option value="27" selected>27 dBm (500mW)</option>
+            <option value="20">20 dBm (100mW)</option>
+            <option value="14">14 dBm (25mW)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data Rate</label>
+          <select id="downlink-sf-select" class="form-select form-mono">
+            <option value="7" selected>SF7 (Fastest)</option>
+            <option value="8">SF8</option>
+            <option value="9">SF9</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeDownlinkModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="sendNodeDownlink()">📡 Send Downlink Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Node Rolling History Modal -->
+  <div id="modal-history" class="modal-overlay">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3 id="modal-history-title">Node Message History</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeHistoryModal()">✕</button>
+      </div>
+      <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>RSSI</th>
+              <th>SNR</th>
+              <th>Freq / SF</th>
+              <th>Raw Hex</th>
+              <th>Decoded Telemetry</th>
+            </tr>
+          </thead>
+          <tbody id="node-history-tbody">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeHistoryModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Automation Link Rule Modal -->
+  <div id="modal-link" class="modal-overlay">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3 id="modal-link-title">Create Automation Rule</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeLinkModal()">✕</button>
+      </div>
+      <input type="hidden" id="link-id-input">
+      <div class="form-group">
+        <label class="form-label">Rule Name</label>
+        <input type="text" id="link-name-input" class="form-input" placeholder="e.g. Overheat Protection Valve">
+      </div>
+      <div class="grid-3">
+        <div class="form-group">
+          <label class="form-label">Source Node ID</label>
+          <input type="text" id="link-src-input" class="form-input form-mono" placeholder="AA0B">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Trigger Field</label>
+          <input type="text" id="link-field-input" class="form-input form-mono" value="temperature" placeholder="temperature, sensor_val, any...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Condition & Threshold</label>
+          <div style="display: flex; gap: 0.4rem;">
+            <select id="link-op-select" class="form-select form-mono" style="width: 70px;">
+              <option value=">">&gt;</option>
+              <option value="<">&lt;</option>
+              <option value="==">==</option>
+              <option value="!=">!=</option>
+              <option value="always">always</option>
+            </select>
+            <input type="number" id="link-thresh-input" class="form-input form-mono" value="30.0" step="0.1">
+          </div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Target Node ID</label>
+          <input type="text" id="link-target-input" class="form-input form-mono" placeholder="AA0C">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Action Downlink Payload</label>
+          <input type="text" id="link-payload-input" class="form-input form-mono" value="0101" placeholder="0101 (ON) or custom hex">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Turnaround Delay (ms) [Class A RX1]</label>
+          <input type="number" id="link-delay-input" class="form-input form-mono" value="1000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Debounce Cooldown (seconds)</label>
+          <input type="number" id="link-cooldown-input" class="form-input form-mono" value="60">
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+        <input type="checkbox" id="link-enabled-chk" checked style="accent-color: var(--primary);">
+        <label for="link-enabled-chk" style="font-size: 0.85rem;">Enable this automation rule</label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeLinkModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveLinkRule()">Save Rule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT APP LOGIC -->
+  <script>
+    let g_schemes = [];
+    let g_recentPackets = [];
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick')?.includes(tabId));
+      if (activeBtn) activeBtn.classList.add('active');
+      const target = document.getElementById('tab-' + tabId);
+      if (target) target.classList.add('active');
+
+      if (tabId === 'decoders') loadDecoders();
+      if (tabId === 'nodes') { loadNodesTable(); loadMqttConfig(); }
+      if (tabId === 'links') { loadLinkRules(); loadLinkLogs(); }
+      if (tabId === 'lora') refreshLoraLogs();
+    }
+
+    // ==================== DASHBOARD & REALTIME STATUS ====================
+    async function updateStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const d = await res.json();
+
+        document.getElementById('header-hostname').textContent = d.hostname || 'bobcat-285';
+        document.getElementById('header-uptime').textContent = d.uptime || '--';
+        document.getElementById('header-temp').textContent = (d.soc_temp || '--') + '°C';
+        document.getElementById('header-gpu-temp')?.textContent && (document.getElementById('header-gpu-temp').textContent = (d.gpu_temp || '--') + '°C');
+
+        document.getElementById('card-cpu-usage').textContent = (d.cpu_percent || 0) + '%';
+        document.getElementById('cpu-bar').style.width = (d.cpu_percent || 0) + '%';
+        document.getElementById('card-ram-brief').textContent = `${d.ram_used_mb || 0} MB / ${d.load_1m || 0}`;
+
+        // Network
+        if (d.interfaces && d.interfaces.eth0) {
+          document.getElementById('net-eth-ip').textContent = d.interfaces.eth0.ip || 'Disconnected';
+          document.getElementById('net-eth-mac').textContent = d.interfaces.eth0.mac || '--';
+        }
+        if (d.interfaces && d.interfaces.wlan0) {
+          const w = d.interfaces.wlan0;
+          document.getElementById('net-wifi-ip').textContent = w.ip || 'Not connected';
+          document.getElementById('net-wifi-ssid').textContent = d.wifi_ssid || '--';
+          document.getElementById('net-wifi-status').textContent = w.ip ? 'Connected' : 'Disconnected';
+        }
+        document.getElementById('net-eth-gw').textContent = d.default_gateway || '--';
+
+        // Temperatures
+        if (document.getElementById('sens-cpu-temp')) document.getElementById('sens-cpu-temp').textContent = (d.soc_temp || '--') + ' °C';
+        if (document.getElementById('sens-gpu-temp')) document.getElementById('sens-gpu-temp').textContent = (d.gpu_temp || '--') + ' °C';
+      } catch (e) {
+        console.error('Status fetch error:', e);
+      }
+    }
+
+    async function updateConcentratorStatus() {
+      try {
+        const res = await fetch('/api/lora/app/status');
+        const d = await res.json();
+        const live = d.live || {};
+
+        if (d.running) {
+          document.getElementById('header-radio-status').textContent = 'RUNNING';
+          document.getElementById('status-dot-radio').className = 'status-dot';
+          document.getElementById('lora-service-badge').className = 'pill pill-cyan';
+          document.getElementById('lora-service-badge').textContent = 'ACTIVE';
+        } else {
+          document.getElementById('header-radio-status').textContent = 'STOPPED';
+          document.getElementById('status-dot-radio').className = 'status-dot status-dot-off';
+          document.getElementById('lora-service-badge').className = 'pill';
+          document.getElementById('lora-service-badge').textContent = 'STOPPED';
+        }
+
+        if (live.eui) document.getElementById('header-eui').textContent = live.eui;
+        document.getElementById('dash-rx-count').textContent = live.rx ?? d.rx ?? 0;
+        document.getElementById('dash-tx-count').textContent = live.tx ?? d.tx ?? 0;
+        document.getElementById('dash-crc-err').textContent = live.crc_err ?? d.crc_err ?? 0;
+        document.getElementById('card-rx-status').textContent = live.rx_status || 'LISTENING';
+        document.getElementById('card-tx-status').textContent = live.tx_status || 'TX_FREE';
+        document.getElementById('dash-q-info').textContent = `${live.q_depth || 0} / ${live.q_drop || 0}`;
+
+        if (live.temp_c !== undefined) {
+          const tStr = live.temp_c.toFixed(1) + '°C';
+          document.getElementById('card-concentrator-temp').textContent = tStr;
+          if (document.getElementById('sens-lora-temp')) document.getElementById('sens-lora-temp').textContent = tStr;
+        }
+
+        // Render Demodulator Channel Bars
+        renderChannelMeters(live.ch_detect || [0,0,0,0,0,0,0,0]);
+      } catch (e) {
+        console.error('Concentrator status error:', e);
+      }
+    }
+
+    function renderChannelMeters(detects) {
+      const grid = document.getElementById('channel-meters-grid');
+      if (!grid) return;
+      const freqs = ['867.1', '867.3', '867.5', '867.7', '867.9', '868.1', '868.3', '868.5'];
+      let html = '';
+      for (let ch = 0; ch < 8; ch++) {
+        const count = detects[ch] || 0;
+        html += `
+          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.6rem 0.8rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.25rem;">
+              <span style="color: var(--text-muted); font-family: var(--font-mono);">CH${ch} (${freqs[ch]} MHz)</span>
+              <strong style="color: var(--primary); font-family: var(--font-mono);">${count} hits</strong>
+            </div>
+            <div class="progress-bar-bg" style="height: 5px; margin-top: 0.2rem;">
+              <div class="progress-bar-fill" style="width: ${Math.min(count * 10, 100)}%;"></div>
+            </div>
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
+    }
+
+    async function loadRecentPackets() {
+      try {
+        const res = await fetch('/api/lora/packets');
+        const list = await res.json();
+        g_recentPackets = list || [];
+
+        const tbody = document.getElementById('dash-packets-tbody');
+        const selHistory = document.getElementById('sel-history-pkts');
+
+        if (selHistory) {
+          selHistory.innerHTML = '<option value="">-- Load recent packet --</option>';
+          g_recentPackets.forEach((p, idx) => {
+            const opt = document.createElement('option');
+            opt.value = p.hex || '';
+            opt.textContent = `[${p.time || idx}] ${p.hex?.substring(0, 16)}... (${p.datr}, ${p.rssic || p.rssi} dBm)`;
+            selHistory.appendChild(opt);
+          });
+        }
+
+        if (!g_recentPackets.length) {
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No packets received yet. Concentrator is active and listening...</td></tr>';
+          return;
+        }
+
+        let html = '';
+        g_recentPackets.forEach((p) => {
+          const hex = p.hex || '';
+          const decoded = window.LoraDecoder ? window.LoraDecoder.decodePacket(p, g_schemes) : null;
+          const summary = decoded?.summary || hex;
+          let nodeGuess = hex.substring(0, 4).toUpperCase();
+          if (!nodeGuess) nodeGuess = '--';
+
+          html += `
+            <tr>
+              <td>${p.time || '--'}</td>
+              <td>${p.freq || '--'}</td>
+              <td><span class="badge badge-prefix">${p.datr || 'SF7'}</span></td>
+              <td style="color: ${(p.rssic || p.rssi) > -90 ? 'var(--success)' : 'var(--warning)'};">${p.rssic || p.rssi || '--'} dBm</td>
+              <td>${p.snr || '--'} dB</td>
+              <td><strong style="color: var(--primary);">${nodeGuess}</strong></td>
+              <td style="max-width: 160px; overflow: hidden; text-overflow: ellipsis;">${hex}</td>
+              <td style="color: #38bdf8; max-width: 220px; overflow: hidden; text-overflow: ellipsis;">${summary}</td>
+              <td>
+                <button class="btn btn-secondary btn-sm" onclick="testPacketInWorkbench('${hex}')">🔍 Inspect</button>
+              </td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch (e) {
+        console.error('Packets fetch error:', e);
+      }
+    }
+
+    // ==================== DECODERS & WORKBENCH ====================
+    async function loadDecoders() {
+      try {
+        const res = await fetch('/api/lora/decoders');
+        const data = await res.json();
+        g_schemes = data.schemes || [];
+        if (window.LoraDecoder) window.LoraDecoder.activeSchemes = g_schemes;
+        renderSchemesList();
+        loadRecentPackets();
+      } catch (e) {
+        console.error('Decoders fetch error:', e);
+      }
+    }
+
+    function renderSchemesList() {
+      const container = document.getElementById('schemes-list-container');
+      if (!container) return;
+      if (!g_schemes.length) {
+        container.innerHTML = '<p style="color: var(--text-muted); padding: 1rem;">No decoder schemes configured.</p>';
+        return;
+      }
+
+      let html = '';
+      g_schemes.forEach((s, idx) => {
+        const badgeClass = `badge-${s.matchType || 'default'}`;
+        const isEn = s.enabled !== false;
+        html += `
+          <div style="background: rgba(0,0,0,0.35); border: 1px solid var(--card-border); border-left: 4px solid ${isEn ? 'var(--primary)' : 'var(--text-muted)'}; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem;">
+                <span class="badge ${badgeClass}">${(s.matchType || 'DEFAULT').toUpperCase()}</span>
+                <span class="badge badge-default">${(s.type || 'JS').toUpperCase()}</span>
+                <strong style="font-size: 0.95rem; color: #fff;">${s.name || s.id}</strong>
+                ${s.matchValue ? `<code style="font-size: 0.75rem; color: var(--primary);">[val: ${s.matchValue}]</code>` : ''}
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-muted);">${s.description || 'No description provided.'}</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <label class="switch">
+                <input type="checkbox" ${isEn ? 'checked' : ''} onchange="toggleSchemeEnabled(${idx}, this.checked)">
+                <span class="slider"></span>
+              </label>
+              <button class="btn btn-secondary btn-sm" onclick="editScheme(${idx})">✏️ Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteScheme(${idx})">🗑 Delete</button>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    async function toggleSchemeEnabled(idx, enabled) {
+      if (!g_schemes[idx]) return;
+      g_schemes[idx].enabled = enabled;
+      await saveSchemesToServer();
+    }
+
+    async function saveSchemesToServer() {
+      try {
+        const res = await fetch('/api/lora/decoders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: 1, updated: new Date().toISOString(), schemes: g_schemes })
+        });
+        const d = await res.json();
+        if (d.success) {
+          renderSchemesList();
+        }
+      } catch (e) {
+        alert('Failed to save decoders: ' + e);
+      }
+    }
+
+    function setTestSample(hex) {
+      document.getElementById('test-hex').value = hex;
+      runWorkbenchTest();
+    }
+
+    function testPacketInWorkbench(hex) {
+      switchTab('decoders');
+      setTestSample(hex);
+    }
+
+    function loadSelectedPacket(hex) {
+      if (hex) setTestSample(hex);
+    }
+
+    function runWorkbenchTest() {
+      const hex = (document.getElementById('test-hex').value || '').trim();
+      if (!hex) return;
+
+      const dummyPkt = { hex: hex, freq: 868.1, datr: 'SF7BW125', rssi: -50 };
+      const res = window.LoraDecoder ? window.LoraDecoder.decodePacket(dummyPkt, g_schemes) : null;
+
+      const card = document.getElementById('workbench-result-card');
+      card.style.display = 'block';
+
+      if (res) {
+        document.getElementById('res-scheme-badge').textContent = (res.matchType || 'AUTO').toUpperCase();
+        document.getElementById('res-scheme-name').textContent = res.schemeName || res.schemeId;
+        document.getElementById('res-status-pill').textContent = res.success ? 'SUCCESS' : 'ERROR';
+        document.getElementById('res-status-pill').className = res.success ? 'pill pill-cyan' : 'pill pill-danger';
+
+        // Byte Pills
+        const bytes = window.LoraDecoder.hexToBytes(hex);
+        let pillsHtml = '';
+        bytes.forEach((b, i) => {
+          const hexStr = (b < 16 ? '0' : '') + b.toString(16).toUpperCase();
+          pillsHtml += `
+            <div class="byte-pill">
+              <span class="byte-idx">[${i}]</span>
+              <span class="byte-val">${hexStr}</span>
+            </div>
+          `;
+        });
+        document.getElementById('res-byte-pills').innerHTML = pillsHtml;
+
+        // Decoded JSON
+        document.getElementById('res-json-out').textContent = JSON.stringify(res.data, null, 2);
+      }
+    }
+
+    let g_editSchemeIdx = -1;
+    function openSchemeModal(idx = -1) {
+      g_editSchemeIdx = idx;
+      const modal = document.getElementById('modal-scheme');
+      modal.style.display = 'flex';
+
+      if (idx >= 0 && g_schemes[idx]) {
+        const s = g_schemes[idx];
+        document.getElementById('modal-scheme-title').textContent = 'Edit Scheme: ' + (s.name || s.id);
+        document.getElementById('scheme-id').value = s.id || '';
+        document.getElementById('scheme-name').value = s.name || '';
+        document.getElementById('scheme-desc').value = s.description || '';
+        document.getElementById('scheme-match-type').value = s.matchType || 'prefix';
+        document.getElementById('scheme-match-val').value = s.matchValue || '';
+        document.getElementById('scheme-dec-type').value = s.type || 'js';
+        document.getElementById('scheme-code').value = s.jsCode || '';
+        document.getElementById('scheme-enabled').checked = s.enabled !== false;
+      } else {
+        document.getElementById('modal-scheme-title').textContent = 'Add New Decoder Scheme';
+        document.getElementById('scheme-id').value = 'scheme_' + Date.now().toString(36);
+        document.getElementById('scheme-name').value = '';
+        document.getElementById('scheme-desc').value = '';
+        document.getElementById('scheme-match-type').value = 'prefix';
+        document.getElementById('scheme-match-val').value = '';
+        document.getElementById('scheme-dec-type').value = 'js';
+        document.getElementById('scheme-code').value = '// Return JSON object\nreturn {\n  raw_hex: hex,\n  size: bytes.length\n};';
+        document.getElementById('scheme-enabled').checked = true;
+      }
+      toggleDecoderEditorType();
+    }
+
+    function toggleDecoderEditorType() {
+      const type = document.getElementById('scheme-dec-type').value;
+      document.getElementById('editor-js-section').style.display = (type === 'js') ? 'block' : 'none';
+    }
+
+    function closeSchemeModal() {
+      document.getElementById('modal-scheme').style.display = 'none';
+    }
+
+    function editScheme(idx) {
+      openSchemeModal(idx);
+    }
+
+    async function deleteScheme(idx) {
+      if (!confirm(`Delete scheme "${g_schemes[idx]?.name}"?`)) return;
+      g_schemes.splice(idx, 1);
+      await saveSchemesToServer();
+    }
+
+    async function saveCurrentScheme() {
+      const id = document.getElementById('scheme-id').value.trim();
+      const name = document.getElementById('scheme-name').value.trim();
+      if (!id || !name) {
+        alert('Scheme ID and Name are required.');
+        return;
+      }
+
+      const obj = {
+        id: id,
+        name: name,
+        description: document.getElementById('scheme-desc').value.trim(),
+        matchType: document.getElementById('scheme-match-type').value,
+        matchValue: document.getElementById('scheme-match-val').value.trim(),
+        type: document.getElementById('scheme-dec-type').value,
+        enabled: document.getElementById('scheme-enabled').checked,
+        jsCode: document.getElementById('scheme-code').value
+      };
+
+      if (g_editSchemeIdx >= 0) {
+        g_schemes[g_editSchemeIdx] = obj;
+      } else {
+        g_schemes.push(obj);
+      }
+
+      closeSchemeModal();
+      await saveSchemesToServer();
+    }
+
+    // ==================== NODES REGISTRY & HOME ASSISTANT ====================
+    let g_nodes = [];
+    async function loadNodesTable() {
+      try {
+        const res = await fetch('/api/lora/nodes');
+        const data = await res.json();
+        g_nodes = data.nodes || [];
+
+        const tbody = document.getElementById('nodes-tbody');
+        document.getElementById('dash-active-nodes').textContent = g_nodes.filter(n => n.is_configured).length;
+
+        if (!g_nodes.length) {
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No nodes registered or auto-discovered yet.</td></tr>';
+          return;
+        }
+
+        let html = '';
+        g_nodes.forEach(n => {
+          const cls = (n.node_class || 'A').toUpperCase();
+          const badgeCls = cls === 'C' ? 'badge-class-c' : (cls === 'B' ? 'badge-class-b' : 'badge-class-a');
+          const haPill = n.ha_enabled ? '<span class="badge badge-cond">EXPOSED</span>' : '<span class="badge badge-default">HIDDEN</span>';
+          const confBadge = n.is_configured ? '' : '<span class="badge badge-size" style="margin-left: 4px;">NEW</span>';
+          const rssi = n.last_rssi ? `${n.last_rssi} dBm` : '--';
+          const snr = n.last_snr ? `${n.last_snr} dB` : '--';
+
+          html += `
+            <tr>
+              <td><strong style="color: var(--primary);">${n.node_id}</strong>${confBadge}</td>
+              <td>${n.name || '--'}</td>
+              <td style="color: var(--text-muted);">${n.model || 'generic'}</td>
+              <td><span class="badge ${badgeCls}">CLASS ${cls}</span></td>
+              <td>${n.group_name || 'Default'}</td>
+              <td>${haPill}</td>
+              <td><span style="color: ${n.last_rssi > -90 ? 'var(--success)' : 'var(--warning)'};">${rssi}</span> / ${snr}</td>
+              <td>${n.last_seen || 'Never'}</td>
+              <td>
+                <div style="display: flex; gap: 0.35rem;">
+                  <button class="btn btn-secondary btn-sm" onclick="openDownlinkModal('${n.node_id}')">📡 TX</button>
+                  <button class="btn btn-secondary btn-sm" onclick="openHistoryModal('${n.node_id}')">📜 Log</button>
+                  <button class="btn btn-secondary btn-sm" onclick="editNode('${n.node_id}')">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteNode('${n.node_id}')">🗑</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch (e) {
+        console.error('Nodes fetch error:', e);
+      }
+    }
+
+    async function loadMqttConfig() {
+      try {
+        const res = await fetch('/api/lora/mqtt');
+        const d = await res.json();
+        const m = d.mqtt || {};
+        document.getElementById('mqtt-enabled-switch').checked = m.enabled !== false;
+        document.getElementById('mqtt-server').value = m.server || '192.168.1.8';
+        document.getElementById('mqtt-port').value = m.port || 1883;
+        document.getElementById('mqtt-user').value = m.user || '';
+        document.getElementById('mqtt-pass').value = m.password || '';
+        document.getElementById('mqtt-discovery-prefix').value = m.discovery_prefix || 'homeassistant';
+        document.getElementById('mqtt-state-prefix').value = m.state_prefix || 'lora';
+        document.getElementById('dash-ha-status').textContent = m.enabled !== false ? 'MQTT Enabled' : 'Disabled';
+      } catch (e) {
+        console.error('MQTT config fetch error:', e);
+      }
+    }
+
+    async function saveMqttConfig() {
+      const payload = {
+        enabled: document.getElementById('mqtt-enabled-switch').checked,
+        server: document.getElementById('mqtt-server').value.trim(),
+        port: parseInt(document.getElementById('mqtt-port').value) || 1883,
+        user: document.getElementById('mqtt-user').value.trim(),
+        password: document.getElementById('mqtt-pass').value,
+        discovery_prefix: document.getElementById('mqtt-discovery-prefix').value.trim(),
+        state_prefix: document.getElementById('mqtt-state-prefix').value.trim()
+      };
+      try {
+        const res = await fetch('/api/lora/mqtt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        alert(d.message || (d.success ? 'Saved!' : 'Error'));
+      } catch (e) {
+        alert('Failed to save MQTT config: ' + e);
+      }
+    }
+
+    async function testMqttConnection() {
+      const payload = {
+        server: document.getElementById('mqtt-server').value.trim(),
+        port: parseInt(document.getElementById('mqtt-port').value) || 1883
+      };
+      try {
+        const res = await fetch('/api/lora/mqtt/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        alert(d.message || d.error);
+      } catch (e) {
+        alert('Test failed: ' + e);
+      }
+    }
+
+    function openNodeModal(nid = null) {
+      const modal = document.getElementById('modal-node');
+      modal.style.display = 'flex';
+      if (nid) {
+        const node = g_nodes.find(n => n.node_id === nid);
+        document.getElementById('modal-node-title').textContent = 'Edit Node: ' + nid;
+        document.getElementById('node-id-input').value = nid;
+        document.getElementById('node-id-input').readOnly = true;
+        document.getElementById('node-name-input').value = node?.name || '';
+        document.getElementById('node-class-input').value = (node?.node_class || 'A').toUpperCase();
+        document.getElementById('node-model-input').value = node?.model || 'generic';
+        document.getElementById('node-group-input').value = node?.group_name || 'Default';
+        document.getElementById('node-pwr-input').value = node?.default_tx_power || 27;
+        document.getElementById('node-configured-chk').checked = !!node?.is_configured;
+        document.getElementById('node-ha-chk').checked = !!node?.ha_enabled;
+      } else {
+        document.getElementById('modal-node-title').textContent = 'Add LoRa Node';
+        document.getElementById('node-id-input').value = '';
+        document.getElementById('node-id-input').readOnly = false;
+        document.getElementById('node-name-input').value = '';
+        document.getElementById('node-class-input').value = 'A';
+        document.getElementById('node-model-input').value = 'temperature_sensor';
+        document.getElementById('node-group-input').value = 'Default';
+        document.getElementById('node-pwr-input').value = 27;
+        document.getElementById('node-configured-chk').checked = true;
+        document.getElementById('node-ha-chk').checked = true;
+      }
+    }
+
+    function closeNodeModal() {
+      document.getElementById('modal-node').style.display = 'none';
+    }
+
+    function editNode(nid) {
+      openNodeModal(nid);
+    }
+
+    async function deleteNode(nid) {
+      if (!confirm(`Delete node ${nid} from registry?`)) return;
+      try {
+        await fetch('/api/lora/nodes/' + nid, { method: 'DELETE' });
+        loadNodesTable();
+      } catch (e) {
+        alert('Failed to delete node: ' + e);
+      }
+    }
+
+    async function saveNodeProfile() {
+      const payload = {
+        node_id: document.getElementById('node-id-input').value.trim().toUpperCase(),
+        name: document.getElementById('node-name-input').value.trim(),
+        node_class: document.getElementById('node-class-input').value,
+        model: document.getElementById('node-model-input').value.trim(),
+        group_name: document.getElementById('node-group-input').value.trim(),
+        default_tx_power: parseInt(document.getElementById('node-pwr-input').value) || 27,
+        is_configured: document.getElementById('node-configured-chk').checked ? 1 : 0,
+        ha_enabled: document.getElementById('node-ha-chk').checked ? 1 : 0
+      };
+      if (!payload.node_id) {
+        alert('Node ID is required.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/lora/nodes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        if (d.success) {
+          closeNodeModal();
+          loadNodesTable();
+        } else {
+          alert('Error: ' + d.error);
+        }
+      } catch (e) {
+        alert('Failed to save node: ' + e);
+      }
+    }
+
+    // Downlink Modal
+    function openDownlinkModal(nid) {
+      document.getElementById('downlink-target-node').value = nid;
+      document.getElementById('downlink-payload-input').value = '0101';
+      document.getElementById('modal-downlink').style.display = 'flex';
+    }
+
+    function closeDownlinkModal() {
+      document.getElementById('modal-downlink').style.display = 'none';
+    }
+
+    function setDownlinkPreset(val) {
+      document.getElementById('downlink-payload-input').value = val === 'ON' ? '0101' : (val === 'OFF' ? '0100' : 'PING_FROM_LPS8');
+    }
+
+    async function sendNodeDownlink() {
+      const nid = document.getElementById('downlink-target-node').value;
+      const payload = {
+        payload: document.getElementById('downlink-payload-input').value.trim(),
+        power: parseInt(document.getElementById('downlink-power-select').value) || 27,
+        sf: parseInt(document.getElementById('downlink-sf-select').value) || 7
+      };
+      try {
+        const res = await fetch(`/api/lora/nodes/${nid}/downlink`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        alert(d.message || d.error);
+        if (d.success) closeDownlinkModal();
+      } catch (e) {
+        alert('Downlink error: ' + e);
+      }
+    }
+
+    // History Modal
+    async function openHistoryModal(nid) {
+      document.getElementById('modal-history-title').textContent = `Message History: Node ${nid} (Rolling 50 Buffer)`;
+      document.getElementById('modal-history').style.display = 'flex';
+      const tbody = document.getElementById('node-history-tbody');
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Loading rolling history...</td></tr>';
+      try {
+        const res = await fetch(`/api/lora/nodes/${nid}/messages`);
+        const d = await res.json();
+        const msgs = d.messages || [];
+        if (!msgs.length) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No messages recorded yet for this node.</td></tr>';
+          return;
+        }
+        let html = '';
+        msgs.forEach(m => {
+          let decStr = m.payload_decoded || '--';
+          try {
+            const decObj = JSON.parse(m.payload_decoded);
+            decStr = Object.entries(decObj).map(([k, v]) => `${k}: ${v}`).join(', ');
+          } catch(e) {}
+          html += `
+            <tr>
+              <td>${m.timestamp || '--'}</td>
+              <td style="color: ${m.rssi > -90 ? 'var(--success)' : 'var(--warning)'};">${m.rssi || '--'} dBm</td>
+              <td>${m.snr || '--'} dB</td>
+              <td>${(m.freq_hz / 1e6).toFixed(1)} MHz / SF${m.sf}</td>
+              <td style="font-family: var(--font-mono);">${m.payload_raw || '--'}</td>
+              <td style="color: #38bdf8; font-family: var(--font-mono);">${decStr}</td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color: var(--danger);">Failed to load history: ${e}</td></tr>`;
+      }
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('modal-history').style.display = 'none';
+    }
+
+    // ==================== DEVICE AUTOMATIONS & LINKING ====================
+    let g_links = [];
+    async function loadLinkRules() {
+      try {
+        const res = await fetch('/api/lora/links');
+        const d = await res.json();
+        g_links = d.links || [];
+        document.getElementById('dash-link-rules').textContent = g_links.length + ' Rules';
+
+        const tbody = document.getElementById('links-tbody');
+        if (!g_links.length) {
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No automation rules configured.</td></tr>';
+          return;
+        }
+
+        let html = '';
+        g_links.forEach(l => {
+          const isEn = l.enabled !== 0;
+          const statusBadge = isEn ? '<span class="badge badge-cond">ACTIVE</span>' : '<span class="badge badge-default">DISABLED</span>';
+          html += `
+            <tr>
+              <td><strong style="color: #fff;">${l.name || '--'}</strong></td>
+              <td><strong style="color: var(--primary);">${l.source_node}</strong></td>
+              <td><code>${l.trigger_field} ${l.operator} ${l.threshold_val}</code></td>
+              <td><strong style="color: var(--primary);">${l.target_node}</strong></td>
+              <td><code>${l.action_payload}</code></td>
+              <td style="color: var(--text-muted);">${l.turnaround_delay_ms}ms / ${l.cooldown_sec}s</td>
+              <td><span class="badge badge-cond">LBT ACTIVE</span></td>
+              <td>${statusBadge}</td>
+              <td>
+                <div style="display: flex; gap: 0.35rem;">
+                  <button class="btn btn-secondary btn-sm" onclick="testLinkRule(${l.link_id})">⚡ Test</button>
+                  <button class="btn btn-secondary btn-sm" onclick="editLinkRule(${l.link_id})">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteLinkRule(${l.link_id})">🗑</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch (e) {
+        console.error('Links fetch error:', e);
+      }
+    }
+
+    async function loadLinkLogs() {
+      try {
+        const res = await fetch('/api/lora/links/logs');
+        const d = await res.json();
+        const logs = d.logs || [];
+        const tbody = document.getElementById('link-logs-tbody');
+        if (!logs.length) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1rem;">No execution logs yet.</td></tr>';
+          return;
+        }
+        let html = '';
+        logs.forEach(l => {
+          html += `
+            <tr>
+              <td>${l.timestamp || '--'}</td>
+              <td>#${l.link_id || '--'}</td>
+              <td><span class="badge badge-prefix">${l.event_type || 'TRIGGER'}</span></td>
+              <td><strong style="color: var(--primary);">${l.target_node || '--'}</strong></td>
+              <td><span class="badge badge-cond">${l.tx_status || 'OK'}</span></td>
+              <td style="color: var(--text-muted);">${l.details || '--'}</td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch (e) {
+        console.error('Link logs error:', e);
+      }
+    }
+
+    function openLinkModal(lid = null) {
+      document.getElementById('modal-link').style.display = 'flex';
+      if (lid) {
+        const r = g_links.find(x => x.link_id === lid);
+        document.getElementById('modal-link-title').textContent = 'Edit Automation Rule #' + lid;
+        document.getElementById('link-id-input').value = lid;
+        document.getElementById('link-name-input').value = r?.name || '';
+        document.getElementById('link-src-input').value = r?.source_node || '';
+        document.getElementById('link-field-input').value = r?.trigger_field || 'temperature';
+        document.getElementById('link-op-select').value = r?.operator || '>';
+        document.getElementById('link-thresh-input').value = r?.threshold_val ?? 30.0;
+        document.getElementById('link-target-input').value = r?.target_node || '';
+        document.getElementById('link-payload-input').value = r?.action_payload || '0101';
+        document.getElementById('link-delay-input').value = r?.turnaround_delay_ms ?? 1000;
+        document.getElementById('link-cooldown-input').value = r?.cooldown_sec ?? 60;
+        document.getElementById('link-enabled-chk').checked = r?.enabled !== 0;
+      } else {
+        document.getElementById('modal-link-title').textContent = 'Create Automation Rule';
+        document.getElementById('link-id-input').value = '';
+        document.getElementById('link-name-input').value = '';
+        document.getElementById('link-src-input').value = 'AA0B';
+        document.getElementById('link-field-input').value = 'temperature';
+        document.getElementById('link-op-select').value = '>';
+        document.getElementById('link-thresh-input').value = 30.0;
+        document.getElementById('link-target-input').value = 'AA0C';
+        document.getElementById('link-payload-input').value = '0101';
+        document.getElementById('link-delay-input').value = 1000;
+        document.getElementById('link-cooldown-input').value = 60;
+        document.getElementById('link-enabled-chk').checked = true;
+      }
+    }
+
+    function closeLinkModal() {
+      document.getElementById('modal-link').style.display = 'none';
+    }
+
+    function editLinkRule(lid) {
+      openLinkModal(lid);
+    }
+
+    async function deleteLinkRule(lid) {
+      if (!confirm(`Delete rule #${lid}?`)) return;
+      try {
+        await fetch('/api/lora/links/' + lid, { method: 'DELETE' });
+        loadLinkRules();
+      } catch (e) {
+        alert('Delete failed: ' + e);
+      }
+    }
+
+    async function testLinkRule(lid) {
+      try {
+        const res = await fetch(`/api/lora/links/${lid}/test`, { method: 'POST' });
+        const d = await res.json();
+        alert(d.message || d.error);
+        loadLinkLogs();
+      } catch (e) {
+        alert('Test failed: ' + e);
+      }
+    }
+
+    async function saveLinkRule() {
+      const payload = {
+        link_id: document.getElementById('link-id-input').value ? parseInt(document.getElementById('link-id-input').value) : null,
+        name: document.getElementById('link-name-input').value.trim(),
+        source_node: document.getElementById('link-src-input').value.trim().toUpperCase(),
+        trigger_field: document.getElementById('link-field-input').value.trim(),
+        operator: document.getElementById('link-op-select').value,
+        threshold_val: parseFloat(document.getElementById('link-thresh-input').value) || 0.0,
+        target_node: document.getElementById('link-target-input').value.trim().toUpperCase(),
+        action_payload: document.getElementById('link-payload-input').value.trim(),
+        turnaround_delay_ms: parseInt(document.getElementById('link-delay-input').value) || 1000,
+        cooldown_sec: parseInt(document.getElementById('link-cooldown-input').value) || 60,
+        enabled: document.getElementById('link-enabled-chk').checked ? 1 : 0
+      };
+      if (!payload.name || !payload.source_node || !payload.target_node) {
+        alert('Name, Source Node, and Target Node are required.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/lora/links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        if (d.success) {
+          closeLinkModal();
+          loadLinkRules();
+        } else {
+          alert('Error: ' + d.error);
+        }
+      } catch (e) {
+        alert('Save failed: ' + e);
+      }
+    }
+
+    // ==================== RF CONCENTRATOR MANUAL TX & LOGS ====================
+    async function sendManualTxPacket() {
+      const payload = {
+        payload_hex: document.getElementById('tx-payload').value.trim(),
+        freq: parseFloat(document.getElementById('tx-freq').value) || 868.1,
+        sf: parseInt(document.getElementById('tx-sf').value) || 7,
+        bw: 125,
+        power: parseInt(document.getElementById('tx-pwr').value) || 27
+      };
+      try {
+        const res = await fetch('/api/lora/app/tx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        alert(d.message || d.error);
+        refreshLoraLogs();
+      } catch (e) {
+        alert('TX error: ' + e);
+      }
+    }
+
+    async function restartLoraService() {
+      try {
+        const res = await fetch('/api/lora/app/service', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'restart' })
+        });
+        const d = await res.json();
+        alert(d.message || 'Service restarted');
+        setTimeout(refreshLoraLogs, 2000);
+      } catch (e) {
+        alert('Restart error: ' + e);
+      }
+    }
+
+    async function stopLoraService() {
+      try {
+        await fetch('/api/lora/app/service', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'stop' })
+        });
+        refreshLoraLogs();
+      } catch (e) {}
+    }
+
+    async function refreshLoraLogs() {
+      try {
+        const res = await fetch('/api/lora/app/logs?lines=40');
+        const d = await res.json();
+        const pre = document.getElementById('lora-journal-pre');
+        if (pre) {
+          pre.textContent = d.logs || 'No log output.';
+          pre.scrollTop = pre.scrollHeight;
+        }
+      } catch (e) {}
+    }
+
+    // ==================== NETWORKING & WI-FI ====================
+    async function scanWifiNetworks() {
+      try {
+        const res = await fetch('/api/wifi/scan');
+        const d = await res.json();
+        const list = d.networks || [];
+        if (!list.length) {
+          alert('No Wi-Fi networks found.');
+          return;
+        }
+        let txt = 'Found Wi-Fi Networks:\n\n';
+        list.forEach(n => {
+          txt += `• ${n.ssid || '(Hidden)'} | Signal: ${n.signal || '--'} dBm | Security: ${n.security || 'Open'}\n`;
+        });
+        alert(txt);
+      } catch (e) {
+        alert('Wi-Fi scan failed: ' + e);
+      }
+    }
+
+    function openWifiModal() {
+      const ssid = prompt('Enter Wi-Fi SSID:');
+      if (!ssid) return;
+      const pass = prompt('Enter Wi-Fi Password:');
+      fetch('/api/wifi/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ssid: ssid, password: pass || '' })
+      }).then(r => r.json()).then(d => alert(d.message || d.error)).catch(e => alert(e));
+    }
+
+    // ==================== PERIPHERALS & LED ====================
+    async function setLedColor(color) {
+      try {
+        const res = await fetch('/api/leds/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ color: color, mode: 'on' })
+        });
+        const d = await res.json();
+        if (d.success) console.log('LED set to:', color);
+      } catch (e) {
+        alert('LED error: ' + e);
+      }
+    }
+
+    async function runLedTest() {
+      try {
+        const res = await fetch('/api/leds/test', { method: 'POST' });
+        const d = await res.json();
+        alert('LED Cycle Test Started:\n' + (d.output || 'Complete'));
+      } catch (e) {
+        alert('LED test failed: ' + e);
+      }
+    }
+
+    // ==================== SYSTEM ====================
+    async function saveHostname() {
+      const h = document.getElementById('sys-hostname-input').value.trim();
+      if (!h) return;
+      try {
+        const res = await fetch('/api/hostname', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hostname: h })
+        });
+        const d = await res.json();
+        alert(d.message || d.error);
+        updateStatus();
+      } catch (e) {
+        alert('Hostname error: ' + e);
+      }
+    }
+
+    async function rebootSystem() {
+      if (!confirm('Reboot the Bobcat Miner gateway now?')) return;
+      try {
+        const res = await fetch('/api/system/reboot', { method: 'POST' });
+        const d = await res.json();
+        alert(d.message);
+      } catch (e) {}
+    }
+
+    async function poweroffSystem() {
+      if (!confirm('Power off the Bobcat Miner gateway completely?')) return;
+      try {
+        const res = await fetch('/api/system/poweroff', { method: 'POST' });
+        const d = await res.json();
+        alert(d.message);
+      } catch (e) {}
+    }
+
+    // Auto-refresh loops
+    setInterval(updateStatus, 3000);
+    setInterval(updateConcentratorStatus, 3000);
+    setInterval(loadRecentPackets, 4000);
+
+    // Initial Load
+    window.addEventListener('DOMContentLoaded', () => {
+      updateStatus();
+      updateConcentratorStatus();
+      loadDecoders();
+      loadNodesTable();
+      loadMqttConfig();
+      loadLinkRules();
+    });
+  </script>
+</body>
+</html>

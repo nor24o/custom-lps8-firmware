@@ -1,67 +1,37 @@
-# Temporary build directories
-/bin/
-/dl/
-/tmp/
-.config.old
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Firmware binary dumps and archives in root
-/*.bin
-/*.tar.gz
-/*.tar.xz
-firmwarebackup_lps8/
-firmwareorg/
-sx1302_hal/firmwarebackup_lps8/
-sx1302_hal/firmwareorg/
+# Databases & local state
+*.db
+*.sqlite3
+/etc/lora/*.db
 
-# Compiled objects and intermediate files
+# Compiled objects and binaries
 *.o
 *.a
 *.so
-targets/*/src/*_pkt_fwd
-targets/*/src/simple_spi_rw
-targets/*/src/raw_lora_app
-!staging/usr/lib/*.so
-!staging/usr/lib/*.a
-!targets/sx1276_lg01_lg02/staging/usr/lib/*.so
-!targets/sx1276_lg01_lg02/staging/usr/lib/*.a
-tags
-.claude/
+sx1302_hal/raw_lora_app
+sx1302_hal/util_chip_id/chip_id
+sx1302_hal/util_boot/boot
+sx1302_hal/util_net_downlink/net_downlink
+sx1302_hal/util_spectral_scan/spectral_scan
+sx1302_hal/packet_forwarder/lora_pkt_fwd
 
-# Keep essential ImageBuilder metadata
-!.config
-!.packageinfo
-!.profiles.mk
-!.targetinfo
-!Makefile
-!rules.mk
-!repositories.conf
-scripts/env.sh
+# Archives, images and backups
+*.img
+*.img.gz
+*.tar.gz
+*.zip
+*.bin
 
-# Keep ImageBuilder packages and host tools
-!packages/
-!packages/**
-!staging_dir/
-!staging_dir/host/
-!staging_dir/host/**
-!staging_dir/target-mips_24kc_musl/
-!staging_dir/target-mips_24kc_musl/**
+# Temporary and log files
+*.log
+/tmp/
 
-# Exclude unnecessary bloated build tools from host
-staging_dir/toolchain-*
-staging_dir/host/bin/*cmake*
-staging_dir/host/bin/*ctest*
-staging_dir/host/bin/*cpack*
-staging_dir/host/bin/*ccache*
-staging_dir/host/share/cmake*
-
-# Ignore build_dir except essential Dragino kernels
-build_dir/*
-!build_dir/target-mips_24kc_musl/
-build_dir/target-mips_24kc_musl/*
-!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/
-build_dir/target-mips_24kc_musl/linux-ar71xx_generic/*
-!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/dragino2-kernel.bin
-!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux
-!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.bin.lzma
-!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/vmlinux.elf
-!build_dir/target-mips_24kc_musl/linux-ar71xx_generic/loader*
+# Editor and OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

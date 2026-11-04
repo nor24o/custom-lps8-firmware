@@ -1,0 +1,63 @@
+#!/bin/bash
+# Bobcat 300 G285 RGB LED Test
+# Physical Wiring:
+# Red   = /sys/class/leds/red:status   (GPIO4_A2)
+# Green = /sys/class/leds/blue:status  (GPIO4_A0)
+# Blue  = /sys/class/leds/green:status (GPIO4_A1)
+
+RED=/sys/class/leds/red:status
+GREEN=/sys/class/leds/blue:status
+BLUE=/sys/class/leds/green:status
+
+set_color() {
+    # $1=R, $2=G, $3=B
+    echo none > $RED/trigger 2>/dev/null
+    echo none > $GREEN/trigger 2>/dev/null
+    echo none > $BLUE/trigger 2>/dev/null
+    echo "$1" > $RED/brightness 2>/dev/null
+    echo "$2" > $GREEN/brightness 2>/dev/null
+    echo "$3" > $BLUE/brightness 2>/dev/null
+}
+
+echo "=========================================="
+echo "    Bobcat 300 RGB LED Hardware Test      "
+echo "=========================================="
+
+echo "[+] 1. Testing RED..."
+set_color 1 0 0
+sleep 0.8
+
+echo "[+] 2. Testing GREEN..."
+set_color 0 1 0
+sleep 0.8
+
+echo "[+] 3. Testing BLUE..."
+set_color 0 0 1
+sleep 0.8
+
+echo "[+] 4. Testing YELLOW (Red + Green)..."
+set_color 1 1 0
+sleep 0.8
+
+echo "[+] 5. Testing CYAN (Green + Blue)..."
+set_color 0 1 1
+sleep 0.8
+
+echo "[+] 6. Testing PURPLE (Red + Blue)..."
+set_color 1 0 1
+sleep 0.8
+
+echo "[+] 7. Testing WHITE (Red + Green + Blue)..."
+set_color 1 1 1
+sleep 0.8
+
+echo "[+] Turning OFF..."
+set_color 0 0 0
+sleep 0.3
+
+echo "[+] Restoring Green Heartbeat..."
+echo heartbeat > $GREEN/trigger 2>/dev/null
+
+echo "=========================================="
+echo "SUCCESS: RGB LED Test Complete!"
+echo "=========================================="
