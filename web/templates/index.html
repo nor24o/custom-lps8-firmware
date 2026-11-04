@@ -120,25 +120,25 @@
 
     .tabs {
       display: flex;
-      gap: 0.4rem;
+      flex-wrap: wrap;
+      gap: 0.45rem;
       margin-bottom: 1.5rem;
       border-bottom: 1px solid var(--card-border);
-      padding-bottom: 0.6rem;
-      overflow-x: auto;
+      padding-bottom: 0.75rem;
     }
     .tab-btn {
       background: none;
-      border: none;
+      border: 1px solid transparent;
       color: var(--text-muted);
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 500;
-      padding: 0.6rem 1.1rem;
+      padding: 0.5rem 0.95rem;
       cursor: pointer;
       border-radius: 8px;
       transition: all 0.2s ease;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.45rem;
       white-space: nowrap;
     }
     .tab-btn:hover {
@@ -924,7 +924,7 @@
       <div class="grid-2">
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Ethernet (eth0)</span>
+            <span class="card-title" id="net-eth-title">Ethernet (end0)</span>
             <span class="pill pill-cyan">Client (DHCP)</span>
           </div>
           <div class="info-row">
@@ -958,6 +958,21 @@
             <button class="btn btn-secondary" onclick="scanWifiNetworks()">🔍 Scan Wi-Fi</button>
             <button class="btn btn-primary" onclick="openWifiModal()">📶 Connect to Wi-Fi</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Device Hostname & Network Identity -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <span class="card-title">Device Hostname & Network Identity</span>
+          <span class="pill pill-cyan">Local DNS</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Configure the network hostname used for mDNS, DHCP option 12, and local network identification.
+        </p>
+        <div style="display: flex; gap: 1rem; max-width: 520px;">
+          <input type="text" id="net-hostname-input" class="form-input form-mono" value="bobcat-285" placeholder="e.g. bobcat-gateway">
+          <button class="btn btn-primary" onclick="saveHostname('net')">💾 Update Hostname</button>
         </div>
       </div>
     </div>
@@ -1326,31 +1341,61 @@
         const res = await fetch('/api/status');
         const d = await res.json();
 
-        document.getElementById('header-hostname').textContent = d.hostname || 'bobcat-285';
+        // Hostname display & inputs
+        const hName = d.hostname || 'bobcat-285';
+        document.getElementById('header-hostname').textContent = hName;
+        const sysHostInput = document.getElementById('sys-hostname-input');
+        if (sysHostInput && !sysHostInput.matches(':focus')) {
+          sysHostInput.value = hName;
+        }
+        const netHostInput = document.getElementById('net-hostname-input');
+        if (netHostInput && !netHostInput.matches(':focus')) {
+          netHostInput.value = hName;
+        }
+
         document.getElementById('header-uptime').textContent = d.uptime || '--';
-        document.getElementById('header-temp').textContent = (d.soc_temp || '--') + '°C';
-        document.getElementById('header-gpu-temp')?.textContent && (document.getElementById('header-gpu-temp').textContent = (d.gpu_temp || '--') + '°C');
-
-        document.getElementById('card-cpu-usage').textContent = (d.cpu_percent || 0) + '%';
-        document.getElementById('cpu-bar').style.width = (d.cpu_percent || 0) + '%';
-        document.getElementById('card-ram-brief').textContent = `${d.ram_used_mb || 0} MB / ${d.load_1m || 0}`;
-
-        // Network
-        if (d.interfaces && d.interfaces.eth0) {
-          document.getElementById('net-eth-ip').textContent = d.interfaces.eth0.ip || 'Disconnected';
-          document.getElementById('net-eth-mac').textContent = d.interfaces.eth0.mac || '--';
+        const tempVal = d.soc_temp ?? d.cpu_temp ?? '--';
+        document.getElementById('header-temp').textContent = tempVal + '°C';
+        if (document.getElementById('header-gpu-temp')) {
+          document.getElementById('header-gpu-temp').textContent = (d.gpu_temp || '--') + '°C';
         }
-        if (d.interfaces && d.interfaces.wlan0) {
-          const w = d.interfaces.wlan0;
-          document.getElementById('net-wifi-ip').textContent = w.ip || 'Not connected';
-          document.getElementById('net-wifi-ssid').textContent = d.wifi_ssid || '--';
-          document.getElementById('net-wifi-status').textContent = w.ip ? 'Connected' : 'Disconnected';
-        }
+
+        const cpuPct = d.cpu_percent ?? d.cpu_usage ?? 0;
+        document.getElementById('card-cpu-usage').textContent = cpuPct + '%';
+        document.getElementById('cpu-bar').style.width = Math.min(100, Math.max(0, cpuPct)) + '%';
+        const ramUsed = d.ram_used_mb ?? d.ram?.used ?? 0;
+        const loadAvg = d.load_1m ?? d.loadavg?.[0] ?? '--';
+        document.getElementById('card-ram-brief').textContent = `${ramUsed} MB / ${loadAvg}`;
+
+        // Network Ethernet
+        const eth = (d.interfaces && (d.interfaces.eth0 || d.interfaces.end0)) || d.eth0 || {};
+        const ethIp = (eth.ip || 'Disconnected').split('/')[0];
+        document.getElementById('net-eth-ip').textContent = ethIp;
+        document.getElementById('net-eth-mac').textContent = eth.mac || '--';
         document.getElementById('net-eth-gw').textContent = d.default_gateway || '--';
+        if (document.getElementById('net-eth-title')) {
+          document.getElementById('net-eth-title').textContent = `Ethernet (${eth.name || 'end0'})`;
+        }
 
-        // Temperatures
-        if (document.getElementById('sens-cpu-temp')) document.getElementById('sens-cpu-temp').textContent = (d.soc_temp || '--') + ' °C';
-        if (document.getElementById('sens-gpu-temp')) document.getElementById('sens-gpu-temp').textContent = (d.gpu_temp || '--') + ' °C';
+        // Network Wi-Fi
+        const wifi = (d.interfaces && d.interfaces.wlan0) || d.wifi || {};
+        const isWifiConn = wifi.connected || (wifi.ip && wifi.ip !== 'Not connected' && wifi.ip !== 'Disconnected');
+        const wifiIp = (wifi.ip || 'Not connected').split('/')[0];
+        document.getElementById('net-wifi-ip').textContent = isWifiConn ? wifiIp : 'Not connected';
+        document.getElementById('net-wifi-ssid').textContent = d.wifi_ssid || wifi.ssid || '--';
+        const wifiStatusEl = document.getElementById('net-wifi-status');
+        if (wifiStatusEl) {
+          wifiStatusEl.textContent = isWifiConn ? 'Connected' : 'Disconnected';
+          wifiStatusEl.className = isWifiConn ? 'pill pill-cyan' : 'pill';
+        }
+
+        // Temperatures in hardware tab
+        if (document.getElementById('sens-cpu-temp')) {
+          document.getElementById('sens-cpu-temp').textContent = tempVal + ' °C';
+        }
+        if (document.getElementById('sens-gpu-temp')) {
+          document.getElementById('sens-gpu-temp').textContent = (d.gpu_temp || '--') + ' °C';
+        }
       } catch (e) {
         console.error('Status fetch error:', e);
       }
@@ -1360,31 +1405,47 @@
       try {
         const res = await fetch('/api/lora/app/status');
         const d = await res.json();
-        const live = d.live || {};
+        const live = d.live || d.metrics || {};
+        const isRunning = (d.running === true) || (d.active === true && (live.uptime_s !== undefined || live.daemon));
 
-        if (d.running) {
-          document.getElementById('header-radio-status').textContent = 'RUNNING';
-          document.getElementById('status-dot-radio').className = 'status-dot';
-          document.getElementById('lora-service-badge').className = 'pill pill-cyan';
-          document.getElementById('lora-service-badge').textContent = 'ACTIVE';
+        const radioStatusEl = document.getElementById('header-radio-status');
+        const radioDotEl = document.getElementById('status-dot-radio');
+        const badgeEl = document.getElementById('lora-service-badge');
+
+        if (isRunning) {
+          if (radioStatusEl) radioStatusEl.textContent = 'RUNNING';
+          if (radioDotEl) radioDotEl.className = 'status-dot';
+          if (badgeEl) {
+            badgeEl.className = 'pill pill-cyan';
+            badgeEl.textContent = 'ACTIVE';
+          }
         } else {
-          document.getElementById('header-radio-status').textContent = 'STOPPED';
-          document.getElementById('status-dot-radio').className = 'status-dot status-dot-off';
-          document.getElementById('lora-service-badge').className = 'pill';
-          document.getElementById('lora-service-badge').textContent = 'STOPPED';
+          if (radioStatusEl) radioStatusEl.textContent = 'STOPPED';
+          if (radioDotEl) radioDotEl.className = 'status-dot status-dot-off';
+          if (badgeEl) {
+            badgeEl.className = 'pill';
+            badgeEl.textContent = 'STOPPED';
+          }
         }
 
-        if (live.eui) document.getElementById('header-eui').textContent = live.eui;
-        document.getElementById('dash-rx-count').textContent = live.rx ?? d.rx ?? 0;
-        document.getElementById('dash-tx-count').textContent = live.tx ?? d.tx ?? 0;
-        document.getElementById('dash-crc-err').textContent = live.crc_err ?? d.crc_err ?? 0;
-        document.getElementById('card-rx-status').textContent = live.rx_status || 'LISTENING';
-        document.getElementById('card-tx-status').textContent = live.tx_status || 'TX_FREE';
-        document.getElementById('dash-q-info').textContent = `${live.q_depth || 0} / ${live.q_drop || 0}`;
+        if (live.eui && document.getElementById('header-eui')) {
+          document.getElementById('header-eui').textContent = live.eui;
+        }
+
+        const rxVal = live.rx ?? d.rx ?? 0;
+        const txVal = live.tx ?? d.tx ?? 0;
+        const crcVal = live.crc_err ?? d.crc_err ?? 0;
+
+        if (document.getElementById('dash-rx-count')) document.getElementById('dash-rx-count').textContent = rxVal;
+        if (document.getElementById('dash-tx-count')) document.getElementById('dash-tx-count').textContent = txVal;
+        if (document.getElementById('dash-crc-err')) document.getElementById('dash-crc-err').textContent = crcVal;
+        if (document.getElementById('card-rx-status')) document.getElementById('card-rx-status').textContent = live.rx_status || 'LISTENING';
+        if (document.getElementById('card-tx-status')) document.getElementById('card-tx-status').textContent = live.tx_status || 'TX_FREE';
+        if (document.getElementById('dash-q-info')) document.getElementById('dash-q-info').textContent = `${live.q_depth || 0} / ${live.q_drop || 0}`;
 
         if (live.temp_c !== undefined) {
-          const tStr = live.temp_c.toFixed(1) + '°C';
-          document.getElementById('card-concentrator-temp').textContent = tStr;
+          const tStr = parseFloat(live.temp_c).toFixed(1) + '°C';
+          if (document.getElementById('card-concentrator-temp')) document.getElementById('card-concentrator-temp').textContent = tStr;
           if (document.getElementById('sens-lora-temp')) document.getElementById('sens-lora-temp').textContent = tStr;
         }
 
@@ -2230,9 +2291,14 @@
     }
 
     // ==================== SYSTEM ====================
-    async function saveHostname() {
-      const h = document.getElementById('sys-hostname-input').value.trim();
-      if (!h) return;
+    async function saveHostname(source = 'sys') {
+      const inputId = (source === 'net') ? 'net-hostname-input' : 'sys-hostname-input';
+      const el = document.getElementById(inputId) || document.getElementById('sys-hostname-input');
+      const h = el ? el.value.trim() : '';
+      if (!h) {
+        alert('Please enter a valid hostname.');
+        return;
+      }
       try {
         const res = await fetch('/api/hostname', {
           method: 'POST',
@@ -2240,7 +2306,14 @@
           body: JSON.stringify({ hostname: h })
         });
         const d = await res.json();
-        alert(d.message || d.error);
+        if (d.success) {
+          alert(d.message || `Hostname successfully changed to ${h}`);
+          document.getElementById('header-hostname').textContent = h;
+          if (document.getElementById('sys-hostname-input')) document.getElementById('sys-hostname-input').value = h;
+          if (document.getElementById('net-hostname-input')) document.getElementById('net-hostname-input').value = h;
+        } else {
+          alert('Hostname error: ' + (d.error || 'Failed to set hostname'));
+        }
         updateStatus();
       } catch (e) {
         alert('Hostname error: ' + e);

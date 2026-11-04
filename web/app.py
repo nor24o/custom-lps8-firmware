@@ -109,6 +109,46 @@ def get_disk_info():
     except:
         return {'total': 0, 'used': 0, 'free': 0, 'percent': 0}
 
+def find_ethernet_interface():
+    try:
+        ifaces = os.listdir('/sys/class/net')
+        for name in ['end0', 'eth0']:
+            if name in ifaces:
+                return name
+        for iface in ifaces:
+            if iface.startswith(('end', 'eth', 'enp')) and not iface.startswith('lo'):
+                return iface
+    except:
+        pass
+    return 'end0'
+
+def get_default_gateway():
+    try:
+        out = subprocess.check_output(['ip', 'route'], text=True, stderr=subprocess.DEVNULL)
+        m = re.search(r'default via\s+(\d+\.\d+\.\d+\.\d+)', out)
+        if m:
+            return m.group(1)
+    except:
+        pass
+    return '--'
+
+def get_hostname():
+    try:
+        with open('/etc/hostname', 'r') as f:
+            h = f.read().strip()
+            if h:
+                return h
+    except:
+        pass
+    return socket.gethostname()
+
+def get_load_averages():
+    try:
+        l1, l5, l15 = os.getloadavg()
+        return round(l1, 2)
+    except:
+        return 0.0
+
 def get_ip_info(iface):
     ip = "Disconnected"
     mac = ""
@@ -195,11 +235,19 @@ def index():
 
 @app.route('/api/status')
 def api_status():
-    hostname = socket.gethostname()
-    eth0 = get_ip_info('eth0')
-    wifi = get_wifi_status()
+    hostname = get_hostname()
+    eth_iface = find_ethernet_interface()
+    eth_info = get_ip_info(eth_iface)
+    wifi_info = get_wifi_status()
     lora_power = get_lora_power_status()
     led_color = get_current_led_color()
+    gw = get_default_gateway()
+    load1 = get_load_averages()
+    cpu_temp = get_cpu_temp()
+    gpu_temp = get_gpu_temp()
+    cpu_pct = get_cpu_usage()
+    ram = get_ram_info()
+    disk = get_disk_info()
 
     # Query custom LoRa app daemon status
     lora_app_active = False
@@ -214,16 +262,46 @@ def api_status():
 
     lora_metrics = query_lora_app_metrics() if lora_app_active else None
 
+    # Clean IP addresses (without CIDR mask for UI display)
+    eth_clean_ip = eth_info.get('ip', 'Disconnected').split('/')[0] if eth_info.get('ip') != 'Disconnected' else 'Disconnected'
+    wifi_clean_ip = wifi_info.get('ip', 'Not connected').split('/')[0] if (wifi_info.get('connected') and wifi_info.get('ip') != 'Disconnected') else 'Not connected'
+
     return jsonify({
         'hostname': hostname,
         'uptime': get_uptime_str(),
-        'cpu_temp': get_cpu_temp(),
-        'gpu_temp': get_gpu_temp(),
-        'cpu_usage': get_cpu_usage(),
-        'ram': get_ram_info(),
-        'disk': get_disk_info(),
-        'eth0': eth0,
-        'wifi': wifi,
+        'soc_temp': cpu_temp,
+        'cpu_temp': cpu_temp,
+        'gpu_temp': gpu_temp,
+        'cpu_percent': cpu_pct,
+        'cpu_usage': cpu_pct,
+        'ram_used_mb': ram.get('used', 0),
+        'ram_total_mb': ram.get('total', 0),
+        'load_1m': load1,
+        'default_gateway': gw,
+        'interfaces': {
+            'eth0': {
+                'name': eth_iface,
+                'ip': eth_clean_ip,
+                'mac': eth_info.get('mac', '--')
+            },
+            'end0': {
+                'name': eth_iface,
+                'ip': eth_clean_ip,
+                'mac': eth_info.get('mac', '--')
+            },
+            'wlan0': {
+                'name': 'wlan0',
+                'ip': wifi_clean_ip,
+                'mac': wifi_info.get('mac', '--')
+            }
+        },
+        'wifi_ssid': wifi_info.get('ssid', '--'),
+        'wifi_signal': wifi_info.get('signal', 0),
+        'wifi_status': 'Connected' if wifi_info.get('connected') else 'Disconnected',
+        'ram': ram,
+        'disk': disk,
+        'eth0': eth_info,
+        'wifi': wifi_info,
         'lora_power': lora_power,
         'led_color': led_color,
         'lora_app': {
@@ -290,21 +368,37 @@ def api_wifi_disconnect():
 
 @app.route('/api/hostname', methods=['POST'])
 def api_set_hostname():
-    data = request.json or {}
-    new_host = data.get('hostname', '').strip()
+    data = request.get_json(force=True, silent=True) or request.form or {}
+    new_host = (data.get('hostname') or '').strip()
+    print(f"[HOSTNAME] Raw data: {request.data}, parsed: {data}, new_host: '{new_host}'", flush=True)
     if not new_host or not re.match(r'^[a-zA-Z0-9-]+$', new_host):
         return jsonify({'error': 'Invalid hostname (letters, numbers, hyphens only)'}), 400
     try:
-        subprocess.run(['hostnamectl', 'set-hostname', new_host], check=True)
-        with open('/etc/hosts', 'r') as f:
-            lines = f.readlines()
-        with open('/etc/hosts', 'w') as f:
-            for l in lines:
-                if '127.0.1.1' in l:
-                    f.write(f"127.0.1.1\t{new_host}\n")
-                else:
-                    f.write(l)
-        return jsonify({'success': True, 'message': f'Hostname changed to {new_host}'})
+        # 1. Update systemd hostname
+        subprocess.run(['hostnamectl', 'set-hostname', new_host], check=False)
+        # 2. Update live kernel nodename immediately
+        subprocess.run(['hostname', new_host], check=False)
+        # 3. Write /etc/hostname
+        try:
+            with open('/etc/hostname', 'w') as f:
+                f.write(f"{new_host}\n")
+        except:
+            pass
+        # 4. Update /etc/hosts
+        try:
+            with open('/etc/hosts', 'r') as f:
+                lines = f.readlines()
+            with open('/etc/hosts', 'w') as f:
+                for l in lines:
+                    if '127.0.1.1' in l:
+                        f.write(f"127.0.1.1\t{new_host}\n")
+                    elif '::1' in l and 'ip6-localhost' in l:
+                        f.write(f"::1\tlocalhost {new_host} ip6-localhost ip6-loopback\n")
+                    else:
+                        f.write(l)
+        except:
+            pass
+        return jsonify({'success': True, 'hostname': new_host, 'message': f'Hostname changed to {new_host}'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -347,11 +441,17 @@ def api_lora_app_status():
         pass
 
     metrics = query_lora_app_metrics() if is_active else None
+    is_running = is_active and (metrics is not None)
 
     return jsonify({
+        'running': is_running,
         'active': is_active,
         'enabled': is_enabled,
-        'metrics': metrics
+        'live': metrics or {},
+        'metrics': metrics or {},
+        'rx': metrics.get('rx', 0) if metrics else 0,
+        'tx': metrics.get('tx', 0) if metrics else 0,
+        'crc_err': metrics.get('crc_err', 0) if metrics else 0
     })
 
 @app.route('/api/lora/app/service', methods=['POST'])
