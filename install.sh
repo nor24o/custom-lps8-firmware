@@ -55,7 +55,9 @@ apt-get install -y --no-install-recommends \
     sqlite3 \
     curl \
     jq \
-    net-tools
+    net-tools \
+    avahi-daemon \
+    libnss-mdns
 
 # 4. Compile SX1302 HAL & raw_lora_app
 echo -e "${C_YELLOW}[3/8] Building SX1302 HAL, chip_id utility and raw_lora_app natively...${C_RESET}"
@@ -108,8 +110,8 @@ install -m 644 "${SCRIPT_DIR}/systemd/bobcat-lora-bridge.service" /etc/systemd/s
 install -m 644 "${SCRIPT_DIR}/systemd/bobcat-web.service" /etc/systemd/system/bobcat-web.service
 
 systemctl daemon-reload
-systemctl enable raw-lora.service bobcat-lora-bridge.service bobcat-web.service
-systemctl restart raw-lora.service bobcat-lora-bridge.service bobcat-web.service
+systemctl enable raw-lora.service bobcat-lora-bridge.service bobcat-web.service avahi-daemon.service
+systemctl restart raw-lora.service bobcat-lora-bridge.service bobcat-web.service avahi-daemon.service
 
 # 9. Hardware Verification
 echo -e "${C_YELLOW}[8/8] Verifying LoRa hardware and front RGB LEDs...${C_RESET}"

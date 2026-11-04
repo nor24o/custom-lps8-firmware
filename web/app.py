@@ -398,6 +398,8 @@ def api_set_hostname():
                         f.write(l)
         except:
             pass
+        # 5. Notify avahi-daemon to broadcast the new mDNS hostname immediately
+        subprocess.run(['systemctl', 'try-restart', 'avahi-daemon'], check=False)
         return jsonify({'success': True, 'hostname': new_host, 'message': f'Hostname changed to {new_host}'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1012,4 +1014,5 @@ def api_system_poweroff():
     return jsonify({'success': True, 'message': 'System is powering off...'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80, debug=False)
+    # Listen on dual-stack '::' so both IPv4 (192.168.1.x) and IPv6 (fe80::... link-local / LLMNR) work
+    app.run(host='::', port=80, debug=False)
