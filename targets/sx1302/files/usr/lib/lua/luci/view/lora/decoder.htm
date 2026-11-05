@@ -139,7 +139,7 @@
         <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px;">
             <div style="flex: 2; min-width: 280px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Payload (HEX)%></label>
-                <input type="text" id="test-hex" value="aa0c6400011109c402050ce4" style="width: 100%; padding: 7px; font-family: monospace; font-size: 13px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. aa0c6400011109c4... or aa0b6437..." oninput="runTestDecode()" />
+                <input type="text" id="test-hex" value="12341100011109c402050ce4" style="width: 100%; padding: 7px; font-family: monospace; font-size: 13px; border: 1px solid #ccc; border-radius: 4px;" placeholder="e.g. 12341100011109c4... or 56783201010101..." oninput="runTestDecode()" />
             </div>
             <div style="flex: 1; min-width: 220px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Load Recent Packet%></label>
@@ -150,6 +150,13 @@
             <div>
                 <button type="button" class="cbi-button cbi-button-apply" style="padding: 7px 16px; font-weight: 600;" onclick="runTestDecode()"><%:▶ Test Decode%></button>
             </div>
+        </div>
+
+        <div style="margin-bottom: 12px; font-size: 11px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <span style="color: #666; font-weight: 600;"><%:Quick Sample Payloads:%></span>
+            <button type="button" class="cbi-button" style="padding: 2px 8px; font-size: 11px;" onclick="document.getElementById('test-hex').value='12341100011109c402050ce4'; runTestDecode();"><%:⚡ 2B Node ID + Class A Sensor (1234)%></button>
+            <button type="button" class="cbi-button" style="padding: 2px 8px; font-size: 11px;" onclick="document.getElementById('test-hex').value='56783201010101'; runTestDecode();"><%:⚡ 2B Node ID + Class C Actuator (5678)%></button>
+            <button type="button" class="cbi-button" style="padding: 2px 8px; font-size: 11px;" onclick="document.getElementById('test-hex').value='aa0c6400011109c402050ce4'; runTestDecode();"><%:⚡ Legacy NetID 0xAA (AA0C)%></button>
         </div>
 
         <!-- TEST RESULT CONTAINER -->
@@ -208,7 +215,8 @@
             <div style="flex: 2; min-width: 240px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Global Strategy%></label>
                 <select id="global-nodeid-source" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
-                    <option value="auto"><%:✨ Smart Auto-Detect (NetID 0xAA -> NetID+SenderID, else 2-Byte Header)%></option>
+                    <option value="auto"><%:✨ Smart Auto-Detect (NetID 0xAA -> NetID+SenderID, else 2-Byte Node ID)%></option>
+                    <option value="node_2b"><%:2-Byte Node ID (Bytes 0..1 in HEX -> 1234)%></option>
                     <option value="net_sender"><%:NetID + SenderID (Byte 0 = NetID 0xAA, Byte 1 = SenderID 0x0C -> AA0C)%></option>
                     <option value="sender_only"><%:SenderID Only (Byte 1, e.g. 0C or 12)%></option>
                     <option value="header"><%:First 2 Bytes (Offset 0, e.g. AA0B)%></option>
@@ -317,6 +325,7 @@
                     <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Node ID Source%></label>
                     <select id="m-nodeid-source" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;" onchange="updateModalNodeIdFields()">
                         <option value="auto"><%:✨ Auto (Inherit from Global / Smart Cascade)%></option>
+                        <option value="node_2b"><%:2-Byte Node ID (Bytes 0..1 in HEX -> 1234)%></option>
                         <option value="net_sender"><%:NetID + SenderID (Byte 0 = NetID 0xAA, Byte 1 = SenderID 0x0C -> AA0C)%></option>
                         <option value="sender_only"><%:SenderID Only (Byte 1, e.g. 0C or 12)%></option>
                         <option value="offset"><%:Custom Byte Offset & Length (e.g. Offset 1, Length 1)%></option>

@@ -110,7 +110,18 @@
             }
         }
 
-        // 2. NetID + SenderID (e.g. Byte 0 is NetID 0xAA, Byte 1 is SenderID 0x0C)
+        // 2. 2-Byte Node ID (Bytes 0..1 in HEX, e.g. 12 34 -> "1234")
+        if (src === "node_2b" || src === "node_id_2b" || (src === "auto" && bytes.length >= 2 && bytes[0] !== 0xAA)) {
+            var b0 = (bytes[0] < 16 ? "0" : "") + bytes[0].toString(16).toUpperCase();
+            var b1 = (bytes[1] < 16 ? "0" : "") + bytes[1].toString(16).toUpperCase();
+            if (format === "decimal") {
+                var dVal = (bytes[0] * 256) + bytes[1];
+                return { id: pfx + dVal.toString(10), method: "2-Byte Node ID (Decimal " + dVal + ")" };
+            }
+            return { id: pfx + b0 + b1, method: "2-Byte Node ID (" + b0 + b1 + ")" };
+        }
+
+        // 3. NetID + SenderID (e.g. Byte 0 is NetID 0xAA, Byte 1 is SenderID 0x0C)
         if (src === "net_sender" || (src === "auto" && bytes.length >= 2 && bytes[0] === 0xAA)) {
             var netHex = (bytes[0] < 16 ? "0" : "") + bytes[0].toString(16).toUpperCase();
             var senderHex = (bytes[1] < 16 ? "0" : "") + bytes[1].toString(16).toUpperCase();
@@ -205,10 +216,24 @@
         var out = {};
 
         if (bytes.length >= 4) {
-            out.net_id = "0x" + (bytes[0] < 16 ? "0" : "") + bytes[0].toString(16).toUpperCase();
-            out.sender_id = bytes[1];
-            out.target_id = bytes[2];
-            out.seq = bytes[3];
+            if (bytes[0] === 0xAA) {
+                out.net_id = "0x" + (bytes[0] < 16 ? "0" : "") + bytes[0].toString(16).toUpperCase();
+                out.sender_id = bytes[1];
+                out.target_id = bytes[2];
+                out.seq = bytes[3];
+            } else {
+                var b0 = (bytes[0] < 16 ? "0" : "") + bytes[0].toString(16).toUpperCase();
+                var b1 = (bytes[1] < 16 ? "0" : "") + bytes[1].toString(16).toUpperCase();
+                out.node_id = b0 + b1;
+                var devType = bytes[2];
+                out.device_type = "0x" + (devType < 16 ? "0" : "") + devType.toString(16).toUpperCase();
+                var classCode = Math.floor(devType / 16);
+                var capCode = devType % 16;
+                out.node_class = (classCode === 1) ? "A" : ((classCode === 2) ? "B" : ((classCode === 3) ? "C" : "Unknown"));
+                var capNames = { 1: "Sensor", 2: "Actuator", 3: "Combo", 4: "Meter", 5: "Security", 6: "Dimmer" };
+                out.capability = capNames[capCode] || "Generic";
+                out.seq = bytes[3];
+            }
         }
 
         var idx = dataOffset;
@@ -514,8 +539,8 @@
             };
         }
 
-        // Intelligent Fallback: if packet begins with NetID 0xAA, decode via CTV
-        if (bytes && bytes.length >= 4 && bytes[0] === 0xAA) {
+        // Intelligent Fallback: if packet has at least 4 bytes, decode via CTV
+        if (bytes && bytes.length >= 4) {
             var autoCtv = LoraDecoder.decodeCtv(bytes, hex, 4);
             if (autoCtv && Object.keys(autoCtv).length > 0) {
                 return {
@@ -615,6 +640,74 @@
 
     LoraDecoder.getDefaultSchemes = function() {
         return [
+            {
+                id: 'scheme_2b_node_tlv',
+                name: '2-Byte Node ID + Device Type + TLV (12 34 11 00 ...)',
+                description: 'Matches 2-byte Node ID with 1-byte Device Type (Class/Capability), Seq and dynamic Channel-Type-Value sensors (e.g. 12 34 11 00 01 11 09 C4 02 05 0C E4)',
+                enabled: true,
+                matchType: 'condition',
+                matchCondition: '// Match if at least 4 bytes and byte 0 is not legacy 0xAA\nreturn bytes.length >= 4 && bytes[0] !== 0xAA;',
+                nodeId: {
+                    source: 'offset',
+                    offset: 0,
+                    length: 2,
+                    format: 'hex',
+                    prefix: ''
+                },
+                type: 'ctv',
+                dataOffset: 4,
+                jsCode: [
+                    '// 2-Byte Node ID + Device Type + TLV Decoder (e.g. 12341100011109c402050ce4)',
+                    'var nodeId = ((bytes[0] < 16 ? "0" : "") + bytes[0].toString(16) + (bytes[1] < 16 ? "0" : "") + bytes[1].toString(16)).toUpperCase();',
+                    'var devType = bytes[2];',
+                    'var classCode = Math.floor(devType / 16);',
+                    'var capCode = devType % 16;',
+                    'var className = (classCode === 1) ? "A" : ((classCode === 2) ? "B" : ((classCode === 3) ? "C" : "Unknown"));',
+                    'var capMap = {1: "Sensor", 2: "Actuator", 3: "Combo", 4: "Meter", 5: "Security", 6: "Dimmer"};',
+                    'var capName = capMap[capCode] || "Generic";',
+                    'var seq = bytes[3];',
+                    '',
+                    'var out = {',
+                    '    node_id: nodeId,',
+                    '    device_type: "0x" + (devType < 16 ? "0" : "") + devType.toString(16).toUpperCase(),',
+                    '    node_class: className,',
+                    '    capability: capName,',
+                    '    seq: seq',
+                    '};',
+                    '',
+                    'var i = 4;',
+                    'while (i < bytes.length) {',
+                    '    var ch = bytes[i++];',
+                    '    if (i >= bytes.length) break;',
+                    '    var type = bytes[i++];',
+                    '    if (type === 0x11) { // 2-byte generic / temp',
+                    '        if (i + 1 >= bytes.length) break;',
+                    '        var raw = (bytes[i++] << 8) | bytes[i++];',
+                    '        if (raw & 0x8000) raw -= 0x10000;',
+                    '        var temp = (Math.abs(raw) > 500) ? +(raw * 0.01).toFixed(2) : +(raw * 0.1).toFixed(1);',
+                    '        out["temperature"] = temp;',
+                    '        out["ch" + ch + "_val"] = raw;',
+                    '    } else if (type === 0x05) { // 2-byte battery in mV',
+                    '        if (i + 1 >= bytes.length) break;',
+                    '        var mv = (bytes[i++] << 8) | bytes[i++];',
+                    '        out["battery"] = +(mv / 1000).toFixed(2);',
+                    '        out["battery_mv"] = mv;',
+                    '    } else if (type === 0x01 || type === 0x10) { // 1-byte digital',
+                    '        if (i >= bytes.length) break;',
+                    '        out["ch" + ch + "_state"] = (bytes[i++] === 1) ? "ON" : "OFF";',
+                    '        out["state"] = out["ch" + ch + "_state"];',
+                    '    } else if (type === 0x02 || type === 0x12) { // 2-byte analog',
+                    '        if (i + 1 >= bytes.length) break;',
+                    '        var aRaw = (bytes[i++] << 8) | bytes[i++];',
+                    '        if (aRaw & 0x8000) aRaw -= 0x10000;',
+                    '        out["ch" + ch + "_analog"] = +(aRaw * 0.01).toFixed(2);',
+                    '    } else {',
+                    '        break;',
+                    '    }',
+                    '}',
+                    'return out;'
+                ].join('\n')
+            },
             {
                 id: 'scheme_universal_tlv',
                 name: 'Universal NetID + SenderID + TLV (AA 0C 64 ...)',

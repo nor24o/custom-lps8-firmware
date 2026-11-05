@@ -118,16 +118,36 @@ local function get_decoders_config()
 end
 
 -- Channel-Type-Value (CTV / TLV) Decoder:
--- Parses packets such as: AA 0C 64 00 01 11 09 C4 02 05 0C E4
+-- Parses packets such as:
+-- Modern: 12 34 11 00 01 11 09 C4 02 05 0C E4 (2B Node ID + 1B Type + 1B Seq + TLV)
+-- Legacy: AA 0C 64 00 01 11 09 C4 02 05 0C E4 (NetID 0xAA + SenderID + TargetID + Seq + TLV)
 local function decode_ctv_payload(bytes, hex, data_offset)
     data_offset = data_offset or 4
     local out = {}
 
     if #bytes >= 4 then
-        out.net_id    = string.format("0x%02X", bytes[1] or 0)
-        out.sender_id = bytes[2] or 0
-        out.target_id = bytes[3] or 0
-        out.seq       = bytes[4] or 0
+        if bytes[1] == 0xAA then
+            out.net_id    = string.format("0x%02X", bytes[1] or 0)
+            out.sender_id = bytes[2] or 0
+            out.target_id = bytes[3] or 0
+            out.seq       = bytes[4] or 0
+        else
+            out.node_id = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
+            local dev_type = bytes[3] or 0
+            out.device_type = string.format("0x%02X", dev_type)
+            local class_code = math.floor(dev_type / 16)
+            local cap_code = dev_type % 16
+            if class_code == 1 then
+                out.node_class = "A"
+            elseif class_code == 2 then
+                out.node_class = "B"
+            elseif class_code == 3 then
+                out.node_class = "C"
+            end
+            local cap_map = { [1] = "Sensor", [2] = "Actuator", [3] = "Combo", [4] = "Meter", [5] = "Security", [6] = "Dimmer" }
+            out.capability = cap_map[cap_code] or "Generic"
+            out.seq = bytes[4] or 0
+        end
     end
 
     local i = data_offset + 1
@@ -318,15 +338,25 @@ local function extract_node_id(bytes, hex, scheme, decoded, global_rule)
     -- 1. From Decoded Property
     if src == "field" or (src == "auto" and decoded) then
         if decoded then
-            local cand = decoded[rule.fieldName or "senderId"] or decoded.sender_id or
-                         decoded.node_id or decoded.id or decoded.dev_id or decoded.address
+            local cand = decoded[rule.fieldName or "node_id"] or decoded.node_id or
+                         decoded.nodeId or decoded.sender_id or decoded.senderId or
+                         decoded.id or decoded.dev_id or decoded.address
             if cand and tostring(cand):match("%S") then
                 return pfx .. tostring(cand):upper()
             end
         end
     end
 
-    -- 2. NetID + SenderID (Byte 0 = NetID 0xAA, Byte 1 = SenderID)
+    -- 2. 2-Byte Node ID (Bytes 1..2: e.g. 12 34 -> "1234")
+    if src == "node_2b" or src == "node_id_2b" or (src == "auto" and #bytes >= 2 and bytes[1] ~= 0xAA) then
+        local idHex = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
+        if fmt == "decimal" then
+            return pfx .. tostring(((bytes[1] or 0) * 256) + (bytes[2] or 0))
+        end
+        return pfx .. idHex
+    end
+
+    -- 3. NetID + SenderID (Byte 0 = NetID 0xAA, Byte 1 = SenderID)
     if src == "net_sender" or (src == "auto" and #bytes >= 2 and bytes[1] == 0xAA) then
         local netHex = string.format("%02X", bytes[1] or 0)
         local senderHex = string.format("%02X", bytes[2] or 0)
@@ -436,9 +466,13 @@ local function extract_metrics(hex, raw_b64)
     end
 
     -- Fallback: If no metrics parsed yet, try intelligent auto-decoders
-    if not metrics.temperature and not metrics.battery then
-        if #bytes >= 4 and bytes[1] == 0xAA then
-            -- Packet begins with NetID 0xAA: decode Channel-Type-Value sensors
+    if not metrics.temperature and not metrics.battery and not metrics.state then
+        if #bytes >= 4 and bytes[1] ~= 0xAA then
+            -- Modern format: 2-byte Node ID + 1-byte Device Type + 1-byte Seq + CTV
+            local auto_metrics = decode_ctv_payload(bytes, hex, 4)
+            for k, v in pairs(auto_metrics) do metrics[k] = v end
+        elseif #bytes >= 4 and bytes[1] == 0xAA then
+            -- Legacy format: NetID 0xAA + SenderID + TargetID + Seq + CTV
             local auto_metrics = decode_ctv_payload(bytes, hex, 4)
             for k, v in pairs(auto_metrics) do metrics[k] = v end
         elseif #bytes >= 8 then
@@ -708,10 +742,24 @@ local function ingest_packet(pkt)
 
     -- 2. Update persistent node registry on Flash (Auto-Discovery)
     -- Newly discovered nodes default to ha_enabled = 0 and is_configured = 0 until adopted & categorized by user
+    local detected_class = metrics.node_class or "A"
+    local detected_model = metrics.capability and ("LoRa " .. metrics.capability) or nil
     db_nodes:exec(string.format(
-        "INSERT OR IGNORE INTO node_settings (node_id, name, node_class, is_configured, group_name, ha_enabled) VALUES ('%s', 'Node %s', 'A', 0, 'Unassigned', 0);",
-        node_id, node_id
+        "INSERT OR IGNORE INTO node_settings (node_id, name, node_class, is_configured, group_name, ha_enabled) VALUES ('%s', 'Node %s', '%s', 0, 'Unassigned', 0);",
+        node_id, node_id, detected_class
     ))
+    if metrics.node_class then
+        db_nodes:exec(string.format(
+            "UPDATE node_settings SET node_class = '%s' WHERE node_id = '%s' AND is_configured = 0;",
+            metrics.node_class, node_id
+        ))
+    end
+    if detected_model then
+        db_nodes:exec(string.format(
+            "UPDATE node_settings SET model = '%s' WHERE node_id = '%s' AND (model IS NULL OR model = '' OR model = 'generic');",
+            detected_model, node_id
+        ))
+    end
     db_nodes:exec(string.format(
         "UPDATE node_settings SET last_seen = CURRENT_TIMESTAMP, last_rssi = %.1f, last_snr = %.1f WHERE node_id = '%s';",
         tonumber(pkt.rssi) or -100.0, tonumber(pkt.snr) or 0.0, node_id

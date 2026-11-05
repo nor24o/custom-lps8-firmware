@@ -577,6 +577,32 @@ local function publish_ha_discovery(node)
         device = device_obj
     }
     mqtt_publish(string.format("%s/binary_sensor/lora_%s/ch1_state/config", HA_PREFIX, node_id), jsonc.stringify(ch1_state_config), true)
+
+    -- 19. Device Type Descriptor Byte (Diagnostic)
+    local devtype_config = {
+        name = "Device Type",
+        has_entity_name = true,
+        unique_id = "lora_" .. node_id .. "_device_type",
+        state_topic = state_topic,
+        value_template = "{{ value_json.device_type | default(none) }}",
+        entity_category = "diagnostic",
+        icon = "mdi:shape",
+        device = device_obj
+    }
+    mqtt_publish(string.format("%s/sensor/lora_%s/device_type/config", HA_PREFIX, node_id), jsonc.stringify(devtype_config), true)
+
+    -- 20. Device Capability (Diagnostic)
+    local cap_config = {
+        name = "Capability",
+        has_entity_name = true,
+        unique_id = "lora_" .. node_id .. "_capability",
+        state_topic = state_topic,
+        value_template = "{{ value_json.capability | default(none) }}",
+        entity_category = "diagnostic",
+        icon = "mdi:tag-outline",
+        device = device_obj
+    }
+    mqtt_publish(string.format("%s/sensor/lora_%s/capability/config", HA_PREFIX, node_id), jsonc.stringify(cap_config), true)
 end
 
 -- ==============================================================================
@@ -603,6 +629,8 @@ local function unpublish_ha_discovery(node_id)
         { comp = "sensor",        key = "raw_hex" },
         { comp = "switch",        key = "switch" },
         { comp = "binary_sensor", key = "ch1_state" },
+        { comp = "sensor",        key = "device_type" },
+        { comp = "sensor",        key = "capability" },
     }
     for _, item in ipairs(entity_keys) do
         local topic = string.format("%s/%s/lora_%s/%s/config", HA_PREFIX, item.comp, node_id, item.key)

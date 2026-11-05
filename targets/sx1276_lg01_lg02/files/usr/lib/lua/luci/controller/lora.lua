@@ -266,6 +266,23 @@ function action_decoders()
                 },
                 schemes = {
                     {
+                        id = "scheme_2b_node_tlv",
+                        name = "2-Byte Node ID + Device Type + TLV (12 34 11 00 ...)",
+                        description = "Matches 2-byte Node ID with 1-byte Device Type (Class/Capability), Seq and dynamic Channel-Type-Value sensors",
+                        enabled = true,
+                        matchType = "condition",
+                        matchCondition = "// Match if at least 4 bytes and byte 0 is not legacy 0xAA\nreturn bytes.length >= 4 && bytes[0] !== 0xAA;",
+                        nodeId = {
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
+                        },
+                        type = "ctv",
+                        dataOffset = 4
+                    },
+                    {
                         id = "scheme_universal_tlv",
                         name = "Universal NetID + SenderID + TLV (AA 0C 64 ...)",
                         description = "Matches NetID 0xAA packets with SenderID, Target Gateway, Seq and dynamic Channel-Type-Value sensors",

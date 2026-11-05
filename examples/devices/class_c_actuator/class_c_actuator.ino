@@ -42,12 +42,27 @@ void IRAM_ATTR onRadioInterrupt() {
     packet_received = true;
 }
 
-// ACK Packet Structure sent back to Gateway
+// Node Configuration (2-Byte Unique Node ID)
+#define NODE_ID_HIGH      0x56     // 16-bit Node ID: 0x5678 ("5678")
+#define NODE_ID_LOW       0x78
+
+// Device Descriptor Byte:
+// Upper Nibble (0x3_) = Class C (Mains / Always Listening)
+// Lower Nibble (0x_2) = Actuator / Relay
+#define DEV_TYPE_CLASS_C_ACTUATOR 0x32
+
+// ACK Packet Structure sent back to Gateway (7 bytes total)
+// [0..1: Node ID] [2: Device Type 0x32] [3: Seq] [4: Channel 1 ID] [5: Channel 1 Type 0x01] [6: State 0x01/0x00]
 struct __attribute__((packed)) AckPacket {
-    uint8_t  node_id[2];     // 0xAA, 0x0C
-    uint8_t  status_code;    // 0x00 = OFF, 0x01 = ON, 0xFF = ERROR
-    uint16_t execution_time; // ms taken to execute
+    uint8_t  node_id[2];     // 2-byte unique node ID (0x56, 0x78)
+    uint8_t  device_type;    // 0x32: Class C Actuator
+    uint8_t  seq;            // Rolling sequence counter (0..255)
+    uint8_t  ch1_id;         // Channel 1 ID (0x01)
+    uint8_t  ch1_type;       // Channel 1 Type: 0x01 (Digital state)
+    uint8_t  ch1_state;      // 0x00 = OFF, 0x01 = ON
 };
+
+static uint8_t ack_sequence = 0;
 
 void setup() {
     Serial.begin(115200);
@@ -99,9 +114,18 @@ void loop() {
             bool valid_command = false;
 
             // Command Decoding:
-            // Byte 0x01, 0x01 or ASCII "VALVE:ON" -> Relay ON
-            // Byte 0x01, 0x00 or ASCII "VALVE:OFF" -> Relay OFF
-            if (rx_len >= 2 && rx_buf[0] == 0x01 && rx_buf[1] == 0x01) {
+            // 1. Addressed Binary Downlink: [NODE_ID_HIGH, NODE_ID_LOW, 0x01, 0x01/0x00]
+            if (rx_len >= 4 && rx_buf[0] == NODE_ID_HIGH && rx_buf[1] == NODE_ID_LOW) {
+                if (rx_buf[2] == 0x01 && rx_buf[3] == 0x01) {
+                    new_state = 1;
+                    valid_command = true;
+                } else if (rx_buf[2] == 0x01 && rx_buf[3] == 0x00) {
+                    new_state = 0;
+                    valid_command = true;
+                }
+            }
+            // 2. Direct Binary Downlink: [0x01, 0x01] = ON, [0x01, 0x00] = OFF
+            else if (rx_len >= 2 && rx_buf[0] == 0x01 && rx_buf[1] == 0x01) {
                 new_state = 1;
                 valid_command = true;
             } else if (rx_len >= 2 && rx_buf[0] == 0x01 && rx_buf[1] == 0x00) {
@@ -116,13 +140,18 @@ void loop() {
 
                 // Transmit instant confirmation ACK uplink back to Gateway
                 delay(30); // 30ms RX-to-TX turnaround
+                ack_sequence++;
                 AckPacket ack;
-                ack.node_id[0] = 0xAA;
-                ack.node_id[1] = 0x0C;
-                ack.status_code = new_state;
-                ack.execution_time = htons(30);
+                ack.node_id[0] = NODE_ID_HIGH;
+                ack.node_id[1] = NODE_ID_LOW;
+                ack.device_type = DEV_TYPE_CLASS_C_ACTUATOR;
+                ack.seq = ack_sequence;
+                ack.ch1_id = 0x01;
+                ack.ch1_type = 0x01; // Digital state
+                ack.ch1_state = new_state;
 
-                Serial.println("[TX] Sending Confirmation ACK Uplink to Gateway...");
+                Serial.printf("[TX] Sending ACK (Node: %02X%02X, Type: 0x%02X, State: %s)...\n",
+                              NODE_ID_HIGH, NODE_ID_LOW, DEV_TYPE_CLASS_C_ACTUATOR, new_state ? "ON" : "OFF");
                 radio.transmit((uint8_t*)&ack, sizeof(ack));
                 Serial.println("[TX] ACK transmission complete.");
             } else {

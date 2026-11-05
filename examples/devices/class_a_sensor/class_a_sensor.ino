@@ -39,17 +39,36 @@
 
 SX1276 radio = new Module(NSS_PIN, DIO0_PIN, RESET_PIN, DIO1_PIN);
 
-// Sensor Packet Structure (10 bytes total)
-// [0..1: Node ID] [2..3: Sequence Number] [4..5: Temperature * 10] [6..7: Voltage (mV)] [8..9: Checksum]
+// Node Configuration (2-Byte Unique Node ID)
+#define NODE_ID_HIGH      0x12     // 16-bit Node ID: 0x1234 ("1234")
+#define NODE_ID_LOW       0x34
+
+// Device Descriptor Byte:
+// Upper Nibble (0x1_) = Class A (Battery / Deep Sleep)
+// Lower Nibble (0x_1) = Environmental Sensor
+#define DEV_TYPE_CLASS_A_SENSOR  0x11
+
+// Sensor Packet Structure (12 bytes total - Standard TLV Format)
+// [0..1: Node ID (16-bit)] [2: Device Type (0x11)] [3: Sequence Number]
+// [4..7: Channel 1 Temperature TLV (0x01, 0x11, TempMSB, TempLSB)]
+// [8..11: Channel 2 Battery TLV (0x02, 0x05, BattMSB, BattLSB)]
 struct __attribute__((packed)) SensorPacket {
-    uint8_t  node_id[2];     // 0xAA, 0x0B
-    uint16_t seq;            // Packet counter
-    int16_t  temp_x10;       // e.g. 245 = 24.5 °C
-    uint16_t battery_mv;     // e.g. 3300 = 3.30 V
-    uint16_t checksum;
+    uint8_t  node_id[2];     // 2-byte unique node ID (0x12, 0x34)
+    uint8_t  device_type;    // 0x11: Class A Sensor
+    uint8_t  seq;            // Rolling sequence counter (0..255)
+    
+    // Channel 1: Temperature Sensor (TLV: Ch 1, Type 0x11 = 2-byte signed integer in 0.01°C)
+    uint8_t  ch1_id;         // 0x01
+    uint8_t  ch1_type;       // 0x11
+    int16_t  ch1_temp;       // e.g. 2450 = 24.50 °C (big-endian)
+    
+    // Channel 2: Battery Voltage (TLV: Ch 2, Type 0x05 = 2-byte mV)
+    uint8_t  ch2_id;         // 0x02
+    uint8_t  ch2_type;       // 0x05
+    uint16_t ch2_battery_mv; // e.g. 3300 = 3300 mV (big-endian)
 };
 
-RTC_DATA_ATTR uint16_t boot_sequence = 0;
+RTC_DATA_ATTR uint8_t boot_sequence = 0;
 
 void setup() {
     Serial.begin(115200);
@@ -69,14 +88,23 @@ void setup() {
     uint16_t batt_mv = 3300;                         // Read from ADC voltage divider
 
     SensorPacket pkt;
-    pkt.node_id[0] = 0xAA;
-    pkt.node_id[1] = 0x0B;
-    pkt.seq = htons(boot_sequence);
-    pkt.temp_x10 = htons((int16_t)(temp_c * 10));
-    pkt.battery_mv = htons(batt_mv);
-    pkt.checksum = htons(0x0FAC);
+    pkt.node_id[0] = NODE_ID_HIGH;
+    pkt.node_id[1] = NODE_ID_LOW;
+    pkt.device_type = DEV_TYPE_CLASS_A_SENSOR;
+    pkt.seq = boot_sequence;
+    
+    // Channel 1: Temperature in centi-degrees (e.g. 24.50 °C = 2450)
+    pkt.ch1_id = 0x01;
+    pkt.ch1_type = 0x11;
+    pkt.ch1_temp = htons((int16_t)(temp_c * 100));
 
-    Serial.printf("[TX] Sending Uplink #%u: Temp=%.1f°C, Batt=%u mV\n", boot_sequence, temp_c, batt_mv);
+    // Channel 2: Battery in millivolts (e.g. 3300 mV = 3.30 V)
+    pkt.ch2_id = 0x02;
+    pkt.ch2_type = 0x05;
+    pkt.ch2_battery_mv = htons(batt_mv);
+
+    Serial.printf("[TX] Sending Uplink #%u (Node: %02X%02X, Type: 0x%02X): Temp=%.2f°C, Batt=%u mV\n", 
+                  boot_sequence, NODE_ID_HIGH, NODE_ID_LOW, DEV_TYPE_CLASS_A_SENSOR, temp_c, batt_mv);
 
     // 3. Transmit Uplink
     state = radio.transmit((uint8_t*)&pkt, sizeof(pkt));
