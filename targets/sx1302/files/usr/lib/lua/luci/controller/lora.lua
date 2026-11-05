@@ -258,20 +258,22 @@ function action_decoders()
         if not data then
             data = {
                 version = 1,
-                updated = "2026-11-03T02:00:00Z",
+                updated = "2026-11-06T00:00:00Z",
                 globalNodeId = {
-                    source = "auto",
-                    format = "net_hex",
+                    source = "offset",
+                    offset = 0,
+                    length = 2,
+                    format = "hex",
                     prefix = ""
                 },
                 schemes = {
                     {
                         id = "scheme_2b_node_tlv",
-                        name = "2-Byte Node ID + Device Type + TLV (12 34 11 00 ...)",
-                        description = "Matches 2-byte Node ID with 1-byte Device Type (Class/Capability), Seq and dynamic Channel-Type-Value sensors",
+                        name = "Standard 2-Byte Node ID + Device Type + TLV",
+                        description = "Standard Header: 2-Byte Node ID (bytes 0..1), 1-Byte Device Type (Class/Capability, byte 2), 1-Byte Seq (byte 3), followed by dynamic TLV sensors",
                         enabled = true,
                         matchType = "condition",
-                        matchCondition = "// Match if at least 4 bytes and byte 0 is not legacy 0xAA\nreturn bytes.length >= 4 && bytes[0] !== 0xAA;",
+                        matchCondition = "// Match standard 4+ byte header\nreturn bytes.length >= 4;",
                         nodeId = {
                             source = "offset",
                             offset = 0,
@@ -283,42 +285,20 @@ function action_decoders()
                         dataOffset = 4
                     },
                     {
-                        id = "scheme_universal_tlv",
-                        name = "Universal NetID + SenderID + TLV (AA 0C 64 ...)",
-                        description = "Matches NetID 0xAA packets with SenderID, Target Gateway, Seq and dynamic Channel-Type-Value sensors",
+                        id = "scheme_cayenne_lpp",
+                        name = "Cayenne LPP Standard Sensors",
+                        description = "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
                         enabled = true,
-                        matchType = "prefix",
-                        matchValue = "aa",
+                        matchType = "condition",
+                        matchCondition = "// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01);",
                         nodeId = {
-                            source = "net_sender",
-                            format = "net_hex"
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
                         },
-                        type = "ctv",
-                        dataOffset = 4
-                    },
-                    {
-                        id = "scheme_aa0b",
-                        name = "Sensor Node AA0B (Temp / Volt / Seq)",
-                        description = "Matches incoming payloads starting with AA0B header",
-                        enabled = true,
-                        matchType = "prefix",
-                        matchValue = "aa0b",
-                        nodeId = {
-                            source = "net_sender",
-                            format = "net_hex"
-                        },
-                        type = "js",
-                        jsCode = "// Decoder for AA0B packets (e.g. aa0b64370111084002050fac)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar temp_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    temperature: +(temp_raw / 10).toFixed(1) + \" °C\",\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
-                    },
-                    {
-                        id = "scheme_aa0c",
-                        name = "Sensor Node AA0C (Telemetry / Battery)",
-                        description = "Matches incoming payloads starting with AA0C header",
-                        enabled = true,
-                        matchType = "prefix",
-                        matchValue = "aa0c",
-                        type = "js",
-                        jsCode = "// Decoder for AA0C packets (e.g. aa0c6401011107c302051067)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar sensor_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    sensor_val: sensor_raw,\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+                        type = "cayenne_lpp"
                     },
                     {
                         id = "scheme_ascii_ping",
@@ -327,15 +307,14 @@ function action_decoders()
                         enabled = true,
                         matchType = "condition",
                         matchCondition = "// Match if all bytes are printable ASCII chars\nif (bytes.length < 2) return false;\nreturn bytes.every(function(b) {\n    return (b >= 32 && b <= 126) || b === 10 || b === 13;\n});",
+                        nodeId = {
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
+                        },
                         type = "ascii"
-                    },
-                    {
-                        id = "scheme_cayenne_lpp",
-                        name = "Cayenne LPP Standard Sensors",
-                        description = "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
-                        enabled = true,
-                        matchType = "default",
-                        type = "cayenne_lpp"
                     }
                 }
             }

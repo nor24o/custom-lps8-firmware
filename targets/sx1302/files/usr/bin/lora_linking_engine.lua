@@ -118,36 +118,28 @@ local function get_decoders_config()
 end
 
 -- Channel-Type-Value (CTV / TLV) Decoder:
--- Parses packets such as:
--- Modern: 12 34 11 00 01 11 09 C4 02 05 0C E4 (2B Node ID + 1B Type + 1B Seq + TLV)
--- Legacy: AA 0C 64 00 01 11 09 C4 02 05 0C E4 (NetID 0xAA + SenderID + TargetID + Seq + TLV)
+-- Parses packets with standard 4-byte header:
+-- 2B Node ID + 1B Type (Class/Capability) + 1B Seq + Dynamic TLVs
 local function decode_ctv_payload(bytes, hex, data_offset)
     data_offset = data_offset or 4
     local out = {}
 
     if #bytes >= 4 then
-        if bytes[1] == 0xAA then
-            out.net_id    = string.format("0x%02X", bytes[1] or 0)
-            out.sender_id = bytes[2] or 0
-            out.target_id = bytes[3] or 0
-            out.seq       = bytes[4] or 0
-        else
-            out.node_id = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
-            local dev_type = bytes[3] or 0
-            out.device_type = string.format("0x%02X", dev_type)
-            local class_code = math.floor(dev_type / 16)
-            local cap_code = dev_type % 16
-            if class_code == 1 then
-                out.node_class = "A"
-            elseif class_code == 2 then
-                out.node_class = "B"
-            elseif class_code == 3 then
-                out.node_class = "C"
-            end
-            local cap_map = { [1] = "Sensor", [2] = "Actuator", [3] = "Combo", [4] = "Meter", [5] = "Security", [6] = "Dimmer" }
-            out.capability = cap_map[cap_code] or "Generic"
-            out.seq = bytes[4] or 0
+        out.node_id = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
+        local dev_type = bytes[3] or 0
+        out.device_type = string.format("0x%02X", dev_type)
+        local class_code = math.floor(dev_type / 16)
+        local cap_code = dev_type % 16
+        if class_code == 1 then
+            out.node_class = "A"
+        elseif class_code == 2 then
+            out.node_class = "B"
+        elseif class_code == 3 then
+            out.node_class = "C"
         end
+        local cap_map = { [1] = "Sensor", [2] = "Actuator", [3] = "Combo", [4] = "Meter", [5] = "Security", [6] = "Dimmer" }
+        out.capability = cap_map[cap_code] or "Generic"
+        out.seq = bytes[4] or 0
     end
 
     local i = data_offset + 1
@@ -347,34 +339,18 @@ local function extract_node_id(bytes, hex, scheme, decoded, global_rule)
         end
     end
 
-    -- 2. 2-Byte Node ID (Bytes 1..2: e.g. 12 34 -> "1234")
-    if src == "node_2b" or src == "node_id_2b" or (src == "auto" and #bytes >= 2 and bytes[1] ~= 0xAA) then
-        local idHex = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
-        if fmt == "decimal" then
-            return pfx .. tostring(((bytes[1] or 0) * 256) + (bytes[2] or 0))
+    -- 2. 2-Byte Node ID (Bytes 1..2: e.g. 12 34 -> "1234", AA 0C -> "AA0C")
+    if src == "node_2b" or src == "node_id_2b" or src == "auto" then
+        if #bytes >= 2 then
+            local idHex = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
+            if fmt == "decimal" then
+                return pfx .. tostring(((bytes[1] or 0) * 256) + (bytes[2] or 0))
+            end
+            return pfx .. idHex
+        elseif #bytes == 1 then
+            local sHex = string.format("%02X", bytes[1] or 0)
+            return pfx .. sHex
         end
-        return pfx .. idHex
-    end
-
-    -- 3. NetID + SenderID (Byte 0 = NetID 0xAA, Byte 1 = SenderID)
-    if src == "net_sender" or (src == "auto" and #bytes >= 2 and bytes[1] == 0xAA) then
-        local netHex = string.format("%02X", bytes[1] or 0)
-        local senderHex = string.format("%02X", bytes[2] or 0)
-        if fmt == "decimal" then
-            return pfx .. tostring(bytes[2] or 0)
-        elseif fmt == "sender_only" or src == "sender_only" or rule.senderOnly then
-            return pfx .. senderHex
-        end
-        return pfx .. netHex .. senderHex
-    end
-
-    -- 3. SenderID Only (Byte 1)
-    if src == "sender_only" and #bytes >= 2 then
-        local sHex = string.format("%02X", bytes[2] or 0)
-        if fmt == "decimal" then
-            return pfx .. tostring(bytes[2] or 0)
-        end
-        return pfx .. sHex
     end
 
     -- 4. Custom Byte Offset & Length

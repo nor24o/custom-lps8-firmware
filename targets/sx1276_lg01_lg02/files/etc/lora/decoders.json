@@ -1,19 +1,21 @@
 {
   "version": 1,
-  "updated": "2026-11-03T02:00:00Z",
+  "updated": "2026-11-06T00:00:00Z",
   "globalNodeId": {
-    "source": "auto",
-    "format": "net_hex",
+    "source": "offset",
+    "offset": 0,
+    "length": 2,
+    "format": "hex",
     "prefix": ""
   },
   "schemes": [
     {
       "id": "scheme_2b_node_tlv",
-      "name": "2-Byte Node ID + Device Type + TLV (12 34 11 00 ...)",
-      "description": "Matches 2-byte Node ID with 1-byte Device Type (Class/Capability), Seq and dynamic Channel-Type-Value sensors (e.g. 12 34 11 00 01 11 09 C4 02 05 0C E4)",
+      "name": "Standard 2-Byte Node ID + Device Type + TLV",
+      "description": "Standard Header: 2-Byte Node ID (bytes 0..1), 1-Byte Device Type (Class/Capability, byte 2), 1-Byte Seq (byte 3), followed by dynamic TLV sensors",
       "enabled": true,
       "matchType": "condition",
-      "matchCondition": "// Match if at least 4 bytes and byte 0 is not legacy 0xAA\nreturn bytes.length >= 4 && bytes[0] !== 0xAA;",
+      "matchCondition": "// Match standard 4+ byte header\nreturn bytes.length >= 4;",
       "nodeId": {
         "source": "offset",
         "offset": 0,
@@ -23,38 +25,23 @@
       },
       "type": "ctv",
       "dataOffset": 4,
-      "jsCode": "// 2-Byte Node ID + Device Type + TLV Decoder (e.g. 12341100011109c402050ce4)\nvar nodeId = ((bytes[0] < 16 ? '0' : '') + bytes[0].toString(16) + (bytes[1] < 16 ? '0' : '') + bytes[1].toString(16)).toUpperCase();\nvar devType = bytes[2];\nvar classCode = Math.floor(devType / 16);\nvar capCode = devType % 16;\nvar className = (classCode === 1) ? 'A' : ((classCode === 2) ? 'B' : ((classCode === 3) ? 'C' : 'Unknown'));\nvar capMap = {1: 'Sensor', 2: 'Actuator', 3: 'Combo', 4: 'Meter', 5: 'Security', 6: 'Dimmer'};\nvar capName = capMap[capCode] || 'Generic';\nvar seq = bytes[3];\n\nvar out = {\n    node_id: nodeId,\n    device_type: '0x' + (devType < 16 ? '0' : '') + devType.toString(16).toUpperCase(),\n    node_class: className,\n    capability: capName,\n    seq: seq\n};\n\nvar i = 4;\nwhile (i < bytes.length) {\n    var ch = bytes[i++];\n    if (i >= bytes.length) break;\n    var type = bytes[i++];\n    if (type === 0x11) { // 2-byte generic / temp\n        if (i + 1 >= bytes.length) break;\n        var raw = (bytes[i++] << 8) | bytes[i++];\n        if (raw & 0x8000) raw -= 0x10000;\n        var temp = (Math.abs(raw) > 500) ? +(raw * 0.01).toFixed(2) : +(raw * 0.1).toFixed(1);\n        out['temperature'] = temp;\n        out['ch' + ch + '_val'] = raw;\n    } else if (type === 0x05) { // 2-byte battery in mV\n        if (i + 1 >= bytes.length) break;\n        var mv = (bytes[i++] << 8) | bytes[i++];\n        out['battery'] = +(mv / 1000).toFixed(2);\n        out['battery_mv'] = mv;\n    } else if (type === 0x01 || type === 0x10) { // 1-byte digital\n        if (i >= bytes.length) break;\n        out['ch' + ch + '_state'] = (bytes[i++] === 1) ? 'ON' : 'OFF';\n        out['state'] = out['ch' + ch + '_state'];\n    } else if (type === 0x02 || type === 0x12) { // 2-byte analog\n        if (i + 1 >= bytes.length) break;\n        var aRaw = (bytes[i++] << 8) | bytes[i++];\n        if (aRaw & 0x8000) aRaw -= 0x10000;\n        out['ch' + ch + '_analog'] = +(aRaw * 0.01).toFixed(2);\n    } else {\n        break;\n    }\n}\nreturn out;"
+      "jsCode": "// Standard 2-Byte Node ID + Device Type + TLV Decoder (e.g. 12341100011109c402050ce4)\nvar nodeId = ((bytes[0] < 16 ? '0' : '') + bytes[0].toString(16) + (bytes[1] < 16 ? '0' : '') + bytes[1].toString(16)).toUpperCase();\nvar devType = bytes[2];\nvar classCode = Math.floor(devType / 16);\nvar capCode = devType % 16;\nvar className = (classCode === 1) ? 'A' : ((classCode === 2) ? 'B' : ((classCode === 3) ? 'C' : 'Unknown'));\nvar capMap = {1: 'Sensor', 2: 'Actuator', 3: 'Combo', 4: 'Meter', 5: 'Security', 6: 'Dimmer'};\nvar capName = capMap[capCode] || 'Generic';\nvar seq = bytes[3];\n\nvar out = {\n    node_id: nodeId,\n    device_type: '0x' + (devType < 16 ? '0' : '') + devType.toString(16).toUpperCase(),\n    node_class: className,\n    capability: capName,\n    seq: seq\n};\n\nvar i = 4;\nwhile (i < bytes.length) {\n    var ch = bytes[i++];\n    if (i >= bytes.length) break;\n    var type = bytes[i++];\n    if (type === 0x11) { // 2-byte generic / temp\n        if (i + 1 >= bytes.length) break;\n        var raw = (bytes[i++] << 8) | bytes[i++];\n        if (raw & 0x8000) raw -= 0x10000;\n        var temp = (Math.abs(raw) > 500) ? +(raw * 0.01).toFixed(2) : +(raw * 0.1).toFixed(1);\n        out['temperature'] = temp;\n        out['ch' + ch + '_val'] = raw;\n    } else if (type === 0x05) { // 2-byte battery in mV\n        if (i + 1 >= bytes.length) break;\n        var mv = (bytes[i++] << 8) | bytes[i++];\n        out['battery'] = +(mv / 1000).toFixed(2);\n        out['battery_mv'] = mv;\n    } else if (type === 0x01 || type === 0x10) { // 1-byte digital\n        if (i >= bytes.length) break;\n        out['ch' + ch + '_state'] = (bytes[i++] === 1) ? 'ON' : 'OFF';\n        out['state'] = out['ch' + ch + '_state'];\n    } else if (type === 0x02 || type === 0x12) { // 2-byte analog\n        if (i + 1 >= bytes.length) break;\n        var aRaw = (bytes[i++] << 8) | bytes[i++];\n        if (aRaw & 0x8000) aRaw -= 0x10000;\n        out['ch' + ch + '_analog'] = +(aRaw * 0.01).toFixed(2);\n    } else {\n        break;\n    }\n}\nreturn out;"
     },
     {
-      "id": "scheme_universal_tlv",
-      "name": "Universal NetID + SenderID + TLV (AA 0C 64 ...)",
-      "description": "Matches NetID 0xAA packets with SenderID, Target Gateway, Seq and dynamic Channel-Type-Value sensors (e.g. AA 0C 64 00 01 11 09 C4 02 05 0C E4)",
+      "id": "scheme_cayenne_lpp",
+      "name": "Cayenne LPP Standard Sensors",
+      "description": "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
       "enabled": true,
-      "matchType": "prefix",
-      "matchValue": "aa",
+      "matchType": "condition",
+      "matchCondition": "// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01);",
       "nodeId": {
-        "source": "net_sender",
-        "format": "net_hex",
+        "source": "offset",
+        "offset": 0,
+        "length": 2,
+        "format": "hex",
         "prefix": ""
       },
-      "type": "ctv",
-      "dataOffset": 4,
-      "jsCode": "// Universal NetID + SenderID + TLV Decoder (e.g. aa0c6400011109c402050ce4)\nvar netId = \"0x\" + hex.substring(0, 2).toUpperCase();\nvar senderId = bytes[1];\nvar targetId = bytes[2];\nvar seq = bytes[3];\n\nvar out = {\n    net_id: netId,\n    sender_id: senderId,\n    node_id: hex.substring(0, 4).toUpperCase(),\n    target_id: targetId,\n    seq: seq\n};\n\nvar i = 4;\nwhile (i < bytes.length) {\n    var ch = bytes[i++];\n    if (i >= bytes.length) break;\n    var type = bytes[i++];\n    if (type === 0x11) { // 2-byte generic / temp\n        if (i + 1 >= bytes.length) break;\n        var raw = (bytes[i++] << 8) | bytes[i++];\n        if (raw & 0x8000) raw -= 0x10000;\n        var temp = (Math.abs(raw) > 500) ? +(raw * 0.01).toFixed(2) : +(raw * 0.1).toFixed(1);\n        out[\"temperature\"] = temp;\n        out[\"ch\" + ch + \"_val\"] = raw;\n    } else if (type === 0x05) { // 2-byte battery in mV\n        if (i + 1 >= bytes.length) break;\n        var mv = (bytes[i++] << 8) | bytes[i++];\n        out[\"battery\"] = +(mv / 1000).toFixed(2);\n        out[\"battery_mv\"] = mv;\n    } else if (type === 0x01 || type === 0x10) { // 1-byte digital\n        if (i >= bytes.length) break;\n        out[\"ch\" + ch + \"_state\"] = (bytes[i++] === 1) ? \"ON\" : \"OFF\";\n    } else if (type === 0x02 || type === 0x12) { // 2-byte analog\n        if (i + 1 >= bytes.length) break;\n        var aRaw = (bytes[i++] << 8) | bytes[i++];\n        if (aRaw & 0x8000) aRaw -= 0x10000;\n        out[\"ch\" + ch + \"_analog\"] = +(aRaw * 0.01).toFixed(2);\n    } else {\n        break;\n    }\n}\nreturn out;"
-    },
-    {
-      "id": "scheme_aa0b",
-      "name": "Sensor Node AA0B (Temp / Volt / Seq)",
-      "description": "Matches incoming payloads starting with AA0B header",
-      "enabled": true,
-      "matchType": "prefix",
-      "matchValue": "aa0b",
-      "nodeId": {
-        "source": "net_sender",
-        "format": "net_hex",
-        "prefix": ""
-      },
-      "type": "js",
-      "jsCode": "// Decoder for AA0B packets (e.g. aa0b64370111084002050fac)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar temp_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    temperature: +(temp_raw / 10).toFixed(1) + \" °C\",\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+      "type": "cayenne_lpp"
     },
     {
       "id": "scheme_ascii_ping",
@@ -62,22 +49,15 @@
       "description": "Auto-decodes printable text strings (e.g. PING_FROM_LPS8)",
       "enabled": true,
       "matchType": "condition",
-      "nodeId": {
-        "source": "auto"
-      },
       "matchCondition": "// Match if all bytes are printable ASCII chars\nif (bytes.length < 2) return false;\nreturn bytes.every(function(b) {\n    return (b >= 32 && b <= 126) || b === 10 || b === 13;\n});",
-      "type": "ascii"
-    },
-    {
-      "id": "scheme_cayenne_lpp",
-      "name": "Cayenne LPP Standard Sensors",
-      "description": "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
-      "enabled": true,
-      "matchType": "default",
       "nodeId": {
-        "source": "auto"
+        "source": "offset",
+        "offset": 0,
+        "length": 2,
+        "format": "hex",
+        "prefix": ""
       },
-      "type": "cayenne_lpp"
+      "type": "ascii"
     }
   ]
 }

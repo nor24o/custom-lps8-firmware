@@ -259,7 +259,7 @@
             <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('56783201010101')"><%:⚡ Class C Actuator (5678)%></button>
             <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('99883305010101021109c403050ce4')"><%:⚡ Smart Plug Combo (9988)%></button>
             <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('0167011002684803020064')"><%:⚡ Cayenne LPP (IPSO)%></button>
-            <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('aa0c6400011109c402050ce4')"><%:⚡ Legacy NetID 0xAA (AA0C)%></button>
+            <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('aa0c6418011108d002050fea')"><%:⚡ Node AA0C (Weather)%></button>
             <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('50494e475f4c505338')"><%:⚡ ASCII Ping Text%></button>
         </div>
 
@@ -310,12 +310,9 @@
             <div style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
                 <label style="font-weight: 600; color: #475569;"><%:Global Fallback Node ID:%></label>
                 <select id="global-nodeid-source" style="padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px;" onchange="updateGlobalNodeId()">
-                    <option value="auto"><%:✨ Smart Auto-Detect (NetID 0xAA -> AA+ID, else 2B Node ID)%></option>
-                    <option value="node_2b"><%:2-Byte Node ID (Offset 0..1 in Hex -> 1234)%></option>
-                    <option value="net_sender"><%:NetID + SenderID (Byte 0 = 0xAA, Byte 1 = SenderID)%></option>
-                    <option value="sender_only"><%:SenderID Only (Byte 1)%></option>
-                    <option value="header"><%:First 2 Bytes (Offset 0)%></option>
-                    <option value="single"><%:First 1 Byte (Offset 0)%></option>
+                    <option value="auto"><%:✨ 2-Byte Node ID (Offset 0..1 in Hex -> 1234, AA0C)%></option>
+                    <option value="single"><%:Single Byte Node ID (Byte 0 in Hex -> 12, AA)%></option>
+                    <option value="field"><%:From Decoded Property ('node_id')%></option>
                 </select>
             </div>
         </div>
@@ -588,10 +585,10 @@ function renderSchemesList() {
         else if (s.type === "ascii") { typeBadge = "badge-amber"; typeText = "ASCII"; }
 
         var nodeRule = s.nodeId || {};
-        var nodeText = "Node ID: 2-Byte";
-        if (nodeRule.source === "net_sender") nodeText = "Node ID: NetID+SenderID";
-        else if (nodeRule.source === "offset") nodeText = "Node ID: Offset " + (nodeRule.offset || 0) + " (" + (nodeRule.length || 1) + "B)";
-        else if (nodeRule.source === "field") nodeText = "Node ID: Field '" + (nodeRule.fieldName || "senderId") + "'";
+        var nodeText = "Node ID: 2-Byte Hex (Offset 0..1)";
+        if (nodeRule.source === "offset") nodeText = "Node ID: Offset " + (nodeRule.offset || 0) + " (" + (nodeRule.length || 1) + "B)";
+        else if (nodeRule.source === "field") nodeText = "Node ID: Field '" + (nodeRule.fieldName || "node_id") + "'";
+        else if (nodeRule.source === "single") nodeText = "Node ID: Single Byte";
 
         var descHtml = s.description ? ('<div style="font-size: 12px; color: #64748b; margin-top: 4px;">' + s.description + '</div>') : '';
 
@@ -641,7 +638,6 @@ function testSchemeOnWorkbench(idx) {
     if (!s) return;
     var sampleHex = "12341100011109c402050ce4";
     if (s.id === "scheme_2b_node_tlv") sampleHex = "12341100011109c402050ce4";
-    else if (s.id === "scheme_universal_tlv") sampleHex = "aa0c6400011109c402050ce4";
     else if (s.matchType === "prefix" && s.matchValue) sampleHex = s.matchValue + "1100011109c4";
     else if (s.type === "ascii") sampleHex = "50494e475f4c505338";
     else if (s.type === "cayenne_lpp") sampleHex = "01670110026848";
@@ -772,7 +768,7 @@ function buildSchemeDrawerHtml(idx, container) {
                 '</div>' +
                 '<div id="box-dr-matchcond-' + idx + '" style="display: ' + (s.matchType === "condition" ? "block" : "none") + '; margin-top: 10px;">' +
                     '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Condition Function (returns true / false):%></label>' +
-                    '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 60px;" placeholder="// return bytes.length >= 4 && bytes[0] !== 0xaa;">' + (s.matchCondition || "") + '</textarea>' +
+                    '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 60px;" placeholder="// return bytes.length >= 4;">' + (s.matchCondition || "") + '</textarea>' +
                 '</div>' +
             '</div>' +
 
@@ -782,19 +778,16 @@ function buildSchemeDrawerHtml(idx, container) {
                     '<div style="flex: 2; min-width: 240px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Node ID Source%></label>' +
                         '<select id="dr-node-src-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;">' +
-                            '<option value="node_2b" ' + (nRule.source === "node_2b" ? "selected" : "") + '><%:✨ 2-Byte Node ID (Offset 0..1 in Hex -> 1234)%></option>' +
-                            '<option value="net_sender" ' + (nRule.source === "net_sender" ? "selected" : "") + '><%:NetID + SenderID (Byte 0 = 0xAA, Byte 1 = SenderID)%></option>' +
-                            '<option value="sender_only" ' + (nRule.source === "sender_only" ? "selected" : "") + '><%:SenderID Only (Byte 1)%></option>' +
+                            '<option value="node_2b" ' + (nRule.source === "node_2b" || !nRule.source || nRule.source === "auto" ? "selected" : "") + '><%:✨ 2-Byte Node ID (Offset 0..1 in Hex -> 1234, AA0C)%></option>' +
                             '<option value="offset" ' + (nRule.source === "offset" ? "selected" : "") + '><%:Custom Byte Offset & Length%></option>' +
                             '<option value="field" ' + (nRule.source === "field" ? "selected" : "") + '><%:From Decoded Property Name%></option>' +
-                            '<option value="header" ' + (nRule.source === "header" ? "selected" : "") + '><%:First 2 Bytes (Offset 0)%></option>' +
+                            '<option value="single" ' + (nRule.source === "single" ? "selected" : "") + '><%:Single Byte (Byte 0)%></option>' +
                         '</select>' +
                     '</div>' +
                     '<div style="flex: 1; min-width: 140px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Output Format%></label>' +
                         '<select id="dr-node-fmt-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;">' +
-                            '<option value="hex" ' + (nRule.format === "hex" ? "selected" : "") + '><%:Hex (e.g. 1234)%></option>' +
-                            '<option value="net_hex" ' + (nRule.format === "net_hex" ? "selected" : "") + '><%:Net Hex (e.g. AA0C)%></option>' +
+                            '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '><%:Hex (e.g. 1234, AA0C)%></option>' +
                             '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '><%:Decimal Number%></option>' +
                         '</select>' +
                     '</div>' +

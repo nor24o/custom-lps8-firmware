@@ -442,44 +442,23 @@ local function publish_ha_discovery(node)
     }
     mqtt_publish(string.format("%s/sensor/lora_%s/seq/config", HA_PREFIX, node_id), jsonc.stringify(seq_config), true)
 
-    -- 9. Network Identifier (Diagnostic)
-    local netid_config = {
-        name = "Network ID",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_net_id",
-        state_topic = state_topic,
-        value_template = "{{ value_json.net_id | default(none) }}",
-        entity_category = "diagnostic",
-        icon = "mdi:identifier",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/net_id/config", HA_PREFIX, node_id), jsonc.stringify(netid_config), true)
+    -- Explicitly purge legacy/deprecated sensors (NetID, SenderID, Target Gateway)
+    mqtt_publish(string.format("%s/sensor/lora_%s/net_id/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/sender_id/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/target_id/config", HA_PREFIX, node_id), "", true)
 
-    -- 10. Sender Hardware ID (Diagnostic)
-    local sender_config = {
-        name = "Sender ID",
+    -- 9. Node Operating Class (Class A / B / C)
+    local class_config = {
+        name = "Node Class",
         has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_sender_id",
+        unique_id = "lora_" .. node_id .. "_class",
         state_topic = state_topic,
-        value_template = "{{ value_json.sender_id | default(none) }}",
+        value_template = "{{ value_json.node_class | default(none) }}",
         entity_category = "diagnostic",
-        icon = "mdi:chip",
+        icon = "mdi:shape-outline",
         device = device_obj
     }
-    mqtt_publish(string.format("%s/sensor/lora_%s/sender_id/config", HA_PREFIX, node_id), jsonc.stringify(sender_config), true)
-
-    -- 11. Target Gateway ID (Diagnostic)
-    local target_config = {
-        name = "Target Gateway",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_target_id",
-        state_topic = state_topic,
-        value_template = "{{ value_json.target_id | default(none) }}",
-        entity_category = "diagnostic",
-        icon = "mdi:router-wireless",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/target_id/config", HA_PREFIX, node_id), jsonc.stringify(target_config), true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/class/config", HA_PREFIX, node_id), jsonc.stringify(class_config), true)
 
     -- 12. Channel 1 Raw Sensor Value
     local ch1_config = {
@@ -619,6 +598,7 @@ local function unpublish_ha_discovery(node_id)
         { comp = "sensor",        key = "freq" },
         { comp = "sensor",        key = "datr" },
         { comp = "sensor",        key = "seq" },
+        { comp = "sensor",        key = "class" },
         { comp = "sensor",        key = "net_id" },
         { comp = "sensor",        key = "sender_id" },
         { comp = "sensor",        key = "target_id" },
