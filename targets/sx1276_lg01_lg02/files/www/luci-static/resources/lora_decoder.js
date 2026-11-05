@@ -291,6 +291,224 @@
     };
 
     // -------------------------------------------------------------------------
+    // Visual Byte Segmentation & Inspector Engine
+    // -------------------------------------------------------------------------
+
+    LoraDecoder.segmentBytes = function(bytes, hex, result) {
+        if (!bytes || !bytes.length) return [];
+        var segments = [];
+        var schemeId = (result && result.schemeId) || "";
+        var data = (result && result.data) || {};
+
+        if (schemeId === "scheme_2b_node_tlv" || (bytes.length >= 4 && bytes[0] !== 0xAA && data.node_id)) {
+            // Segment 1: 2-Byte Node ID (Bytes 0..1)
+            segments.push({
+                start: 0,
+                end: 1,
+                name: "Node ID",
+                desc: "16-Bit Device ID: " + (data.node_id || ""),
+                color: "#2563eb", // Blue
+                textColor: "#ffffff"
+            });
+            // Segment 2: Device Type (Byte 2)
+            if (bytes.length >= 3) {
+                var cls = data.node_class ? ("Class " + data.node_class) : "";
+                var cap = data.capability || "";
+                var typeLabel = (cls || cap) ? (cls + " " + cap).trim() : "Device Type";
+                segments.push({
+                    start: 2,
+                    end: 2,
+                    name: "Device Type",
+                    desc: typeLabel + " (" + (data.device_type || ("0x" + (bytes[2]<16?"0":"") + bytes[2].toString(16).toUpperCase())) + ")",
+                    color: "#7c3aed", // Purple
+                    textColor: "#ffffff"
+                });
+            }
+            // Segment 3: Sequence Counter (Byte 3)
+            if (bytes.length >= 4) {
+                segments.push({
+                    start: 3,
+                    end: 3,
+                    name: "Sequence",
+                    desc: "Sequence Counter #" + (data.seq !== undefined ? data.seq : bytes[3]),
+                    color: "#d97706", // Amber
+                    textColor: "#ffffff"
+                });
+            }
+            // Dynamic TLV Channels (Bytes 4+)
+            var idx = 4;
+            while (idx < bytes.length) {
+                var startIdx = idx;
+                var ch = bytes[idx++];
+                if (idx >= bytes.length) break;
+                var typeCode = bytes[idx++];
+                var endIdx = idx - 1;
+                var chName = "Ch " + ch;
+                var chDesc = "";
+                var color = "#059669"; // Emerald
+
+                if (typeCode === 0x11) {
+                    if (idx + 1 < bytes.length) {
+                        endIdx = idx + 1;
+                        idx += 2;
+                        chName += " Temp";
+                        chDesc = (data.temperature !== undefined) ? (data.temperature + " °C") : "2-Byte Temperature";
+                        color = "#059669";
+                    } else break;
+                } else if (typeCode === 0x05) {
+                    if (idx + 1 < bytes.length) {
+                        endIdx = idx + 1;
+                        idx += 2;
+                        chName += " Battery";
+                        chDesc = (data.battery !== undefined) ? (data.battery + " V (" + (data.battery_mv || "") + "mV)") : "2-Byte Battery";
+                        color = "#0891b2"; // Cyan
+                    } else break;
+                } else if (typeCode === 0x01 || typeCode === 0x10) {
+                    if (idx < bytes.length) {
+                        endIdx = idx;
+                        idx += 1;
+                        chName += " State";
+                        chDesc = (data.state !== undefined) ? ("State: " + data.state) : "1-Byte Switch";
+                        color = "#ea580c"; // Orange
+                    } else break;
+                } else if (typeCode === 0x02 || typeCode === 0x12) {
+                    if (idx + 1 < bytes.length) {
+                        endIdx = idx + 1;
+                        idx += 2;
+                        chName += " Analog";
+                        chDesc = "2-Byte Analog Input";
+                        color = "#4f46e5"; // Indigo
+                    } else break;
+                } else {
+                    break;
+                }
+
+                segments.push({
+                    start: startIdx,
+                    end: endIdx,
+                    name: chName,
+                    desc: chDesc,
+                    color: color,
+                    textColor: "#ffffff"
+                });
+            }
+        } else if (schemeId === "scheme_universal_tlv" || (bytes.length >= 4 && bytes[0] === 0xAA)) {
+            // NetID (Byte 0)
+            segments.push({
+                start: 0,
+                end: 0,
+                name: "NetID",
+                desc: "Network Identifier (0xAA)",
+                color: "#334155",
+                textColor: "#ffffff"
+            });
+            // SenderID (Byte 1)
+            segments.push({
+                start: 1,
+                end: 1,
+                name: "Sender ID",
+                desc: "Node ID: " + bytes[1],
+                color: "#2563eb",
+                textColor: "#ffffff"
+            });
+            // TargetID (Byte 2)
+            segments.push({
+                start: 2,
+                end: 2,
+                name: "Gateway ID",
+                desc: "Destination GW: " + bytes[2],
+                color: "#64748b",
+                textColor: "#ffffff"
+            });
+            // Seq (Byte 3)
+            segments.push({
+                start: 3,
+                end: 3,
+                name: "Sequence",
+                desc: "Sequence Counter #" + bytes[3],
+                color: "#d97706",
+                textColor: "#ffffff"
+            });
+            // Dynamic TLVs
+            var idx = 4;
+            while (idx < bytes.length) {
+                var startIdx = idx;
+                var ch = bytes[idx++];
+                if (idx >= bytes.length) break;
+                var typeCode = bytes[idx++];
+                var endIdx = idx - 1;
+                var chName = "Ch " + ch;
+                var chDesc = "";
+                var color = "#059669";
+
+                if (typeCode === 0x11) {
+                    if (idx + 1 < bytes.length) {
+                        endIdx = idx + 1;
+                        idx += 2;
+                        chName += " Temp";
+                        chDesc = (data.temperature !== undefined) ? (data.temperature + " °C") : "Temperature";
+                        color = "#059669";
+                    } else break;
+                } else if (typeCode === 0x05) {
+                    if (idx + 1 < bytes.length) {
+                        endIdx = idx + 1;
+                        idx += 2;
+                        chName += " Battery";
+                        chDesc = (data.battery !== undefined) ? (data.battery + " V") : "Battery";
+                        color = "#0891b2";
+                    } else break;
+                } else if (typeCode === 0x01 || typeCode === 0x10) {
+                    if (idx < bytes.length) {
+                        endIdx = idx;
+                        idx += 1;
+                        chName += " State";
+                        chDesc = "Switch State";
+                        color = "#ea580c";
+                    } else break;
+                } else {
+                    break;
+                }
+                segments.push({
+                    start: startIdx,
+                    end: endIdx,
+                    name: chName,
+                    desc: chDesc,
+                    color: color,
+                    textColor: "#ffffff"
+                });
+            }
+        }
+
+        // Fill any unsegmented trailing bytes
+        var covered = {};
+        segments.forEach(function(s) {
+            for (var j = s.start; j <= s.end; j++) covered[j] = true;
+        });
+
+        var uncovStart = null;
+        for (var i = 0; i <= bytes.length; i++) {
+            if (i < bytes.length && !covered[i]) {
+                if (uncovStart === null) uncovStart = i;
+            } else {
+                if (uncovStart !== null) {
+                    segments.push({
+                        start: uncovStart,
+                        end: i - 1,
+                        name: "Payload",
+                        desc: (i - uncovStart) + " Bytes",
+                        color: "#94a3b8",
+                        textColor: "#ffffff"
+                    });
+                    uncovStart = null;
+                }
+            }
+        }
+
+        segments.sort(function(a, b) { return a.start - b.start; });
+        return segments;
+    };
+
+    // -------------------------------------------------------------------------
     // Standard Cayenne LPP (IPSO) Decoder
     // -------------------------------------------------------------------------
 

@@ -683,7 +683,7 @@ function openPacketModal(idx) {
         document.getElementById("pm-json").innerText = JSON.stringify({ hex: p.hex }, null, 2);
     }
 
-    document.getElementById("pm-decoder-link").href = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>';
+    document.getElementById("pm-decoder-link").href = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>?hex=' + encodeURIComponent(p.hex || '');
     document.getElementById("pkt-modal").style.display = "flex";
 }
 
