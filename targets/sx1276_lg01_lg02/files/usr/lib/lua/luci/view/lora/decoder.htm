@@ -454,11 +454,17 @@ function loadRecentPackets() {
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4 && xhr.status === 200) {
             try {
-                var pkts = JSON.parse(xhr.responseText);
-                window.g_recentPackets = pkts || [];
+                var rawList = JSON.parse(xhr.responseText) || [];
+                // STRICT INTEGRITY FILTER: Only valid packets that passed hardware CRC verification are allowed
+                var pkts = rawList.filter(function(p) {
+                    if (!p || !p.hex) return false;
+                    var st = (p.status || "").toUpperCase();
+                    return st === "" || st === "CRC_OK";
+                });
+                window.g_recentPackets = pkts;
                 var sel = document.getElementById("sel-recent-pkts");
                 if (sel) {
-                    sel.innerHTML = '<option value="">-- Select from history (' + pkts.length + ' packets) --</option>';
+                    sel.innerHTML = '<option value="">-- Select from history (' + pkts.length + ' valid packets) --</option>';
                     for (var i = 0; i < pkts.length; i++) {
                         var p = pkts[i];
                         if (!p.hex) continue;

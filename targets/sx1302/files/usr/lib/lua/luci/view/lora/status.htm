@@ -681,28 +681,28 @@ function processIncomingPackets(pkts) {
         if (seenPacketIds[key]) continue;
         seenPacketIds[key] = true;
 
-        var isCrcBad = (p.status && p.status.indexOf("BAD") !== -1);
+        var isCrcBad = (p.status && (p.status.indexOf("BAD") !== -1 || p.status.indexOf("ERR") !== -1 || p.status === "NO_CRC"));
         if (isCrcBad) {
             g_crcErrCount++;
         } else {
             g_crcOkCount++;
         }
 
-        // Run client-side decoding if available
+        // Run client-side decoding ONLY if packet passed CRC integrity check
         var showDecoded = document.getElementById("chk-decode-payloads") ? document.getElementById("chk-decode-payloads").checked : true;
-        var dec = (window.LoraDecoder && p.hex && showDecoded) ? LoraDecoder.decodePacket(p) : null;
+        var dec = (!isCrcBad && window.LoraDecoder && p.hex && showDecoded) ? LoraDecoder.decodePacket(p) : null;
         p._decoded = dec;
 
         var pIdx = g_storedPackets.length;
         g_storedPackets.push(p);
 
-        // Record active nodes
+        // Record active nodes (ONLY for valid CRC packets)
         var nodeDisplayId = "";
-        if (dec && dec.nodeId) {
+        if (dec && dec.nodeId && !isCrcBad) {
             nodeDisplayId = dec.nodeId;
             g_activeNodes[dec.nodeId] = true;
         } else if (p.hex && p.hex.length >= 4) {
-            nodeDisplayId = p.hex.substring(0, 4).toUpperCase();
+            nodeDisplayId = isCrcBad ? "CORRUPT" : p.hex.substring(0, 4).toUpperCase();
         }
 
         var tr = document.createElement("tr");
@@ -771,8 +771,12 @@ function processIncomingPackets(pkts) {
         if (dec && dec.schemeId !== 'none' && dec.success) {
             schemeTag = '<span style="background: #2563eb; color: #fff; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-right: 4px;">' + (dec.schemeName || "Decoded") + '</span>';
         }
-        var telemRow = (telemChips !== '' || schemeTag !== '') ? 
-            ('<div style="display: flex; align-items: center; flex-wrap: wrap; margin-top: 3px;">' + schemeTag + telemChips + '</div>') : '';
+        var telemRow = '';
+        if (isCrcBad) {
+            telemRow = '<div style="margin-top: 3px;"><span style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px;">⚠️ Corrupted CRC — Dropped from Pipeline</span></div>';
+        } else if (telemChips !== '' || schemeTag !== '') {
+            telemRow = '<div style="display: flex; align-items: center; flex-wrap: wrap; margin-top: 3px;">' + schemeTag + telemChips + '</div>';
+        }
 
         var payloadHtml = 
             '<div style="cursor: pointer;" onclick="openPacketModal(' + pIdx + ')" title="Click to inspect payload">' +
@@ -785,7 +789,7 @@ function processIncomingPackets(pkts) {
             LoraDecoder.hasDefinedDecoder(p, dec) : 
             (dec && dec.schemeId && dec.schemeId !== 'none' && dec.schemeId !== 'fallback_ascii' && dec.schemeId !== 'scheme_2b_node_tlv' && dec.schemeId !== 'scheme_cayenne_lpp' && dec.schemeId !== 'scheme_ascii_ping');
 
-        var candidateBtnHtml = (!hasDecoder && p.hex) ? 
+        var candidateBtnHtml = (!isCrcBad && !hasDecoder && p.hex) ? 
             ('<button type="button" class="btn-packet-candidate" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700; font-size: 10px; padding: 3px 7px; border-radius: 3px; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.35);" onclick="event.stopPropagation(); setPacketAsDecodeCandidate(\'' + p.hex + '\')" title="Set as candidate in Decoder Studio">🎯 Candidate</button>') : '';
 
         var actionsHtml = 

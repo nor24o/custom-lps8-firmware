@@ -717,7 +717,16 @@ end
 
 -- Ingest New Packet into SQLite
 local function ingest_packet(pkt)
-    if not pkt or not pkt.hex or pkt.status == "CRC_ERR" then return end
+    if not pkt or not pkt.hex then return end
+
+    -- STRICT CRC INTEGRITY GATE:
+    -- Only packets that successfully passed hardware CRC verification are allowed into the decoder pipeline.
+    -- Any corrupted packet (CRC_BAD, CRC_ERR, NO_CRC) is immediately dropped to prevent false nodes,
+    -- corrupted telemetry values, and metric jumping.
+    local status = tostring(pkt.status or ""):upper()
+    if status ~= "" and status ~= "CRC_OK" then
+        return
+    end
 
     local metrics = extract_metrics(pkt.hex, pkt.b64)
     local node_id = metrics.node_id or "UNKNOWN"
