@@ -235,6 +235,11 @@ function action_decoders()
         if f then
             f:write(jsonc.stringify(parsed, true))
             f:close()
+
+            -- Trigger immediate discovery sync with updated decoders
+            local sys = require "luci.sys"
+            sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+
             http.prepare_content("application/json")
             http.write_json({ status = "saved", count = #(parsed.schemes or {}) })
         else
@@ -653,7 +658,7 @@ function action_nodes()
 
         -- Re-sync Home Assistant discovery to reflect adopted / updated node
         local sys = require "luci.sys"
-        sys.call("killall lora_mqtt_bridge.lua 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+        sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
 
         http.prepare_content("application/json")
         http.write_json({ success = true, node_id = data.node_id })
@@ -1086,7 +1091,7 @@ function action_mqtt()
             f:close()
         end
 
-        sys.call("killall lora_mqtt_bridge.lua 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+        sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
 
         http.prepare_content("application/json")
         http.write_json({ success = true, mqtt = cfg.mqtt })

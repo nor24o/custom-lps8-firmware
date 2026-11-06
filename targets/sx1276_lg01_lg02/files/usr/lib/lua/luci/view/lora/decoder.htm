@@ -1041,9 +1041,9 @@ function buildSchemeDrawerHtml(idx, container) {
                     '<input type="text" id="dr-test-hex-' + idx + '" value="' + escapeHtml(sampleHex) + '" ' +
                            'style="flex: 2; min-width: 200px; padding: 6px 10px; font-family: monospace; font-size: 13px; font-weight: 700; border: 1.5px solid #93c5fd; border-radius: 4px; background: #f8fafc;" ' +
                            'placeholder="Enter payload HEX..." oninput="onDrawerTestHexChange(' + idx + ')" />' +
-                    (candidateHex ? '<button type="button" class="cbi-button" style="background: #2563eb; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,0.4);" onclick="applyCandidateToDrawer(' + idx + ')">🎯 Use Candidate</button>' : '') +
+                    ((candidateHex && candidateHex.toLowerCase() !== sampleHex.toLowerCase()) ? '<button type="button" class="cbi-button" style="background: #2563eb; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,0.4);" onclick="applyCandidateToDrawer(' + idx + ')">🎯 Use Candidate</button>' : '') +
                     '<select id="dr-recent-pkts-' + idx + '" style="padding: 5px 8px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; max-width: 240px;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
-                        '<option value="">📁 Load from History</option>' +
+                        '<option value="">📁 History</option>' +
                     '</select>' +
                     '<button type="button" class="cbi-button" style="background: #059669; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to scheme">📌 Bind</button>' +
                     '<span id="dr-test-status-badge-' + idx + '" class="studio-badge badge-slate" style="margin-left: auto;">Ready</span>' +
@@ -1417,7 +1417,7 @@ function populateDrawerRecentPackets(idx) {
     var sel = document.getElementById("dr-recent-pkts-" + idx);
     if (!sel) return;
     var pkts = window.g_recentPackets || [];
-    sel.innerHTML = '<option value="">-- Load recent packet (' + pkts.length + ' available) --</option>';
+    sel.innerHTML = '<option value="">📁 History (' + pkts.length + ' pkts)</option>';
     for (var i = 0; i < pkts.length; i++) {
         var p = pkts[i];
         if (!p.hex) continue;

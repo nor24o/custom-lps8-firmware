@@ -786,7 +786,7 @@ function processIncomingPackets(pkts) {
             (dec && dec.schemeId && dec.schemeId !== 'none' && dec.schemeId !== 'fallback_ascii' && dec.schemeId !== 'scheme_2b_node_tlv' && dec.schemeId !== 'scheme_cayenne_lpp' && dec.schemeId !== 'scheme_ascii_ping');
 
         var candidateBtnHtml = (!hasDecoder && p.hex) ? 
-            ('<button type="button" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700; font-size: 10px; padding: 3px 7px; border-radius: 3px; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.35);" onclick="event.stopPropagation(); setPacketAsDecodeCandidate(\'' + p.hex + '\')" title="Set as candidate in Decoder Studio">🎯 Candidate</button>') : '';
+            ('<button type="button" class="btn-packet-candidate" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700; font-size: 10px; padding: 3px 7px; border-radius: 3px; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.35);" onclick="event.stopPropagation(); setPacketAsDecodeCandidate(\'' + p.hex + '\')" title="Set as candidate in Decoder Studio">🎯 Candidate</button>') : '';
 
         var actionsHtml = 
             '<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">' +
@@ -1093,9 +1093,13 @@ function updateCandidateButtonsInTable() {
     for (var i = 0; i < rows.length; i++) {
         var row = rows[i];
         var hex = row.getAttribute("data-hex");
+        var node = row.getAttribute("data-node");
         if (!hex) continue;
-        var hasDec = (window.LoraDecoder && window.LoraDecoder.hasDefinedDecoder) ? LoraDecoder.hasDefinedDecoder(hex) : false;
-        var candBtn = row.querySelector("button[title*='Candidate'], button[title*='candidate']");
+        var hasDec = false;
+        if (window.LoraDecoder && window.LoraDecoder.hasDefinedDecoder) {
+            hasDec = LoraDecoder.hasDefinedDecoder({ hex: hex, nodeId: node });
+        }
+        var candBtn = row.querySelector(".btn-packet-candidate, button[title*='Candidate'], button[title*='candidate']");
         if (candBtn) {
             candBtn.style.display = hasDec ? "none" : "inline-block";
         }

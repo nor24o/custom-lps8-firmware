@@ -641,8 +641,12 @@ local function publish_ha_discovery(node, dec_doc)
     mqtt_publish(string.format("%s/sensor/lora_%s/sender_id/config", HA_PREFIX, node_id), "", true)
     mqtt_publish(string.format("%s/sensor/lora_%s/target_id/config", HA_PREFIX, node_id), "", true)
     mqtt_publish(string.format("%s/sensor/lora_%s/ch1_val/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/batt_mv/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/battery_mv/config", HA_PREFIX, node_id), "", true)
     mqtt_publish(string.format("%s/binary_sensor/lora_%s/ch1_state/config", HA_PREFIX, node_id), "", true)
     mqtt_publish(string.format("%s/sensor/lora_%s/raw_hex/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/device_type/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/capability/config", HA_PREFIX, node_id), "", true)
 end
 
 -- ==============================================================================

@@ -1124,6 +1124,24 @@
             }
         }
 
+        // C. Direct Node ID match to custom scheme
+        if (nodeId) {
+            var nidUpper = nodeId.toUpperCase();
+            for (var k = 0; k < schemes.length; k++) {
+                var sc = schemes[k];
+                if (!sc || sc.enabled === false) continue;
+                var isBg = (sc.id === "scheme_2b_node_tlv" || sc.id === "scheme_cayenne_lpp" || sc.id === "scheme_ascii_ping");
+                if (!isBg) {
+                    var scVal = String(sc.matchValue || "").trim().toUpperCase();
+                    var scName = String(sc.name || "").toUpperCase();
+                    var scId = String(sc.id || "").toUpperCase();
+                    if (scVal === nidUpper || scName.indexOf(nidUpper) !== -1 || scId.indexOf(nidUpper) !== -1) {
+                        return true;
+                    }
+                }
+            }
+        }
+
         return false;
     };
 
@@ -1215,8 +1233,10 @@
                         var parsed = JSON.parse(xhr.responseText);
                         var list = (parsed && parsed.schemes && parsed.schemes.length) ? parsed.schemes : LoraDecoder.getDefaultSchemes();
                         LoraDecoder.activeSchemes = list;
+                        try { localStorage.setItem('lora_cached_schemes', JSON.stringify(list)); } catch(ce) {}
                         if (parsed && parsed.globalNodeId) {
                             LoraDecoder.globalNodeId = parsed.globalNodeId;
+                            try { localStorage.setItem('lora_cached_global_node', JSON.stringify(parsed.globalNodeId)); } catch(ge) {}
                         }
                         if (callback) callback(null, list, LoraDecoder.globalNodeId);
                     } catch(e) {
@@ -1250,8 +1270,10 @@
                         var resp = JSON.parse(xhr.responseText);
                         LoraDecoder.activeSchemes = schemesList;
                         LoraDecoder.globalNodeId = globalNodeId || LoraDecoder.globalNodeId;
+                        try { localStorage.setItem('lora_cached_schemes', JSON.stringify(schemesList)); } catch(ce) {}
                         if (callback) callback(null, resp);
                     } catch(e) {
+                        try { localStorage.setItem('lora_cached_schemes', JSON.stringify(schemesList)); } catch(ce) {}
                         if (callback) callback(null, { status: 'saved' });
                     }
                 } else {
@@ -1268,8 +1290,17 @@
         xhr.send(payload);
     };
 
-    // Initialize activeSchemes with defaults
-    LoraDecoder.activeSchemes = LoraDecoder.getDefaultSchemes();
+    // Initialize activeSchemes from localStorage cache or defaults immediately
+    try {
+        var cached = localStorage.getItem('lora_cached_schemes');
+        if (cached) {
+            var cParsed = JSON.parse(cached);
+            if (cParsed && cParsed.length) LoraDecoder.activeSchemes = cParsed;
+        }
+    } catch(e) {}
+    if (!LoraDecoder.activeSchemes || !LoraDecoder.activeSchemes.length) {
+        LoraDecoder.activeSchemes = LoraDecoder.getDefaultSchemes();
+    }
 
     window.LoraDecoder = LoraDecoder;
 

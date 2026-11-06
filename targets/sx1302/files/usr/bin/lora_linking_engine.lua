@@ -66,7 +66,7 @@ local function publish_mqtt_telemetry(node_id, metrics)
     local payload = jsonc.stringify(metrics)
     local topic = prefix .. "/" .. node_id .. "/state"
     local cmd = string.format(
-        "mosquitto_pub -h %s -p %d %s -t %s -m %s 2>/dev/null &",
+        "mosquitto_pub -h %s -p %d %s -t %s -m %s -r 2>/dev/null &",
         shellquote(host),
         port,
         auth,
@@ -484,12 +484,6 @@ local function extract_metrics(hex, raw_b64)
             -- Legacy format: NetID 0xAA + SenderID + TargetID + Seq + CTV
             local auto_metrics = decode_ctv_payload(bytes, hex, 4)
             for k, v in pairs(auto_metrics) do metrics[k] = v end
-        elseif #bytes >= 8 then
-            -- Legacy fixed 8-byte format: [0..1: ID, 2..3: SEQ, 4..5: TEMP, 6..7: VOLT]
-            metrics.seq = (bytes[3] * 256) + bytes[4]
-            metrics.temperature = ((bytes[5] * 256) + bytes[6]) / 10.0
-            metrics.battery = ((bytes[7] * 256) + bytes[8]) / 1000.0
-            metrics.val = metrics.temperature
         end
     end
 
