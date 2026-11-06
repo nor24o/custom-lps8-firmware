@@ -534,11 +534,13 @@
             </div>
             <div class="form-field" style="grid-column: span 2; margin-top: 6px; background: #f0f7ff; padding: 10px 12px; border-radius: 4px; border: 1px solid #cce5ff;">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; color: #004085; margin: 0;">
-                    <input type="checkbox" id="nm-ha" checked />
+                    <input type="checkbox" id="nm-ha" />
                     <%:Expose Node to Home Assistant via MQTT Auto-Discovery%>
                 </label>
                 <span style="font-size: 11px; color: #555; display: block; margin-top: 4px; margin-left: 24px;">
                     <%:When checked and assigned to a Category/Area (e.g. Living Room, Garden), all decoded sensors, signal metrics, and sequence counters are published to Home Assistant. Unassigned or unchecked nodes are hidden from Home Assistant.%>
+                </span>
+                <div id="nm-decoder-status" style="margin-top: 8px; margin-left: 24px; padding: 6px 8px; border-radius: 4px; font-size: 11px;"></div>
                 </span>
             </div>
         </div>
@@ -639,6 +641,29 @@
 
 <script>
 var g_nodes = [];
+var g_decodersList = [];
+function loadDecodersList() {
+    fetch('<%=url("admin/lora/api_decoders")%>')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { g_decodersList = (d && d.schemes) ? d.schemes : []; })
+        .catch(function() {});
+}
+function findCustomDecoderForNode(node_id) {
+    if (!node_id || !g_decodersList) return null;
+    var nid = node_id.trim().toUpperCase();
+    for (var i = 0; i < g_decodersList.length; i++) {
+        var s = g_decodersList[i];
+        if (!s || s.enabled === false) continue;
+        if (s.id === 'scheme_2b_node_tlv' || s.id === 'scheme_cayenne_lpp' || s.id === 'scheme_ascii_ping') continue;
+        if (s.matchType === 'prefix' && s.matchValue) {
+            var pfx = s.matchValue.trim().toUpperCase();
+            if (nid.indexOf(pfx) === 0 || pfx.indexOf(nid) === 0) return s;
+        }
+        if (s.name && s.name.toUpperCase().indexOf(nid) !== -1) return s;
+    }
+    return null;
+}
+
 var g_links = [];
 
 function switchTab(name) {
@@ -650,7 +675,8 @@ function switchTab(name) {
     var targetPane = document.getElementById('tab-' + name);
     if (targetPane) targetPane.style.display = 'block';
 
-    if (name === 'nodes') { tabs[0].classList.add('active'); loadNodes(); }
+    if (name === 'nodes') { tabs[0].classList.add('active'); loadDecodersList();
+    loadNodes(); }
     else if (name === 'links') { tabs[1].classList.add('active'); loadLinks(); }
     else if (name === 'mqtt') { tabs[2].classList.add('active'); loadMqttConfig(); }
     else if (name === 'testing') { tabs[3].classList.add('active'); }
@@ -930,7 +956,22 @@ function openNodeModal(node_id) {
         document.getElementById('nm-group').value = (n && n.group_name && n.group_name !== 'Unassigned') ? n.group_name : 'Default';
         document.getElementById('nm-rx1').value = (n && n.rx1_delay_ms) ? n.rx1_delay_ms : 1000;
         document.getElementById('nm-powe').value = (n && n.default_tx_power) ? n.default_tx_power : 14;
-        document.getElementById('nm-ha').checked = (n && n.ha_enabled !== undefined) ? (n.ha_enabled === 1 || n.ha_enabled === '1') : true;
+        document.getElementById('nm-ha').checked = (n && n.ha_enabled !== undefined) ? (n.ha_enabled === 1 || n.ha_enabled === '1') : false;
+        var decScheme = findCustomDecoderForNode(node_id);
+        var statEl = document.getElementById('nm-decoder-status');
+        if (statEl) {
+            if (decScheme) {
+                statEl.style.background = '#ecfdf5';
+                statEl.style.border = '1px solid #a7f3d0';
+                statEl.innerHTML = '<span style="color:#065f46; font-weight:700;">🟢 Decoder Configured: ' + escapeHtml(decScheme.name) + '</span>';
+            } else {
+                statEl.style.background = '#fffbeb';
+                statEl.style.border = '1px solid #fde68a';
+                statEl.innerHTML = '<span style="color:#b45309; font-weight:700;">⚠️ No Custom Decoder Configured.</span> ' +
+                    '<a href="<%=url("admin/lora/decoder")%>?hex=' + encodeURIComponent(node_id) + '" style="font-weight:700; color:#2563eb; margin-left:6px;">Configure in Decoder Studio ➔</a>' +
+                    '<div style="color:#92400e; font-size:10px; margin-top:2px;">Home Assistant auto-enrollment is locked until a decoder is defined and verified.</div>';
+            }
+        }
     } else {
         document.getElementById('node-modal-title').textContent = '<%:Register New Node%>';
         document.getElementById('nm-id').value = '';
@@ -940,8 +981,17 @@ function openNodeModal(node_id) {
         document.getElementById('nm-group').value = 'Default';
         document.getElementById('nm-rx1').value = 1000;
         document.getElementById('nm-powe').value = 14;
-        document.getElementById('nm-ha').checked = true;
+        document.getElementById('nm-ha').checked = false;
+        var statEl = document.getElementById('nm-decoder-status');
+        if (statEl) statEl.innerHTML = '';
     }
+    document.getElementById('nm-ha').onchange = function() {
+        var curId = document.getElementById('nm-id').value.trim();
+        if (this.checked && !findCustomDecoderForNode(curId)) {
+            alert('Cannot enroll Node ' + curId + ' into Home Assistant:\n\nA custom decoder scheme must first be configured in Decoder Studio so Home Assistant knows what entities to discover.');
+            this.checked = false;
+        }
+    };
     document.getElementById('node-modal').style.display = 'flex';
 }
 function closeNodeModal() {
@@ -976,7 +1026,8 @@ function saveNode() {
       .then(function(res) {
           if (res.success) {
               closeNodeModal();
-              loadNodes();
+              loadDecodersList();
+    loadNodes();
           } else {
               alert(res.error || 'Failed to save node');
           }
@@ -986,7 +1037,8 @@ function saveNode() {
 function deleteNode(id) {
     if (!confirm('Delete node ' + id + ' from SQLite registry?')) return;
     fetch('<%=url("admin/lora/api_nodes")%>?node_id=' + encodeURIComponent(id), { method: 'DELETE' })
-        .then(function() { loadNodes(); });
+        .then(function() { loadDecodersList();
+    loadNodes(); });
 }
 
 function openLinkModal() {
@@ -1173,6 +1225,7 @@ function escapeHtml(str) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    loadDecodersList();
     loadNodes();
     loadLinks();
 });

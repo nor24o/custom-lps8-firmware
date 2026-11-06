@@ -364,10 +364,13 @@ var g_schemes = [];
 var g_globalNodeId = { source: "node_2b", format: "hex", prefix: "" };
 var g_apiEndpoint = '<%=luci.dispatcher.build_url("admin/lora/api_decoders")%>';
 var g_packetsApi = '<%=luci.dispatcher.build_url("admin/lora/api_packets")%>';
+var g_nodesApi = '<%=luci.dispatcher.build_url("admin/lora/api_nodes")%>';
+window.g_enrolledNodes = {};
 var g_expandedIndex = -1;
 
 window.onload = function() {
     checkActiveCandidate();
+    loadEnrolledNodes();
     loadSchemes();
     loadRecentPackets();
 
@@ -377,6 +380,30 @@ window.onload = function() {
         document.getElementById("test-hex").value = hexParam.trim();
     }
 };
+
+function loadEnrolledNodes(callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', g_nodesApi, true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    var list = data.nodes || [];
+                    window.g_enrolledNodes = {};
+                    for (var i = 0; i < list.length; i++) {
+                        var n = list[i];
+                        if (n.node_id) {
+                            window.g_enrolledNodes[n.node_id.toUpperCase()] = n;
+                        }
+                    }
+                } catch(e) {}
+            }
+            if (callback) callback();
+        }
+    };
+    xhr.send();
+}
 
 function showToast(msg, type) {
     type = type || 'success';
@@ -1016,7 +1043,7 @@ function buildSchemeDrawerHtml(idx, container) {
                            'placeholder="Enter payload HEX..." oninput="onDrawerTestHexChange(' + idx + ')" />' +
                     (candidateHex ? '<button type="button" class="cbi-button" style="background: #2563eb; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,0.4);" onclick="applyCandidateToDrawer(' + idx + ')">🎯 Use Candidate</button>' : '') +
                     '<select id="dr-recent-pkts-' + idx + '" style="padding: 5px 8px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; max-width: 240px;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
-                        '<option value="">-- Load recent packet --</option>' +
+                        '<option value="">📁 Load from History</option>' +
                     '</select>' +
                     '<button type="button" class="cbi-button" style="background: #059669; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to scheme">📌 Bind</button>' +
                     '<span id="dr-test-status-badge-' + idx + '" class="studio-badge badge-slate" style="margin-left: auto;">Ready</span>' +
@@ -1584,7 +1611,129 @@ function runDrawerDirectTest(idx) {
                    '</div>' +
                '</details>';
 
+    // 5. Home Assistant Strict Two-Factor Enrollment Gate
+    var nodeObj = (window.g_enrolledNodes && nodeId) ? window.g_enrolledNodes[nodeId.toUpperCase()] : null;
+    var isEnrolledInHa = nodeObj && (nodeObj.ha_enabled === 1 || nodeObj.ha_enabled === "1") && 
+                         (nodeObj.is_configured === 1 || nodeObj.is_configured === "1") && 
+                         nodeObj.group_name && nodeObj.group_name !== "Unassigned" && nodeObj.group_name !== "Uncategorized";
+
+    outHtml += '<div id="dr-ha-box-' + idx + '" style="margin-top: 12px; border-radius: 6px; padding: 12px; ' +
+               (isEnrolledInHa ? 'background: #f0fdf4; border: 1.5px solid #86efac; border-left: 5px solid #16a34a;' : 'background: #f8fafc; border: 1.5px solid #cbd5e1; border-left: 5px solid #64748b;') + '">' +
+                   '<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">' +
+                       '<div style="display: flex; align-items: center; gap: 8px;">' +
+                           '<span style="font-size: 20px;">🏠</span>' +
+                           '<div>' +
+                               '<div style="font-size: 13px; font-weight: 800; color: ' + (isEnrolledInHa ? '#15803d' : '#334155') + ';">' +
+                                   'Home Assistant Enrollment: Node <code>' + escapeHtml(nodeId) + '</code>' +
+                               '</div>' +
+                               '<div style="font-size: 11px; color: ' + (isEnrolledInHa ? '#166534' : '#64748b') + ';">' +
+                                   (isEnrolledInHa 
+                                       ? ('🟢 <strong>Enrolled & Active</strong> in Home Assistant — Area: <strong>' + escapeHtml(nodeObj.group_name) + '</strong> | Topic: <code>lora/' + escapeHtml(nodeId) + '/state</code>') 
+                                       : ('⚪ <strong>Not Enrolled</strong> (Isolated from Home Assistant until verified & adopted)')) +
+                               '</div>' +
+                           '</div>' +
+                       '</div>' +
+                       '<div>' +
+                           (isEnrolledInHa 
+                               ? ('<button type="button" class="cbi-button cbi-button-reset" style="padding: 5px 12px; font-size: 11px;" onclick="unenrollNodeFromHa(' + idx + ', \'' + escapeHtml(nodeId) + '\')">🚫 Remove from Home Assistant</button>')
+                               : ('<button type="button" style="background: #2563eb; color: #fff; font-weight: 700; border: none; padding: 6px 14px; border-radius: 4px; font-size: 11px; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.4);" onclick="toggleHaEnrollForm(' + idx + ')">🏠 Expose Node ' + escapeHtml(nodeId) + ' to Home Assistant ➔</button>')) +
+                       '</div>' +
+                   '</div>' +
+                   
+                   '<!-- Inline Enrollment Form -->' +
+                   '<div id="dr-ha-form-' + idx + '" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">' +
+                       '<div style="font-size: 11px; color: #475569; margin-bottom: 8px;">' +
+                           'Confirm this node is yours and assign it to an Area/Room. Home Assistant MQTT discovery will only register the decoded sensors verified above.' +
+                       '</div>' +
+                       '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">' +
+                           '<div style="flex: 1; min-width: 140px;">' +
+                               '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;">Room / Area:</label>' +
+                               '<input type="text" id="dr-ha-area-' + idx + '" value="' + ((nodeObj && nodeObj.group_name && nodeObj.group_name !== "Unassigned") ? escapeHtml(nodeObj.group_name) : "Living Room") + '" placeholder="e.g. Living Room, Garden, Kitchen" style="width: 100%; padding: 4px 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;" />' +
+                           '</div>' +
+                           '<div style="flex: 1.5; min-width: 180px;">' +
+                               '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;">Friendly Device Name:</label>' +
+                               '<input type="text" id="dr-ha-friendly-' + idx + '" value="' + ((nodeObj && nodeObj.name) ? escapeHtml(nodeObj.name) : (tempScheme.name || ("Node " + nodeId))) + '" placeholder="e.g. Living Room Sensor" style="width: 100%; padding: 4px 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;" />' +
+                           '</div>' +
+                           '<div style="display: flex; gap: 6px; align-items: flex-end; margin-top: 14px;">' +
+                               '<button type="button" style="background: #16a34a; color: #fff; font-weight: 700; border: none; padding: 6px 14px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="enrollNodeIntoHa(' + idx + ', \'' + escapeHtml(nodeId) + '\')">✅ Confirm & Enroll into HA</button>' +
+                               '<button type="button" class="cbi-button" style="padding: 5px 10px; font-size: 11px;" onclick="toggleHaEnrollForm(' + idx + ')">Cancel</button>' +
+                           '</div>' +
+                       '</div>' +
+                   '</div>' +
+               '</div>';
+
     outCont.innerHTML = outHtml;
+}
+
+function toggleHaEnrollForm(idx) {
+    var f = document.getElementById("dr-ha-form-" + idx);
+    if (f) f.style.display = (f.style.display === "none") ? "block" : "none";
+}
+
+function enrollNodeIntoHa(idx, nodeId) {
+    var area = document.getElementById("dr-ha-area-" + idx).value.trim();
+    if (!area || area === "Unassigned") {
+        alert("Please specify a valid Area/Room (e.g. Living Room, Garden, Kitchen) to enroll into Home Assistant.");
+        return;
+    }
+    var name = document.getElementById("dr-ha-friendly-" + idx).value.trim() || ("Node " + nodeId);
+    var tempScheme = readTempSchemeFromDrawer(idx);
+
+    var payload = {
+        node_id: nodeId,
+        name: name,
+        group_name: area,
+        model: tempScheme.name || "Custom LoRa Node",
+        node_class: "A",
+        ha_enabled: 1,
+        is_configured: 1
+    };
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", g_nodesApi, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                if (xhr.status === 200 && resp.success) {
+                    showToast("🎉 Node " + nodeId + " enrolled in Home Assistant!", "success");
+                    loadEnrolledNodes(function() {
+                        runDrawerDirectTest(idx);
+                    });
+                } else {
+                    showToast("Failed to enroll: " + (resp.error || "HTTP " + xhr.status), "error");
+                }
+            } catch(e) {
+                showToast("Error enrolling: " + e.message, "error");
+            }
+        }
+    };
+    xhr.send(JSON.stringify(payload));
+}
+
+function unenrollNodeFromHa(idx, nodeId) {
+    if (!confirm("Remove Node " + nodeId + " from Home Assistant?\n\nThis will unpublish its MQTT discovery and delete all entities from Home Assistant.")) return;
+
+    var payload = {
+        node_id: nodeId,
+        ha_enabled: 0,
+        group_name: "Unassigned",
+        is_configured: 0
+    };
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", g_nodesApi, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            showToast("🚫 Node " + nodeId + " removed from Home Assistant", "info");
+            loadEnrolledNodes(function() {
+                runDrawerDirectTest(idx);
+            });
+        }
+    };
+    xhr.send(JSON.stringify(payload));
 }
 
 // -----------------------------------------------------------------------------

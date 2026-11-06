@@ -67,16 +67,8 @@ CREATE TABLE IF NOT EXISTS node_links (
     last_status         TEXT
 );
 
--- Seed Reference Nodes
-INSERT OR IGNORE INTO node_settings (node_id, name, node_class, model, group_name, rx1_delay_ms, is_configured)
-VALUES ('AA0B', 'Living Room Sensor', 'A', 'temperature_sensor', 'Indoor', 1000, 1);
-
-INSERT OR IGNORE INTO node_settings (node_id, name, node_class, model, group_name, default_tx_power, is_configured)
-VALUES ('AA0C', 'Irrigation Valve Actuator', 'C', 'relay_valve', 'Garden', 14, 1);
-
--- Seed Reference Linking Rule
-INSERT OR IGNORE INTO node_links (link_id, name, source_node, trigger_field, operator, threshold_val, target_node, action_payload, turnaround_delay_ms, cooldown_sec, lbt_enabled)
-VALUES (1, 'Overheat Protection Valve', 'AA0B', 'temperature', '>', 30.0, 'AA0C', '0101', 1000, 60, 1);
+-- No default nodes or linking rules are pre-seeded to prevent accidental Home Assistant enrollment.
+-- Nodes are registered upon initial OTA reception and must be explicitly adopted & configured by user.
 EOF
 else
     # Schema Migration for existing databases

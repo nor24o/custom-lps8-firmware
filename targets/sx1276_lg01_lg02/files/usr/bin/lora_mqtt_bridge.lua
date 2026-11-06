@@ -20,6 +20,8 @@ local jsonc   = require "luci.jsonc"
 
 local CONFIG_PATH   = "/etc/lora/config.json"
 local DB_NODES_PATH = "/etc/lora/nodes.db"
+local DB_RAM_PATH   = "/tmp/lora_messages.db"
+local DECODERS_PATH = "/etc/lora/decoders.json"
 local PACKETS_JSON  = "/tmp/lora_packets.json"
 local PORT_DOWN     = 5556
 local STATUS_PORT   = 5557
@@ -301,12 +303,91 @@ local function publish_gateway_discovery()
 end
 
 -- ==============================================================================
--- Home Assistant MQTT Discovery: Child LoRa Nodes
+-- Home Assistant MQTT Discovery: Two-Factor Decoder Gating & Tailored Entities
 -- ==============================================================================
--- ==============================================================================
--- Home Assistant MQTT Discovery: Child LoRa Nodes
--- ==============================================================================
-local function publish_ha_discovery(node)
+
+local function load_decoders_config()
+    local f = io.open(DECODERS_PATH, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    if not content or content == "" then return nil end
+    return jsonc.parse(content)
+end
+
+local function has_custom_decoder_scheme(node_id, dec_doc)
+    if not node_id or not dec_doc or not dec_doc.schemes then return false, nil end
+    local nid = tostring(node_id):upper():gsub("%s+", "")
+    for _, s in ipairs(dec_doc.schemes) do
+        if s.enabled ~= false then
+            local sid = s.id or ""
+            local is_generic = (sid == "scheme_2b_node_tlv" or sid == "scheme_cayenne_lpp" or sid == "scheme_ascii_ping")
+            if not is_generic then
+                if s.matchType == "prefix" and s.matchValue and s.matchValue ~= "" then
+                    local pfx = tostring(s.matchValue):upper():gsub("%s+", "")
+                    if nid:find("^" .. pfx) or pfx:find("^" .. nid) then
+                        return true, s
+                    end
+                elseif s.name and s.name:upper():find(nid, 1, true) then
+                    return true, s
+                end
+            end
+        end
+    end
+    return false, nil
+end
+
+local function get_node_discovered_entities(node_id, matched_scheme)
+    local entities = {}
+
+    -- 1. Check RAM database for recent decoded payload metrics
+    local db_ram = sqlite3.open(DB_RAM_PATH)
+    if db_ram then
+        db_ram:busy_timeout(2000)
+        local stmt = db_ram:prepare("SELECT payload_decoded FROM node_messages WHERE node_id = ? ORDER BY id DESC LIMIT 1;")
+        if stmt then
+            stmt:bind_values(node_id)
+            if stmt:step() == sqlite3.ROW then
+                local raw_json = stmt:get_value(0)
+                if raw_json and raw_json ~= "" then
+                    local parsed = jsonc.parse(raw_json)
+                    if parsed and type(parsed) == "table" then
+                        for k, _ in pairs(parsed) do
+                            if k ~= "node_id" and k ~= "rssi" and k ~= "snr" and k ~= "freq" and k ~= "datr" and 
+                               k ~= "hex" and k ~= "size" and k ~= "last_seen" and k ~= "capability" and 
+                               k ~= "node_class" and k ~= "seq" and k ~= "fcnt" and k ~= "error" then
+                                entities[k] = true
+                            end
+                        end
+                    end
+                end
+            end
+            stmt:finalize()
+        end
+        db_ram:close()
+    end
+
+    -- 2. Check matched scheme fields
+    if matched_scheme and matched_scheme.fields and #matched_scheme.fields > 0 then
+        for _, f in ipairs(matched_scheme.fields) do
+            if f.name and f.name ~= "" then
+                entities[f.name] = true
+            end
+        end
+    end
+
+    -- 3. If matched scheme is cayenne_lpp or ctv and no metrics yet recorded in RAM, fallback to temp & batt
+    if next(entities) == nil and matched_scheme then
+        if matched_scheme.type == "cayenne_lpp" or matched_scheme.type == "ctv" then
+            entities["temperature"] = true
+            entities["battery"]     = true
+        end
+    end
+
+    return entities
+end
+
+local function publish_ha_discovery(node, dec_doc)
     if not MQTT_ENABLED then return end
     local gw = g_gw_info
     local gw_device_id = "dragino_gateway_" .. gw.eui
@@ -331,49 +412,142 @@ local function publish_ha_discovery(node)
         via_device = gw_device_id
     }
 
+    local entities = get_node_discovered_entities(node_id, node._matched_scheme)
+
     -- 1. Temperature Sensor
-    local temp_config = {
-        name = "Temperature",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_temperature",
-        state_topic = state_topic,
-        value_template = "{{ value_json.temperature | default(none) }}",
-        unit_of_measurement = "°C",
-        device_class = "temperature",
-        state_class = "measurement",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/temp/config", HA_PREFIX, node_id), jsonc.stringify(temp_config), true)
+    if entities["temperature"] or entities["temp"] then
+        local temp_config = {
+            name = "Temperature",
+            has_entity_name = true,
+            unique_id = "lora_" .. node_id .. "_temperature",
+            state_topic = state_topic,
+            value_template = "{{ value_json.temperature | default(value_json.temp) | default(none) }}",
+            unit_of_measurement = "°C",
+            device_class = "temperature",
+            state_class = "measurement",
+            device = device_obj
+        }
+        mqtt_publish(string.format("%s/sensor/lora_%s/temp/config", HA_PREFIX, node_id), jsonc.stringify(temp_config), true)
+    else
+        mqtt_publish(string.format("%s/sensor/lora_%s/temp/config", HA_PREFIX, node_id), "", true)
+    end
 
     -- 2. Battery Voltage (V)
-    local batt_config = {
-        name = "Battery Voltage",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_battery",
-        state_topic = state_topic,
-        value_template = "{{ value_json.battery | default(none) }}",
-        unit_of_measurement = "V",
-        device_class = "voltage",
-        state_class = "measurement",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/batt/config", HA_PREFIX, node_id), jsonc.stringify(batt_config), true)
+    if entities["battery"] or entities["batt"] then
+        local batt_config = {
+            name = "Battery Voltage",
+            has_entity_name = true,
+            unique_id = "lora_" .. node_id .. "_battery",
+            state_topic = state_topic,
+            value_template = "{{ value_json.battery | default(value_json.batt) | default(none) }}",
+            unit_of_measurement = "V",
+            device_class = "voltage",
+            state_class = "measurement",
+            device = device_obj
+        }
+        mqtt_publish(string.format("%s/sensor/lora_%s/batt/config", HA_PREFIX, node_id), jsonc.stringify(batt_config), true)
+    else
+        mqtt_publish(string.format("%s/sensor/lora_%s/batt/config", HA_PREFIX, node_id), "", true)
+    end
 
     -- 3. Battery Voltage (mV)
-    local batt_mv_config = {
-        name = "Battery (mV)",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_battery_mv",
-        state_topic = state_topic,
-        value_template = "{{ value_json.battery_mv | default(none) }}",
-        unit_of_measurement = "mV",
-        device_class = "voltage",
-        entity_category = "diagnostic",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/batt_mv/config", HA_PREFIX, node_id), jsonc.stringify(batt_mv_config), true)
+    if entities["battery_mv"] then
+        local batt_mv_config = {
+            name = "Battery (mV)",
+            has_entity_name = true,
+            unique_id = "lora_" .. node_id .. "_battery_mv",
+            state_topic = state_topic,
+            value_template = "{{ value_json.battery_mv | default(none) }}",
+            unit_of_measurement = "mV",
+            device_class = "voltage",
+            entity_category = "diagnostic",
+            device = device_obj
+        }
+        mqtt_publish(string.format("%s/sensor/lora_%s/batt_mv/config", HA_PREFIX, node_id), jsonc.stringify(batt_mv_config), true)
+    else
+        mqtt_publish(string.format("%s/sensor/lora_%s/batt_mv/config", HA_PREFIX, node_id), "", true)
+    end
 
-    -- 4. RSSI Signal Sensor (Diagnostic)
+    -- 4. Humidity Sensor
+    if entities["humidity"] or entities["hum"] then
+        local hum_config = {
+            name = "Humidity",
+            has_entity_name = true,
+            unique_id = "lora_" .. node_id .. "_humidity",
+            state_topic = state_topic,
+            value_template = "{{ value_json.humidity | default(value_json.hum) | default(none) }}",
+            unit_of_measurement = "%",
+            device_class = "humidity",
+            state_class = "measurement",
+            device = device_obj
+        }
+        mqtt_publish(string.format("%s/sensor/lora_%s/humidity/config", HA_PREFIX, node_id), jsonc.stringify(hum_config), true)
+    else
+        mqtt_publish(string.format("%s/sensor/lora_%s/humidity/config", HA_PREFIX, node_id), "", true)
+    end
+
+    -- 5. Atmospheric Pressure Sensor
+    if entities["pressure"] or entities["baro"] then
+        local press_config = {
+            name = "Pressure",
+            has_entity_name = true,
+            unique_id = "lora_" .. node_id .. "_pressure",
+            state_topic = state_topic,
+            value_template = "{{ value_json.pressure | default(value_json.baro) | default(none) }}",
+            unit_of_measurement = "hPa",
+            device_class = "pressure",
+            state_class = "measurement",
+            device = device_obj
+        }
+        mqtt_publish(string.format("%s/sensor/lora_%s/pressure/config", HA_PREFIX, node_id), jsonc.stringify(press_config), true)
+    else
+        mqtt_publish(string.format("%s/sensor/lora_%s/pressure/config", HA_PREFIX, node_id), "", true)
+    end
+
+    -- 6. Accelerometer (X, Y, Z)
+    if entities["accel_x"] or entities["accel_y"] or entities["accel_z"] then
+        for _, axis in ipairs({"x", "y", "z"}) do
+            local key = "accel_" .. axis
+            local a_cfg = {
+                name = "Acceleration " .. axis:upper(),
+                has_entity_name = true,
+                unique_id = "lora_" .. node_id .. "_" .. key,
+                state_topic = state_topic,
+                value_template = "{{ value_json." .. key .. " | default(none) }}",
+                unit_of_measurement = "g",
+                icon = "mdi:axis-arrow",
+                state_class = "measurement",
+                device = device_obj
+            }
+            mqtt_publish(string.format("%s/sensor/lora_%s/%s/config", HA_PREFIX, node_id, key), jsonc.stringify(a_cfg), true)
+        end
+    else
+        mqtt_publish(string.format("%s/sensor/lora_%s/accel_x/config", HA_PREFIX, node_id), "", true)
+        mqtt_publish(string.format("%s/sensor/lora_%s/accel_y/config", HA_PREFIX, node_id), "", true)
+        mqtt_publish(string.format("%s/sensor/lora_%s/accel_z/config", HA_PREFIX, node_id), "", true)
+    end
+
+    -- 7. Actuator / Switch Entity
+    if entities["switch"] or entities["state"] or entities["relay"] or cls == "C" or (node.model and (node.model:find("valve") or node.model:find("relay") or node.model:find("actuator"))) then
+        local switch_config = {
+            name = "Actuator",
+            has_entity_name = true,
+            unique_id = "lora_" .. node_id .. "_switch",
+            state_topic = state_topic,
+            command_topic = TOPIC_ROOT .. "/" .. node_id .. "/set",
+            value_template = "{{ value_json.state | default(value_json.switch) | default('OFF') }}",
+            payload_on = "ON",
+            payload_off = "OFF",
+            state_on = "ON",
+            state_off = "OFF",
+            device = device_obj
+        }
+        mqtt_publish(string.format("%s/switch/lora_%s/switch/config", HA_PREFIX, node_id), jsonc.stringify(switch_config), true)
+    else
+        mqtt_publish(string.format("%s/switch/lora_%s/switch/config", HA_PREFIX, node_id), "", true)
+    end
+
+    -- 8. Standard Diagnostics (Always Registered for Verified Nodes)
     local rssi_config = {
         name = "Signal RSSI",
         has_entity_name = true,
@@ -387,7 +561,6 @@ local function publish_ha_discovery(node)
     }
     mqtt_publish(string.format("%s/sensor/lora_%s/rssi/config", HA_PREFIX, node_id), jsonc.stringify(rssi_config), true)
 
-    -- 5. Signal SNR (Diagnostic)
     local snr_config = {
         name = "Signal SNR",
         has_entity_name = true,
@@ -401,7 +574,6 @@ local function publish_ha_discovery(node)
     }
     mqtt_publish(string.format("%s/sensor/lora_%s/snr/config", HA_PREFIX, node_id), jsonc.stringify(snr_config), true)
 
-    -- 6. RF Frequency (Diagnostic)
     local freq_config = {
         name = "Frequency",
         has_entity_name = true,
@@ -415,7 +587,6 @@ local function publish_ha_discovery(node)
     }
     mqtt_publish(string.format("%s/sensor/lora_%s/freq/config", HA_PREFIX, node_id), jsonc.stringify(freq_config), true)
 
-    -- 7. Data Rate / Spreading Factor (Diagnostic)
     local datr_config = {
         name = "Data Rate",
         has_entity_name = true,
@@ -428,7 +599,6 @@ local function publish_ha_discovery(node)
     }
     mqtt_publish(string.format("%s/sensor/lora_%s/datr/config", HA_PREFIX, node_id), jsonc.stringify(datr_config), true)
 
-    -- 8. Packet Sequence Counter (Diagnostic)
     local seq_config = {
         name = "Packet Sequence",
         has_entity_name = true,
@@ -442,12 +612,6 @@ local function publish_ha_discovery(node)
     }
     mqtt_publish(string.format("%s/sensor/lora_%s/seq/config", HA_PREFIX, node_id), jsonc.stringify(seq_config), true)
 
-    -- Explicitly purge legacy/deprecated sensors (NetID, SenderID, Target Gateway)
-    mqtt_publish(string.format("%s/sensor/lora_%s/net_id/config", HA_PREFIX, node_id), "", true)
-    mqtt_publish(string.format("%s/sensor/lora_%s/sender_id/config", HA_PREFIX, node_id), "", true)
-    mqtt_publish(string.format("%s/sensor/lora_%s/target_id/config", HA_PREFIX, node_id), "", true)
-
-    -- 9. Node Operating Class (Class A / B / C)
     local class_config = {
         name = "Node Class",
         has_entity_name = true,
@@ -460,47 +624,6 @@ local function publish_ha_discovery(node)
     }
     mqtt_publish(string.format("%s/sensor/lora_%s/class/config", HA_PREFIX, node_id), jsonc.stringify(class_config), true)
 
-    -- 12. Channel 1 Raw Sensor Value
-    local ch1_config = {
-        name = "Channel 1 Raw",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_ch1_val",
-        state_topic = state_topic,
-        value_template = "{{ value_json.ch1_val | default(none) }}",
-        entity_category = "diagnostic",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/ch1_val/config", HA_PREFIX, node_id), jsonc.stringify(ch1_config), true)
-
-    -- 13. Humidity Sensor
-    local hum_config = {
-        name = "Humidity",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_humidity",
-        state_topic = state_topic,
-        value_template = "{{ value_json.humidity | default(none) }}",
-        unit_of_measurement = "%",
-        device_class = "humidity",
-        state_class = "measurement",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/humidity/config", HA_PREFIX, node_id), jsonc.stringify(hum_config), true)
-
-    -- 14. Atmospheric Pressure Sensor
-    local press_config = {
-        name = "Pressure",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_pressure",
-        state_topic = state_topic,
-        value_template = "{{ value_json.pressure | default(none) }}",
-        unit_of_measurement = "hPa",
-        device_class = "pressure",
-        state_class = "measurement",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/pressure/config", HA_PREFIX, node_id), jsonc.stringify(press_config), true)
-
-    -- 15. Last Seen Timestamp (Diagnostic)
     local seen_config = {
         name = "Last Seen",
         has_entity_name = true,
@@ -513,75 +636,13 @@ local function publish_ha_discovery(node)
     }
     mqtt_publish(string.format("%s/sensor/lora_%s/last_seen/config", HA_PREFIX, node_id), jsonc.stringify(seen_config), true)
 
-    -- 16. Raw Payload HEX (Diagnostic)
-    local hex_config = {
-        name = "Raw Hex",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_raw_hex",
-        state_topic = state_topic,
-        value_template = "{{ value_json.hex | default(none) }}",
-        entity_category = "diagnostic",
-        icon = "mdi:code-json",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/raw_hex/config", HA_PREFIX, node_id), jsonc.stringify(hex_config), true)
-
-    -- 17. Actuator / Switch Entity (for Class C actuators or relays)
-    if cls == "C" or (node.model and (node.model:find("valve") or node.model:find("relay") or node.model:find("actuator"))) then
-        local switch_config = {
-            name = "Actuator",
-            has_entity_name = true,
-            unique_id = "lora_" .. node_id .. "_switch",
-            state_topic = state_topic,
-            command_topic = TOPIC_ROOT .. "/" .. node_id .. "/set",
-            value_template = "{{ value_json.state | default('OFF') }}",
-            payload_on = "ON",
-            payload_off = "OFF",
-            state_on = "ON",
-            state_off = "OFF",
-            device = device_obj
-        }
-        mqtt_publish(string.format("%s/switch/lora_%s/switch/config", HA_PREFIX, node_id), jsonc.stringify(switch_config), true)
-    end
-
-    -- 18. Digital Channel 1 State (Binary Sensor)
-    local ch1_state_config = {
-        name = "Channel 1 State",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_ch1_state",
-        state_topic = state_topic,
-        value_template = "{{ value_json.ch1_state | default(none) }}",
-        payload_on = "ON",
-        payload_off = "OFF",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/binary_sensor/lora_%s/ch1_state/config", HA_PREFIX, node_id), jsonc.stringify(ch1_state_config), true)
-
-    -- 19. Device Type Descriptor Byte (Diagnostic)
-    local devtype_config = {
-        name = "Device Type",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_device_type",
-        state_topic = state_topic,
-        value_template = "{{ value_json.device_type | default(none) }}",
-        entity_category = "diagnostic",
-        icon = "mdi:shape",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/device_type/config", HA_PREFIX, node_id), jsonc.stringify(devtype_config), true)
-
-    -- 20. Device Capability (Diagnostic)
-    local cap_config = {
-        name = "Capability",
-        has_entity_name = true,
-        unique_id = "lora_" .. node_id .. "_capability",
-        state_topic = state_topic,
-        value_template = "{{ value_json.capability | default(none) }}",
-        entity_category = "diagnostic",
-        icon = "mdi:tag-outline",
-        device = device_obj
-    }
-    mqtt_publish(string.format("%s/sensor/lora_%s/capability/config", HA_PREFIX, node_id), jsonc.stringify(cap_config), true)
+    -- Purge obsolete/deprecated entities
+    mqtt_publish(string.format("%s/sensor/lora_%s/net_id/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/sender_id/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/target_id/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/ch1_val/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/binary_sensor/lora_%s/ch1_state/config", HA_PREFIX, node_id), "", true)
+    mqtt_publish(string.format("%s/sensor/lora_%s/raw_hex/config", HA_PREFIX, node_id), "", true)
 end
 
 -- ==============================================================================
@@ -599,16 +660,19 @@ local function unpublish_ha_discovery(node_id)
         { comp = "sensor",        key = "datr" },
         { comp = "sensor",        key = "seq" },
         { comp = "sensor",        key = "class" },
+        { comp = "sensor",        key = "humidity" },
+        { comp = "sensor",        key = "pressure" },
+        { comp = "sensor",        key = "accel_x" },
+        { comp = "sensor",        key = "accel_y" },
+        { comp = "sensor",        key = "accel_z" },
+        { comp = "sensor",        key = "last_seen" },
+        { comp = "switch",        key = "switch" },
+        { comp = "binary_sensor", key = "ch1_state" },
         { comp = "sensor",        key = "net_id" },
         { comp = "sensor",        key = "sender_id" },
         { comp = "sensor",        key = "target_id" },
         { comp = "sensor",        key = "ch1_val" },
-        { comp = "sensor",        key = "humidity" },
-        { comp = "sensor",        key = "pressure" },
-        { comp = "sensor",        key = "last_seen" },
         { comp = "sensor",        key = "raw_hex" },
-        { comp = "switch",        key = "switch" },
-        { comp = "binary_sensor", key = "ch1_state" },
         { comp = "sensor",        key = "device_type" },
         { comp = "sensor",        key = "capability" },
     }
@@ -619,18 +683,19 @@ local function unpublish_ha_discovery(node_id)
 end
 
 -- ==============================================================================
--- Synchronize Home Assistant Discovery
--- Only publishes adopted & categorized nodes; purges uncategorized/unassigned nodes
+-- Synchronize Home Assistant Discovery: Strict Two-Factor Decoder Gating
 -- ==============================================================================
 local function sync_all_discovery()
     publish_gateway_discovery()
+    local dec_doc = load_decoders_config()
+
     local db = sqlite3.open(DB_NODES_PATH)
     if not db then return end
     db:busy_timeout(5000)
     db:exec("PRAGMA journal_mode = MEMORY;")
 
-    -- 1. Read Adopted, Configured & Categorized Nodes
-    local active_nodes = {}
+    -- 1. Read Adopted, Configured & Categorized Candidate Nodes
+    local candidate_nodes = {}
     for row in db:nrows([[
         SELECT * FROM node_settings 
         WHERE ha_enabled = 1 
@@ -640,7 +705,7 @@ local function sync_all_discovery()
           AND group_name != 'Unassigned' 
           AND group_name != 'Uncategorized';
     ]]) do
-        table.insert(active_nodes, row)
+        table.insert(candidate_nodes, row)
     end
 
     -- 2. Read Inactive, Unconfigured, or Uncategorized Nodes to Purge from Home Assistant
@@ -659,9 +724,22 @@ local function sync_all_discovery()
 
     db:close()
 
-    -- 3. Perform network MQTT publications with database closed (zero lock contention)
+    -- 3. Filter candidates: Must ALSO have a verified custom decoder scheme!
+    local active_nodes = {}
+    for _, row in ipairs(candidate_nodes) do
+        local has_dec, scheme = has_custom_decoder_scheme(row.node_id, dec_doc)
+        if has_dec then
+            row._matched_scheme = scheme
+            table.insert(active_nodes, row)
+        else
+            print(string.format("[HA_BRIDGE] Node %s blocked from HA: no custom decoder scheme defined in %s", row.node_id, DECODERS_PATH))
+            table.insert(inactive_ids, row.node_id)
+        end
+    end
+
+    -- 4. Perform network MQTT publications with database closed (zero lock contention)
     for _, row in ipairs(active_nodes) do
-        publish_ha_discovery(row)
+        publish_ha_discovery(row, dec_doc)
     end
     for _, nid in ipairs(inactive_ids) do
         unpublish_ha_discovery(nid)

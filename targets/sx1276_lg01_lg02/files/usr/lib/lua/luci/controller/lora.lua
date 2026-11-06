@@ -574,6 +574,44 @@ function action_nodes()
             return
         end
 
+        local ha_en = tonumber(data.ha_enabled) or 0
+        if ha_en == 1 then
+            -- Strict Two-Factor Gate: Node must have a defined custom decoder in /etc/lora/decoders.json
+            local df = io.open("/etc/lora/decoders.json", "r")
+            local has_decoder = false
+            if df then
+                local dc = df:read("*a")
+                df:close()
+                local d_obj = jsonc.parse(dc)
+                if d_obj and d_obj.schemes then
+                    local nid = data.node_id:upper():gsub("%s+", "")
+                    for _, s in ipairs(d_obj.schemes) do
+                        if s.enabled ~= false and s.id ~= "scheme_2b_node_tlv" and s.id ~= "scheme_cayenne_lpp" and s.id ~= "scheme_ascii_ping" then
+                            if s.matchType == "prefix" and s.matchValue and s.matchValue ~= "" then
+                                local pfx = tostring(s.matchValue):upper():gsub("%s+", "")
+                                if nid:find("^" .. pfx) or pfx:find("^" .. nid) then
+                                    has_decoder = true
+                                    break
+                                end
+                            elseif s.name and s.name:upper():find(nid, 1, true) then
+                                has_decoder = true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            if not has_decoder then
+                db:close()
+                http.status(400, "Decoder Required")
+                http.prepare_content("application/json")
+                http.write_json({ 
+                    error = "A custom decoder scheme must be configured and tested in Decoder Studio before enrolling node '" .. data.node_id .. "' into Home Assistant." 
+                })
+                return
+            end
+        end
+
         local stmt = db:prepare([[
             INSERT INTO node_settings 
             (node_id, name, node_class, model, group_name, rx1_delay_ms, rx2_delay_ms, rx2_freq_hz, rx2_sf, ping_period_sec, default_tx_power, ha_enabled, is_configured, updated_at)
@@ -606,7 +644,7 @@ function action_nodes()
                 tonumber(data.rx2_sf) or 9,
                 tonumber(data.ping_period_sec) or 32,
                 tonumber(data.default_tx_power) or 14,
-                tonumber(data.ha_enabled) or 1
+                ha_en
             )
             stmt:step()
             stmt:finalize()
