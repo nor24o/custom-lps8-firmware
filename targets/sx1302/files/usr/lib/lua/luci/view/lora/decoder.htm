@@ -905,6 +905,8 @@ function buildSchemeDrawerHtml(idx, container) {
     if (decType === "tlv") decType = "ctv";
     var sampleHex = getDefaultSampleHex(s);
     var candidateHex = window.g_activeCandidate || "";
+    var candHasDec = (window.LoraDecoder && window.LoraDecoder.hasDefinedDecoder) ? LoraDecoder.hasDefinedDecoder(candidateHex) : false;
+    var showCandBtn = (candidateHex && !candHasDec && candidateHex.toLowerCase() !== sampleHex.toLowerCase());
 
     if (decType === "fields" && (!s.fields || s.fields.length === 0)) {
         var initBytes = LoraDecoder.hexToBytes(sampleHex);
@@ -1047,7 +1049,7 @@ function buildSchemeDrawerHtml(idx, container) {
                     '<input type="text" id="dr-test-hex-' + idx + '" value="' + escapeHtml(sampleHex) + '" ' +
                            'style="flex: 2; min-width: 200px; padding: 6px 10px; font-family: monospace; font-size: 13px; font-weight: 700; border: 1.5px solid #93c5fd; border-radius: 4px; background: #f8fafc;" ' +
                            'placeholder="Enter payload HEX..." oninput="onDrawerTestHexChange(' + idx + ')" />' +
-                    ((candidateHex && candidateHex.toLowerCase() !== sampleHex.toLowerCase()) ? '<button type="button" class="cbi-button" style="background: #2563eb; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,0.4);" onclick="applyCandidateToDrawer(' + idx + ')">🎯 Use Candidate</button>' : '') +
+                    (showCandBtn ? '<button type="button" class="cbi-button" style="background: #2563eb; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,0.4);" onclick="applyCandidateToDrawer(' + idx + ')">🎯 Use Candidate</button>' : '') +
                     '<select id="dr-recent-pkts-' + idx + '" style="padding: 5px 8px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; max-width: 240px;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
                         '<option value="">📁 History</option>' +
                     '</select>' +
@@ -1881,7 +1883,7 @@ function checkActiveCandidate() {
     var stored = "";
     try { stored = localStorage.getItem('lora_active_candidate') || ""; } catch(e) {}
 
-    var cand = hexParam || stored;
+    var cand = (candParam === "1" ? hexParam : null) || stored;
     if (cand) {
         var cleanCand = cand.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
         if (window.LoraDecoder && window.LoraDecoder.hasDefinedDecoder && LoraDecoder.hasDefinedDecoder(cleanCand)) {

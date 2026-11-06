@@ -139,6 +139,9 @@ function LoraDecoder.load_config(path)
     return LoraDecoder.get_default_config()
 end
 
+LoraDecoder.load_decoders_file = LoraDecoder.load_config
+
+
 function LoraDecoder.get_default_config()
     return {
         version = 1,
@@ -811,7 +814,7 @@ Daemon Options:
 end
 
 -- If executed directly from shell, invoke CLI runner
-if arg and arg[0] and (arg[0]:find("lora_decoder") or #arg > 0) then
+if arg and arg[0] and (arg[0]:match("lora_decoder%.lua$") or arg[0]:match("lora_decoder$")) then
     run_cli(arg)
 end
 

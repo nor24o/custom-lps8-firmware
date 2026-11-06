@@ -1068,7 +1068,8 @@
     LoraDecoder.hasDefinedDecoder = function(packet, dec) {
         if (!packet) return false;
         var hex = (typeof packet === "string" ? packet : (packet.hex || packet.payload_hex || '')).trim().toLowerCase().replace(/[^0-9a-f]/g, '');
-        if (!hex || hex.length < 2) return false;
+        var directNodeId = (typeof packet === "object" ? (packet.nodeId || packet.node_id || packet.node || '') : '').trim().toUpperCase();
+        if ((!hex || hex.length < 2) && (!directNodeId || directNodeId.length < 2)) return false;
 
         var schemes = LoraDecoder.activeSchemes || [];
         if (!schemes || !schemes.length) return false;
@@ -1076,11 +1077,11 @@
         var bytes = (packet && packet.bytes) ? packet.bytes : LoraDecoder.hexToBytes(hex);
         var packetInfo = (typeof packet === "object" && packet.size) ? packet : { hex: hex, size: bytes.length };
 
-        if (!dec && LoraDecoder.decodePacket) {
+        if (!dec && LoraDecoder.decodePacket && hex && hex.length >= 2) {
             dec = LoraDecoder.decodePacket(packetInfo, schemes);
         }
 
-        var nodeId = (dec && dec.nodeId && dec.nodeId !== "UNKNOWN") ? String(dec.nodeId).trim().toUpperCase() : "";
+        var nodeId = directNodeId || ((dec && dec.nodeId && dec.nodeId !== "UNKNOWN") ? String(dec.nodeId).trim().toUpperCase() : "");
         if (!nodeId && hex.length >= 4) {
             nodeId = hex.substring(0, 4).toUpperCase();
         }
