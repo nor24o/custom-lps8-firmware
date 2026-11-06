@@ -117,41 +117,21 @@ local function get_decoders_config()
     return g_decoders_cache or {}
 end
 
--- Channel-Type-Value (CTV / TLV) Decoder:
--- Parses packets with standard 4-byte header:
--- 2B Node ID + 1B Type (Class/Capability) + 1B Seq + Dynamic TLVs
-local function decode_ctv_payload(bytes, hex, data_offset)
-    data_offset = data_offset or 4
+-- Channel-Type-Value (CTV / TLV) & Cayenne LPP Unified Decoder:
+local function parse_channels_at_offset(bytes, start_offset)
     local out = {}
-
-    if #bytes >= 4 then
-        out.node_id = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
-        local dev_type = bytes[3] or 0
-        out.device_type = string.format("0x%02X", dev_type)
-        local class_code = math.floor(dev_type / 16)
-        local cap_code = dev_type % 16
-        if class_code == 1 then
-            out.node_class = "A"
-        elseif class_code == 2 then
-            out.node_class = "B"
-        elseif class_code == 3 then
-            out.node_class = "C"
-        end
-        local cap_map = { [1] = "Sensor", [2] = "Actuator", [3] = "Combo", [4] = "Meter", [5] = "Security", [6] = "Dimmer" }
-        out.capability = cap_map[cap_code] or "Generic"
-        out.seq = bytes[4] or 0
-    end
-
-    local i = data_offset + 1
+    local i = start_offset + 1
+    local count = 0
     while i <= #bytes do
         local ch = bytes[i]
+        if ch == 0 and count > 0 then break end
+        if ch < 1 or ch > 32 then break end
         i = i + 1
         if i > #bytes then break end
         local type_code = bytes[i]
         i = i + 1
 
         if type_code == 0x11 then
-            -- 2-byte Generic Integer / Temperature
             if i + 1 > #bytes then break end
             local raw = (bytes[i] * 256) + bytes[i + 1]
             i = i + 2
@@ -160,46 +140,134 @@ local function decode_ctv_payload(bytes, hex, data_offset)
             out.temperature = temp
             out["ch" .. ch .. "_val"] = raw
             out.val = temp
+            count = count + 1
         elseif type_code == 0x05 then
-            -- 2-byte Battery in mV
             if i + 1 > #bytes then break end
             local mv = (bytes[i] * 256) + bytes[i + 1]
             i = i + 2
             out.battery = mv / 1000.0
             out.battery_mv = mv
+            count = count + 1
+        elseif type_code == 0x00 then
+            if i > #bytes then break end
+            out["ch" .. ch .. "_digital_in"] = bytes[i]
+            i = i + 1
+            count = count + 1
         elseif type_code == 0x01 or type_code == 0x10 then
-            -- 1-byte Digital / Switch State
             if i > #bytes then break end
             local val = bytes[i]
             i = i + 1
             out["ch" .. ch .. "_state"] = (val == 1) and "ON" or "OFF"
             out.state = (val == 1) and "ON" or "OFF"
-        elseif type_code == 0x02 or type_code == 0x12 then
-            -- 2-byte Analog Input
+            count = count + 1
+        elseif type_code == 0x02 or type_code == 0x12 or type_code == 0x03 then
             if i + 1 > #bytes then break end
             local raw = (bytes[i] * 256) + bytes[i + 1]
             i = i + 2
             if raw >= 0x8000 then raw = raw - 0x10000 end
-            out["ch" .. ch .. "_analog"] = raw / 100.0
+            local aval = raw / 100.0
+            out["ch" .. ch .. "_analog_in"] = aval
+            if ch == 1 and aval >= 1.8 and aval <= 5.5 and not out.battery then
+                out.battery = aval
+            end
+            count = count + 1
+        elseif type_code == 0x65 then
+            if i + 1 > #bytes then break end
+            out.illuminance = (bytes[i] * 256) + bytes[i + 1]
+            i = i + 2
+            count = count + 1
+        elseif type_code == 0x66 then
+            if i > #bytes then break end
+            out.presence = bytes[i]
+            i = i + 1
+            count = count + 1
         elseif type_code == 0x67 then
-            -- Cayenne Temperature (0.1 °C signed)
             if i + 1 > #bytes then break end
             local raw = (bytes[i] * 256) + bytes[i + 1]
             i = i + 2
             if raw >= 0x8000 then raw = raw - 0x10000 end
             out.temperature = raw / 10.0
             out.val = out.temperature
+            count = count + 1
         elseif type_code == 0x68 then
-            -- Cayenne Humidity (0.5 %)
             if i > #bytes then break end
             out.humidity = bytes[i] * 0.5
             i = i + 1
+            count = count + 1
+        elseif type_code == 0x71 then
+            if i + 5 > #bytes then break end
+            local ax = (bytes[i] * 256) + bytes[i + 1]
+            local ay = (bytes[i + 2] * 256) + bytes[i + 3]
+            local az = (bytes[i + 4] * 256) + bytes[i + 5]
+            i = i + 6
+            if ax >= 0x8000 then ax = ax - 0x10000 end
+            if ay >= 0x8000 then ay = ay - 0x10000 end
+            if az >= 0x8000 then az = az - 0x10000 end
+            out.accel_x = ax * 0.001
+            out.accel_y = ay * 0.001
+            out.accel_z = az * 0.001
+            count = count + 1
+        elseif type_code == 0x73 then
+            if i + 1 > #bytes then break end
+            out.pressure = ((bytes[i] * 256) + bytes[i + 1]) * 0.1
+            i = i + 2
+            count = count + 1
+        elseif type_code == 0x88 then
+            if i + 7 > #bytes then break end
+            local lat = (bytes[i] * 65536) + (bytes[i + 1] * 256) + (bytes[i + 2] or 0)
+            if lat >= 0x800000 then lat = lat - 0x1000000 end
+            local lon = (bytes[i + 3] * 65536) + (bytes[i + 4] * 256) + (bytes[i + 5] or 0)
+            if lon >= 0x800000 then lon = lon - 0x1000000 end
+            local alt = ((bytes[i + 6] or 0) * 65536) + ((bytes[i + 7] or 0) * 256) + (bytes[i + 8] or 0)
+            if alt >= 0x800000 then alt = alt - 0x1000000 end
+            i = i + 9
+            out.latitude = lat * 0.0001
+            out.longitude = lon * 0.0001
+            out.altitude = alt * 0.01
+            count = count + 1
         else
             break
         end
     end
+    return out, count
+end
 
-    return out
+local function decode_ctv_payload(bytes, hex, data_offset)
+    data_offset = data_offset or 4
+    local best_out, best_cnt = parse_channels_at_offset(bytes, data_offset)
+    local eff_offset = data_offset
+
+    if best_cnt == 0 then
+        for _, cand in ipairs({6, 4, 2, 0}) do
+            local o, c = parse_channels_at_offset(bytes, cand)
+            if c > best_cnt then
+                best_out = o
+                best_cnt = c
+                eff_offset = cand
+            end
+        end
+    end
+
+    if #bytes >= 6 and eff_offset == 6 then
+        best_out.node_id = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
+        best_out.device_serial = string.format("%02X%02X%02X%02X", bytes[3] or 0, bytes[4] or 0, bytes[5] or 0, bytes[6] or 0)
+        best_out.node_class = "A"
+        best_out.capability = "Sensor"
+    elseif #bytes >= 4 then
+        best_out.node_id = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
+        local dev_type = bytes[3] or 0
+        best_out.device_type = string.format("0x%02X", dev_type)
+        local class_code = math.floor(dev_type / 16)
+        local cap_code = dev_type % 16
+        if class_code == 1 then best_out.node_class = "A"
+        elseif class_code == 2 then best_out.node_class = "B"
+        elseif class_code == 3 then best_out.node_class = "C" end
+        local cap_map = { [1] = "Sensor", [2] = "Actuator", [3] = "Combo", [4] = "Meter", [5] = "Security", [6] = "Dimmer" }
+        best_out.capability = cap_map[cap_code] or "Generic"
+        best_out.seq = bytes[4] or 0
+    end
+
+    return best_out
 end
 
 -- Visual Field Slicer Decoder
@@ -250,52 +318,9 @@ local function decode_fields_payload(bytes, fields)
 end
 
 -- Cayenne LPP Decoder
-local function decode_cayenne_lpp(bytes)
-    local out = {}
-    local i = 1
-    local parsed = false
-    while i <= #bytes do
-        local ch = bytes[i]
-        i = i + 1
-        if i > #bytes then break end
-        local type_code = bytes[i]
-        i = i + 1
-
-        if type_code == 0x00 then -- Digital In (1B)
-            if i > #bytes then break end
-            out["ch" .. ch .. "_digital_in"] = bytes[i]
-            i = i + 1
-            parsed = true
-        elseif type_code == 0x01 then -- Digital Out (1B)
-            if i > #bytes then break end
-            out["ch" .. ch .. "_digital_out"] = bytes[i]
-            i = i + 1
-            parsed = true
-        elseif type_code == 0x02 then -- Analog In (2B)
-            if i + 1 > #bytes then break end
-            local val = (bytes[i] * 256) + bytes[i + 1]
-            i = i + 2
-            if val >= 32768 then val = val - 65536 end
-            out["ch" .. ch .. "_analog_in"] = val * 0.01
-            parsed = true
-        elseif type_code == 0x67 then -- Temp (2B, 0.1°C signed)
-            if i + 1 > #bytes then break end
-            local val = (bytes[i] * 256) + bytes[i + 1]
-            i = i + 2
-            if val >= 32768 then val = val - 65536 end
-            out.temperature = val * 0.1
-            out.val = out.temperature
-            parsed = true
-        elseif type_code == 0x68 then -- Humidity (1B, 0.5%)
-            if i > #bytes then break end
-            out.humidity = bytes[i] * 0.5
-            i = i + 1
-            parsed = true
-        else
-            break
-        end
-    end
-    return parsed and out or nil
+local function decode_cayenne_lpp(bytes, data_offset)
+    local out = decode_ctv_payload(bytes, "", tonumber(data_offset) or 0)
+    return out
 end
 
 -- Scheme Matching
@@ -339,7 +364,15 @@ local function extract_node_id(bytes, hex, scheme, decoded, global_rule)
         end
     end
 
-    -- 2. 2-Byte Node ID (Bytes 1..2: e.g. 12 34 -> "1234", AA 0C -> "AA0C")
+    -- 2. Presets: 4-Byte Serial (Bytes 2..5) & 6-Byte MAC (Bytes 0..5)
+    if src == "serial_4b" and #bytes >= 6 then
+        return pfx .. string.format("%02X%02X%02X%02X", bytes[3] or 0, bytes[4] or 0, bytes[5] or 0, bytes[6] or 0)
+    end
+    if src == "mac_6b" and #bytes >= 6 then
+        return pfx .. string.format("%02X%02X%02X%02X%02X%02X", bytes[1] or 0, bytes[2] or 0, bytes[3] or 0, bytes[4] or 0, bytes[5] or 0, bytes[6] or 0)
+    end
+
+    -- 3. 2-Byte Node ID (Bytes 1..2: e.g. 12 34 -> "1234", AA 0C -> "AA0C")
     if src == "node_2b" or src == "node_id_2b" or src == "auto" then
         if #bytes >= 2 then
             local idHex = string.format("%02X%02X", bytes[1] or 0, bytes[2] or 0)
@@ -437,7 +470,7 @@ local function extract_metrics(hex, raw_b64)
         elseif stype == "fields" then
             metrics = decode_fields_payload(bytes, matched_scheme.fields)
         elseif stype == "cayenne_lpp" then
-            metrics = decode_cayenne_lpp(bytes) or {}
+            metrics = decode_cayenne_lpp(bytes, matched_scheme.dataOffset) or {}
         end
     end
 

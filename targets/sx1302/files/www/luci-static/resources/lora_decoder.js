@@ -1,19 +1,20 @@
 /**
  * lora_decoder.js — LoRa Payload Multi-Scheme Decoding & Node ID Extraction Engine
  * Compatible with Dragino LPS8 (SX1302) & LG01/LG02 (SX1276)
- * 
+ *
  * Features:
  * - Multi-Way Node ID Extraction:
- *     1. NetID + SenderID (e.g. Byte 0 NetID 0xAA + Byte 1 SenderID 0x0C -> "AA0C", "0C", or "12")
- *     2. Custom Byte Offset & Length (e.g. Offset 1, Length 1 or Offset 0, Length 2)
- *     3. From Decoded Output Property (e.g. `senderId`, `node_id`, `id`)
- *     4. LoRaWAN DevAddr (4 Bytes at Offset 1)
- *     5. Smart Auto-Detect Cascade
+ *     1. 2-Byte Node ID (Bytes 0..1, e.g. "1234", "CAFE")
+ *     2. 4-Byte Serial after 2B Prefix (Bytes 2..5, e.g. "96B840EB")
+ *     3. 6-Byte Header / MAC (Bytes 0..5, e.g. "CAFE96B840EB")
+ *     4. Custom Byte Offset & Length (Hex, Decimal, or ASCII)
+ *     5. From Decoded Output Property (e.g. `node_id`, `senderId`, `id`)
+ *     6. Single Byte (Byte 0)
  * - Multi-Scheme Decoders:
- *     - Channel-Type-Value (CTV / TLV) Parser (e.g. AA 0C 64 00 01 11 09 C4 02 05 0C E4)
- *     - Visual Field Slicer (No-Code multi-byte extractor)
- *     - JavaScript Functions (TTN / ChirpStack style)
- *     - Cayenne LPP Standard (IPSO channels)
+ *     - Channel-Type-Value (CTV / TLV) Parser with auto-offset detection
+ *     - Standard Cayenne LPP (IPSO) with header offset & full sensor suite (Temp, Hum, Analog, Accel 0x71, Baro 0x73, GPS 0x88, Digital, Lux)
+ *     - Visual Byte Field Slicer (No-Code multi-byte extractor)
+ *     - Custom JavaScript Functions (TTN / ChirpStack style)
  *     - Plain ASCII String Auto-Decode
  * - Persistence with /etc/lora/decoders.json via LuCI REST API
  */
@@ -66,11 +67,11 @@
             if (b >= 32 && b <= 126) {
                 str += String.fromCharCode(b);
             } else if (b === 10) {
-                str += '\\n';
+                str += '\n';
             } else if (b === 13) {
-                str += '\\r';
+                str += '\r';
             } else if (b === 9) {
-                str += '\\t';
+                str += '\t';
             } else {
                 str += '.';
             }
@@ -82,42 +83,88 @@
     // Node ID Extraction Engine
     // -------------------------------------------------------------------------
 
+    LoraDecoder.getNodeIdByteRange = function(bytes, scheme, globalRule) {
+        var rule = (scheme && scheme.nodeId) || globalRule || LoraDecoder.globalNodeId || { source: "node_2b" };
+        var src = rule.source || "node_2b";
+        if (src === "node_2b" || src === "node_id_2b" || src === "auto" || src === "header") {
+            return { start: 0, end: Math.min(1, bytes.length - 1), label: "Node ID" };
+        }
+        if (src === "serial_4b") {
+            if (bytes.length >= 6) return { start: 2, end: 5, label: "Node Serial (4B)" };
+            return { start: 0, end: Math.min(3, bytes.length - 1), label: "Node Serial" };
+        }
+        if (src === "mac_6b") {
+            return { start: 0, end: Math.min(5, bytes.length - 1), label: "Node MAC (6B)" };
+        }
+        if (src === "single") {
+            return { start: 0, end: 0, label: "Node ID (1B)" };
+        }
+        if (src === "devaddr" && bytes.length >= 5) {
+            return { start: 1, end: 4, label: "DevAddr (4B)" };
+        }
+        if (src === "offset") {
+            var off = parseInt(rule.offset, 10);
+            if (isNaN(off) || off < 0) off = 0;
+            var len = parseInt(rule.length, 10);
+            if (isNaN(len) || len < 1) len = 2;
+            if (off < bytes.length) {
+                return { start: off, end: Math.min(off + len - 1, bytes.length - 1), label: "Node ID" };
+            }
+        }
+        return { start: 0, end: Math.min(1, bytes.length - 1), label: "Node ID" };
+    };
+
     LoraDecoder.extractNodeId = function(bytes, hex, scheme, decodedData, globalRule) {
         if (!hex || hex.length === 0) {
             return { id: "UNKNOWN", method: "None" };
         }
         bytes = bytes || LoraDecoder.hexToBytes(hex);
-        
+
         var rule = (scheme && scheme.nodeId) || globalRule || LoraDecoder.globalNodeId || { source: "auto" };
         var src = rule.source || "auto";
         var offset = parseInt(rule.offset, 10);
         if (isNaN(offset)) offset = 0;
-        var length = parseInt(rule.length, 10) || 1;
-        var format = rule.format || "net_hex"; // "hex", "decimal", "net_hex", "sender_only", "ascii"
+        var length = parseInt(rule.length, 10);
+        if (isNaN(length) || length < 1) length = 2;
+        var format = rule.format || "hex";
         var pfx = rule.prefix || "";
-        var fieldName = rule.fieldName || "senderId";
+        var fieldName = rule.fieldName || "node_id";
 
         // 1. From Decoded Field
-        if (src === "field" || (src === "auto" && decodedData)) {
+        if (src === "field") {
             if (decodedData) {
-                var cand = decodedData[fieldName] || decodedData.senderId || decodedData.sender_id || 
-                           decodedData.node_id || decodedData.dev_id || decodedData.id || 
+                var cand = decodedData[fieldName] || decodedData.node_id || decodedData.senderId ||
+                           decodedData.sender_id || decodedData.dev_id || decodedData.id ||
                            decodedData.nodeId || decodedData.address;
                 if (cand !== undefined && cand !== null && String(cand).trim() !== "") {
                     var strVal = String(cand).trim().toUpperCase();
-                    return { id: pfx + strVal, method: "Field '" + (fieldName || "senderId") + "'" };
+                    return { id: pfx + strVal, method: "Field '" + fieldName + "'" };
                 }
             }
         }
 
-        // 2. 2-Byte Node ID (Bytes 0..1 in HEX, e.g. 12 34 -> "1234", AA 0C -> "AA0C")
+        // 2. Preset: 4-Byte Serial at Bytes 2..5 (e.g. CA FE [96 B8 40 EB])
+        if (src === "serial_4b" && bytes.length >= 6) {
+            offset = 2;
+            length = 4;
+            src = "offset";
+        }
+
+        // 3. Preset: 6-Byte Full Header / MAC at Bytes 0..5 (e.g. [CA FE 96 B8 40 EB])
+        if (src === "mac_6b" && bytes.length >= 6) {
+            offset = 0;
+            length = 6;
+            src = "offset";
+        }
+
+        // 4. 2-Byte Node ID (Bytes 0..1 in HEX, e.g. 12 34 -> "1234", CA FE -> "CAFE")
         if (src === "node_2b" || src === "node_id_2b" || src === "auto") {
             if (bytes.length >= 2) {
                 var b0 = (bytes[0] < 16 ? "0" : "") + bytes[0].toString(16).toUpperCase();
                 var b1 = (bytes[1] < 16 ? "0" : "") + bytes[1].toString(16).toUpperCase();
                 if (format === "decimal") {
                     var dVal = (bytes[0] * 256) + bytes[1];
-                    return { id: pfx + dVal.toString(10), method: "2-Byte Node ID (Decimal " + dVal + ")" };
+                    return { id: pfx + dVal.toString(10), method: "2-Byte Node ID (Dec " + dVal + ")" };
                 }
                 return { id: pfx + b0 + b1, method: "2-Byte Node ID (" + b0 + b1 + ")" };
             } else if (bytes.length === 1) {
@@ -126,7 +173,7 @@
             }
         }
 
-        // 4. Custom Byte Offset & Length
+        // 5. Custom Byte Offset & Length
         if (src === "offset" && bytes.length > offset) {
             var sliceLen = Math.min(length, bytes.length - offset);
             if (format === "decimal") {
@@ -134,7 +181,7 @@
                 for (var i = 0; i < sliceLen; i++) {
                     num = (num * 256) + bytes[offset + i];
                 }
-                return { id: pfx + num.toString(10), method: "Offset " + offset + " Len " + sliceLen + " (Decimal)" };
+                return { id: pfx + num.toString(10), method: "Offset " + offset + " Len " + sliceLen + " (Dec)" };
             } else if (format === "ascii") {
                 var str = "";
                 for (var i = 0; i < sliceLen; i++) {
@@ -142,48 +189,38 @@
                     if (b >= 32 && b <= 126) str += String.fromCharCode(b);
                 }
                 return { id: pfx + (str || "UNKNOWN"), method: "Offset " + offset + " Len " + sliceLen + " (ASCII)" };
-            } else if (format === "net_hex" && rule.netIdOffset !== undefined) {
-                var nOff = parseInt(rule.netIdOffset, 10) || 0;
-                var netByte = bytes[nOff] || 0;
-                var nHex = (netByte < 16 ? "0" : "") + netByte.toString(16).toUpperCase();
-                var sHex = "";
-                for (var i = 0; i < sliceLen; i++) {
-                    var b = bytes[offset + i];
-                    sHex += (b < 16 ? "0" : "") + b.toString(16).toUpperCase();
-                }
-                return { id: pfx + nHex + sHex, method: "NetID (Offset " + nOff + ") + Offset " + offset };
             } else {
                 var h = "";
                 for (var i = 0; i < sliceLen; i++) {
                     var b = bytes[offset + i];
                     h += (b < 16 ? "0" : "") + b.toString(16).toUpperCase();
                 }
-                return { id: pfx + h, method: "Offset " + offset + " Len " + sliceLen + " (Hex)" };
+                return { id: pfx + h, method: "Offset " + offset + ".." + (offset + sliceLen - 1) + " (Hex)" };
             }
         }
 
-        // 5. Header / First 2 Bytes
+        // 6. Header / First 2 Bytes
         if (src === "header" && bytes.length >= 2) {
-            var h = hex.substring(0, 4).toUpperCase();
-            return { id: pfx + h, method: "Header (First 2 Bytes)" };
+            var hdr = hex.substring(0, 4).toUpperCase();
+            return { id: pfx + hdr, method: "Header (First 2 Bytes)" };
         }
 
-        // 6. Single Byte (Offset 0)
+        // 7. Single Byte (Offset 0)
         if (src === "single" && bytes.length >= 1) {
             var s = hex.substring(0, 2).toUpperCase();
             if (format === "decimal") {
-                return { id: pfx + bytes[0].toString(10), method: "First Byte (Decimal " + bytes[0] + ")" };
+                return { id: pfx + bytes[0].toString(10), method: "Byte 0 (Dec " + bytes[0] + ")" };
             }
-            return { id: pfx + s, method: "First Byte (Hex 0x" + s + ")" };
+            return { id: pfx + s, method: "Byte 0 (Hex 0x" + s + ")" };
         }
 
-        // 7. LoRaWAN DevAddr (4 Bytes at Offset 1)
+        // 8. LoRaWAN DevAddr (4 Bytes at Offset 1)
         if (src === "devaddr" && bytes.length >= 5) {
             var addrHex = hex.substring(2, 10).toUpperCase();
             return { id: pfx + addrHex, method: "LoRaWAN DevAddr (4B)" };
         }
 
-        // 8. Fallback
+        // 9. Fallback
         if (hex.length >= 4) {
             return { id: pfx + hex.substring(0, 4).toUpperCase(), method: "Fallback (First 2B)" };
         }
@@ -191,15 +228,104 @@
     };
 
     // -------------------------------------------------------------------------
-    // Channel-Type-Value (CTV / TLV) Decoder Engine
-    // Decodes schemas like: AA 0C 64 00 01 11 09 C4 02 05 0C E4
+    // Unified Channel Stream Detector & Parser (Supports TLV + Cayenne LPP / IPSO)
     // -------------------------------------------------------------------------
 
-    LoraDecoder.decodeCtv = function(bytes, hex, dataOffset) {
-        dataOffset = (dataOffset !== undefined) ? parseInt(dataOffset, 10) : 4;
-        var out = {};
+    var CHANNEL_TYPE_SPECS = {
+        0x00: { size: 1, name: "Digital In", color: "#0284c7" },
+        0x01: { size: 1, name: "State / Switch", color: "#ea580c" },
+        0x02: { size: 2, name: "Analog In", color: "#4f46e5" },
+        0x03: { size: 2, name: "Analog Out", color: "#6366f1" },
+        0x05: { size: 2, name: "Battery", color: "#0891b2" },
+        0x10: { size: 1, name: "Switch State", color: "#ea580c" },
+        0x11: { size: 2, name: "Temperature", color: "#059669" },
+        0x12: { size: 2, name: "Analog", color: "#4f46e5" },
+        0x65: { size: 2, name: "Illuminance", color: "#d97706" },
+        0x66: { size: 1, name: "Presence", color: "#7c3aed" },
+        0x67: { size: 2, name: "Temperature", color: "#059669" },
+        0x68: { size: 1, name: "Humidity", color: "#0891b2" },
+        0x71: { size: 6, name: "Accelerometer", color: "#7c3aed" },
+        0x73: { size: 2, name: "Barometer", color: "#6d28d9" },
+        0x88: { size: 9, name: "GPS Location", color: "#0d9488" }
+    };
 
-        if (bytes.length >= 4) {
+    LoraDecoder.probeChannelStreamAt = function(bytes, startOffset) {
+        if (!bytes || startOffset < 0 || startOffset >= bytes.length - 2) {
+            return { valid: false, count: 0, channels: [] };
+        }
+        var idx = startOffset;
+        var channels = [];
+        while (idx < bytes.length) {
+            // Allow trailing zero-padding at the end of fixed-size radio buffers
+            if (bytes[idx] === 0x00 && channels.length > 0) {
+                var allZero = true;
+                for (var z = idx; z < bytes.length; z++) {
+                    if (bytes[z] !== 0) { allZero = false; break; }
+                }
+                if (allZero) break;
+            }
+            var ch = bytes[idx];
+            if (ch < 1 || ch > 32) break;
+            if (idx + 1 >= bytes.length) break;
+            var typeCode = bytes[idx + 1];
+            var spec = CHANNEL_TYPE_SPECS[typeCode];
+            if (!spec) break;
+            var actualSize = spec.size;
+            // Allow 0x88 GPS at the tail of a 32B buffer if truncated to 8 bytes
+            if (typeCode === 0x88 && (idx + 2 + actualSize === bytes.length + 1)) {
+                actualSize = 8;
+            }
+            if (idx + 2 + actualSize > bytes.length) break;
+
+            channels.push({
+                start: idx,
+                end: idx + 1 + actualSize,
+                ch: ch,
+                type: typeCode,
+                spec: spec
+            });
+            idx += 2 + actualSize;
+        }
+        return {
+            valid: channels.length > 0,
+            count: channels.length,
+            offset: startOffset,
+            endOffset: idx,
+            channels: channels
+        };
+    };
+
+    LoraDecoder.detectChannelStream = function(bytes, preferredOffset) {
+        var candidates = [];
+        if (preferredOffset !== undefined && preferredOffset !== null && !isNaN(parseInt(preferredOffset, 10))) {
+            candidates.push(parseInt(preferredOffset, 10));
+        }
+        var fallbacks = [6, 4, 2, 0];
+        for (var i = 0; i < fallbacks.length; i++) {
+            if (candidates.indexOf(fallbacks[i]) === -1) candidates.push(fallbacks[i]);
+        }
+
+        var best = { valid: false, count: 0, offset: (candidates[0] || 0), channels: [] };
+        for (var c = 0; c < candidates.length; c++) {
+            var probe = LoraDecoder.probeChannelStreamAt(bytes, candidates[c]);
+            if (probe.valid && probe.count > best.count) {
+                best = probe;
+                // If preferredOffset itself yielded at least 2 valid channels or consumed the packet, use it immediately
+                if (c === 0 && (probe.count >= 2 || probe.endOffset >= bytes.length - 1)) {
+                    return probe;
+                }
+            }
+        }
+        return best;
+    };
+
+    LoraDecoder.parseChannelStream = function(bytes, startOffset, includeHeaderMeta) {
+        var stream = LoraDecoder.detectChannelStream(bytes, startOffset);
+        var effOffset = stream.valid ? stream.offset : (startOffset !== undefined ? parseInt(startOffset, 10) : 4);
+        var out = {};
+        var segments = [];
+
+        if (includeHeaderMeta && bytes.length >= 4 && effOffset === 4) {
             var b0 = (bytes[0] < 16 ? "0" : "") + bytes[0].toString(16).toUpperCase();
             var b1 = (bytes[1] < 16 ? "0" : "") + bytes[1].toString(16).toUpperCase();
             out.node_id = b0 + b1;
@@ -207,69 +333,192 @@
             out.device_type = "0x" + (devType < 16 ? "0" : "") + devType.toString(16).toUpperCase();
             var classCode = Math.floor(devType / 16);
             var capCode = devType % 16;
-            out.node_class = (classCode === 1) ? "A" : ((classCode === 2) ? "B" : ((classCode === 3) ? "C" : "Unknown"));
+            out.node_class = (classCode === 1) ? "A" : ((classCode === 2) ? "B" : ((classCode === 3) ? "C" : "A"));
             var capNames = { 1: "Sensor", 2: "Actuator", 3: "Combo", 4: "Meter", 5: "Security", 6: "Dimmer" };
-            out.capability = capNames[capCode] || "Generic";
+            out.capability = capNames[capCode] || "Sensor";
             out.seq = bytes[3];
-        }
-
-        var idx = dataOffset;
-        while (idx < bytes.length) {
-            var ch = bytes[idx++];
-            if (idx >= bytes.length) break;
-            var typeCode = bytes[idx++];
-
-            if (typeCode === 0x11) {
-                // 2-byte Generic Integer / Temperature
-                if (idx + 1 >= bytes.length) break;
-                var raw = (bytes[idx++] << 8) | bytes[idx++];
-                if (raw & 0x8000) raw -= 0x10000;
-                // Auto scale: if raw > 500 or raw < -200, scale 0.01 (e.g. 2500 -> 25.00°C), else 0.1
-                var temp = (Math.abs(raw) > 500) ? +(raw * 0.01).toFixed(2) : +(raw * 0.1).toFixed(1);
-                out.temperature = temp;
-                out["ch" + ch + "_val"] = raw;
-                out.val = temp;
-            } else if (typeCode === 0x05) {
-                // 2-byte Battery in mV
-                if (idx + 1 >= bytes.length) break;
-                var mv = (bytes[idx++] << 8) | bytes[idx++];
-                out.battery = +(mv / 1000).toFixed(2);
-                out.battery_mv = mv;
-            } else if (typeCode === 0x01 || typeCode === 0x10) {
-                // 1-byte Digital / Switch State
-                if (idx >= bytes.length) break;
-                var stateVal = bytes[idx++];
-                out["ch" + ch + "_state"] = (stateVal === 1) ? "ON" : "OFF";
-                out.state = (stateVal === 1) ? "ON" : "OFF";
-            } else if (typeCode === 0x02 || typeCode === 0x12) {
-                // 2-byte Analog Input
-                if (idx + 1 >= bytes.length) break;
-                var aRaw = (bytes[idx++] << 8) | bytes[idx++];
-                if (aRaw & 0x8000) aRaw -= 0x10000;
-                out["ch" + ch + "_analog"] = +(aRaw * 0.01).toFixed(2);
-            } else if (typeCode === 0x67) {
-                // Cayenne Temperature (0.1 °C signed)
-                if (idx + 1 >= bytes.length) break;
-                var cTemp = (bytes[idx++] << 8) | bytes[idx++];
-                if (cTemp & 0x8000) cTemp -= 0x10000;
-                out.temperature = +(cTemp * 0.1).toFixed(1);
-                out.val = out.temperature;
-            } else if (typeCode === 0x68) {
-                // Cayenne Humidity (0.5 %)
-                if (idx >= bytes.length) break;
-                out.humidity = +(bytes[idx++] * 0.5).toFixed(1);
-            } else {
-                // Unknown type: advance to prevent loop lock
-                break;
+        } else if (includeHeaderMeta && bytes.length >= 6 && effOffset === 6) {
+            var h0 = (bytes[0] < 16 ? "0" : "") + bytes[0].toString(16).toUpperCase();
+            var h1 = (bytes[1] < 16 ? "0" : "") + bytes[1].toString(16).toUpperCase();
+            out.node_id = h0 + h1;
+            var serialHex = "";
+            for (var sIdx = 2; sIdx < 6; sIdx++) {
+                serialHex += (bytes[sIdx] < 16 ? "0" : "") + bytes[sIdx].toString(16).toUpperCase();
             }
+            out.device_serial = serialHex;
+            out.node_class = "A";
+            out.capability = "Sensor";
         }
 
-        return out;
+        if (!stream.valid) {
+            return { parsedAny: false, offset: effOffset, data: out, segments: segments };
+        }
+
+        for (var i = 0; i < stream.channels.length; i++) {
+            var item = stream.channels[i];
+            var ch = item.ch;
+            var typeCode = item.type;
+            var pfx = "ch" + ch + "_";
+            var valIdx = item.start + 2;
+            var segLabel = "Ch" + ch + " " + item.spec.name;
+            var segDesc = "";
+
+            if (typeCode === 0x00) {
+                var dIn = bytes[valIdx];
+                out[pfx + "digital_in"] = dIn;
+                segLabel = "Ch" + ch + " Din: " + dIn;
+                segDesc = "Channel " + ch + " Digital Input: " + dIn;
+            } else if (typeCode === 0x01 || typeCode === 0x10) {
+                var stVal = bytes[valIdx];
+                var stStr = (stVal === 1) ? "ON" : ((stVal === 0) ? "OFF" : String(stVal));
+                out[pfx + "state"] = stStr;
+                out.state = stStr;
+                segLabel = "Ch" + ch + " State: " + stStr;
+                segDesc = "Channel " + ch + " Switch State: " + stStr;
+            } else if (typeCode === 0x02 || typeCode === 0x12) {
+                var aRaw = (bytes[valIdx] << 8) | bytes[valIdx + 1];
+                if (aRaw & 0x8000) aRaw -= 0x10000;
+                var aVal = +(aRaw * 0.01).toFixed(2);
+                out[pfx + "analog_in"] = aVal;
+                // If Ch 1 Analog is in typical battery range (2.00V .. 4.50V) and battery is not yet set, expose as battery voltage too
+                if (ch === 1 && aVal >= 1.8 && aVal <= 5.5 && out.battery === undefined) {
+                    out.battery = aVal;
+                    segLabel = "Ch" + ch + " Batt/Analog: " + aVal + "V";
+                } else {
+                    segLabel = "Ch" + ch + " Analog: " + aVal;
+                }
+                segDesc = "Channel " + ch + " Analog Input: " + aVal;
+            } else if (typeCode === 0x03) {
+                var aoRaw = (bytes[valIdx] << 8) | bytes[valIdx + 1];
+                if (aoRaw & 0x8000) aoRaw -= 0x10000;
+                var aoVal = +(aoRaw * 0.01).toFixed(2);
+                out[pfx + "analog_out"] = aoVal;
+                segLabel = "Ch" + ch + " AOut: " + aoVal;
+                segDesc = "Channel " + ch + " Analog Output: " + aoVal;
+            } else if (typeCode === 0x05) {
+                var mv = (bytes[valIdx] << 8) | bytes[valIdx + 1];
+                var v = +(mv / 1000).toFixed(2);
+                out.battery = v;
+                out.battery_mv = mv;
+                segLabel = "Ch" + ch + " Batt: " + v + "V";
+                segDesc = "Channel " + ch + " Battery: " + v + " V (" + mv + " mV)";
+            } else if (typeCode === 0x11) {
+                var tRaw = (bytes[valIdx] << 8) | bytes[valIdx + 1];
+                if (tRaw & 0x8000) tRaw -= 0x10000;
+                var temp11 = (Math.abs(tRaw) > 500) ? +(tRaw * 0.01).toFixed(2) : +(tRaw * 0.1).toFixed(1);
+                out.temperature = temp11;
+                out[pfx + "val"] = tRaw;
+                segLabel = "Ch" + ch + " Temp: " + temp11 + "°C";
+                segDesc = "Channel " + ch + " Temperature: " + temp11 + " °C";
+            } else if (typeCode === 0x65) {
+                var lux = (bytes[valIdx] << 8) | bytes[valIdx + 1];
+                out.illuminance = lux;
+                out[pfx + "illuminance"] = lux;
+                segLabel = "Ch" + ch + " Lux: " + lux + " lx";
+                segDesc = "Channel " + ch + " Illuminance: " + lux + " lux";
+            } else if (typeCode === 0x66) {
+                var pres = bytes[valIdx];
+                out.presence = pres;
+                out[pfx + "presence"] = pres;
+                segLabel = "Ch" + ch + " Presence: " + pres;
+                segDesc = "Channel " + ch + " Presence: " + pres;
+            } else if (typeCode === 0x67) {
+                var cTemp = (bytes[valIdx] << 8) | bytes[valIdx + 1];
+                if (cTemp & 0x8000) cTemp -= 0x10000;
+                var temp67 = +(cTemp * 0.1).toFixed(1);
+                out.temperature = temp67;
+                out[pfx + "temperature"] = temp67;
+                segLabel = "Ch" + ch + " Temp: " + temp67 + "°C";
+                segDesc = "Channel " + ch + " Temperature (0x67): " + temp67 + " °C";
+            } else if (typeCode === 0x68) {
+                var hum = +(bytes[valIdx] * 0.5).toFixed(1);
+                out.humidity = hum;
+                out[pfx + "humidity"] = hum;
+                segLabel = "Ch" + ch + " Hum: " + hum + "%";
+                segDesc = "Channel " + ch + " Humidity (0x68): " + hum + " %";
+            } else if (typeCode === 0x71) {
+                var ax = (bytes[valIdx] << 8) | bytes[valIdx + 1];
+                var ay = (bytes[valIdx + 2] << 8) | bytes[valIdx + 3];
+                var az = (bytes[valIdx + 4] << 8) | bytes[valIdx + 5];
+                if (ax & 0x8000) ax -= 0x10000;
+                if (ay & 0x8000) ay -= 0x10000;
+                if (az & 0x8000) az -= 0x10000;
+                out.accel_x = +(ax * 0.001).toFixed(3);
+                out.accel_y = +(ay * 0.001).toFixed(3);
+                out.accel_z = +(az * 0.001).toFixed(3);
+                segLabel = "Ch" + ch + " Accel (" + out.accel_z + "g)";
+                segDesc = "Channel " + ch + " Accelerometer X:" + out.accel_x + "g Y:" + out.accel_y + "g Z:" + out.accel_z + "g";
+            } else if (typeCode === 0x73) {
+                var baro = +(((bytes[valIdx] << 8) | bytes[valIdx + 1]) * 0.1).toFixed(1);
+                out.pressure = baro;
+                out[pfx + "barometer"] = baro;
+                segLabel = "Ch" + ch + " Baro: " + baro + " hPa";
+                segDesc = "Channel " + ch + " Barometer: " + baro + " hPa";
+            } else if (typeCode === 0x88) {
+                var latRaw = (bytes[valIdx] << 16) | (bytes[valIdx + 1] << 8) | (bytes[valIdx + 2] || 0);
+                if (latRaw & 0x800000) latRaw -= 0x1000000;
+                var lonRaw = (bytes[valIdx + 3] << 16) | (bytes[valIdx + 4] << 8) | (bytes[valIdx + 5] || 0);
+                if (lonRaw & 0x800000) lonRaw -= 0x1000000;
+                var altRaw = ((bytes[valIdx + 6] || 0) << 16) | ((bytes[valIdx + 7] || 0) << 8) | (bytes[valIdx + 8] || 0);
+                if (altRaw & 0x800000) altRaw -= 0x1000000;
+                out.latitude = +(latRaw * 0.0001).toFixed(4);
+                out.longitude = +(lonRaw * 0.0001).toFixed(4);
+                out.altitude = +(altRaw * 0.01).toFixed(2);
+                segLabel = "Ch" + ch + " GPS (" + out.latitude + "," + out.longitude + ")";
+                segDesc = "Channel " + ch + " GPS Lat:" + out.latitude + " Lon:" + out.longitude + " Alt:" + out.altitude + "m";
+            }
+
+            segments.push({
+                start: item.start,
+                end: item.end,
+                name: segLabel,
+                desc: segDesc,
+                color: item.spec.color,
+                textColor: "#ffffff"
+            });
+        }
+
+        return {
+            parsedAny: stream.channels.length > 0,
+            offset: effOffset,
+            data: out,
+            segments: segments
+        };
     };
 
     // -------------------------------------------------------------------------
-    // Visual Byte Segmentation & Inspector Engine
+    // Channel-Type-Value (CTV / TLV) Decoder Engine
     // -------------------------------------------------------------------------
+
+    LoraDecoder.decodeCtv = function(bytes, hex, dataOffset) {
+        var parsed = LoraDecoder.parseChannelStream(bytes, dataOffset, true);
+        return parsed.data;
+    };
+
+    // -------------------------------------------------------------------------
+    // Standard Cayenne LPP (IPSO) Decoder
+    // -------------------------------------------------------------------------
+
+    LoraDecoder.decodeCayenneLpp = function(bytes, dataOffset) {
+        var pref = (dataOffset !== undefined && dataOffset !== null) ? parseInt(dataOffset, 10) : 0;
+        var parsed = LoraDecoder.parseChannelStream(bytes, pref, pref >= 4);
+        return parsed.parsedAny ? parsed.data : null;
+    };
+
+    // -------------------------------------------------------------------------
+    // Visual Byte Segmentation & Inspector Engine (Scheme-Aware)
+    // -------------------------------------------------------------------------
+
+    var FIELD_SLICE_COLORS = [
+        "#059669", // Emerald
+        "#0891b2", // Cyan
+        "#7c3aed", // Purple
+        "#ea580c", // Orange
+        "#4f46e5", // Indigo
+        "#d97706", // Amber
+        "#be185d", // Pink
+        "#0d9488"  // Teal
+    ];
 
     LoraDecoder.segmentBytes = function(bytes, hex, result) {
         if (typeof bytes === "string") {
@@ -280,105 +529,152 @@
             bytes = LoraDecoder.hexToBytes(hex || '');
         }
         if (!bytes || !bytes.length) return [];
+
         var segments = [];
-        var schemeId = (result && (result.schemeId || (result.scheme && result.scheme.id))) || "";
+        var scheme = (result && result.scheme) || null;
+        var schemeId = (result && (result.schemeId || (scheme && scheme.id))) || "";
         var data = (result && (result.data || result)) || {};
 
-        if (schemeId === "scheme_2b_node_tlv" || bytes.length >= 4) {
-            // Segment 1: 2-Byte Node ID (Bytes 0..1)
+        if (!scheme && schemeId && LoraDecoder.activeSchemes) {
+            for (var sIdx = 0; sIdx < LoraDecoder.activeSchemes.length; sIdx++) {
+                if (LoraDecoder.activeSchemes[sIdx].id === schemeId) {
+                    scheme = LoraDecoder.activeSchemes[sIdx];
+                    break;
+                }
+            }
+        }
+
+        var decType = (scheme && scheme.type) ? scheme.type : (schemeId === "fallback_ascii" ? "ascii" : "ctv");
+
+        // 1. ASCII Mode
+        if (decType === "ascii") {
             segments.push({
                 start: 0,
-                end: 1,
-                name: "Node ID",
-                desc: "16-Bit Device ID: " + (data.node_id || ""),
+                end: bytes.length - 1,
+                name: 'ASCII: "' + LoraDecoder.bytesToAscii(bytes) + '"',
+                desc: "Printable ASCII Text (" + bytes.length + " Bytes)",
+                color: "#d97706",
+                textColor: "#ffffff"
+            });
+            return segments;
+        }
+
+        // 2. Determine Node ID Byte Segment from Scheme
+        var nodeRange = LoraDecoder.getNodeIdByteRange(bytes, scheme, LoraDecoder.globalNodeId);
+        if (nodeRange && nodeRange.start < bytes.length && (!scheme || !scheme.nodeId || scheme.nodeId.source !== "field")) {
+            var nHex = "";
+            for (var nb = nodeRange.start; nb <= nodeRange.end && nb < bytes.length; nb++) {
+                nHex += (bytes[nb] < 16 ? "0" : "") + bytes[nb].toString(16).toUpperCase();
+            }
+            segments.push({
+                start: nodeRange.start,
+                end: nodeRange.end,
+                name: nodeRange.label + " (" + nHex + ")",
+                desc: nodeRange.label + ": " + nHex,
                 color: "#2563eb", // Blue
                 textColor: "#ffffff"
             });
-            // Segment 2: Device Type (Byte 2)
-            if (bytes.length >= 3) {
-                var cls = data.node_class ? ("Class " + data.node_class) : "";
-                var cap = data.capability || "";
-                var typeLabel = (cls || cap) ? (cls + " " + cap).trim() : "Device Type";
-                segments.push({
-                    start: 2,
-                    end: 2,
-                    name: "Device Type",
-                    desc: typeLabel + " (" + (data.device_type || ("0x" + (bytes[2]<16?"0":"") + bytes[2].toString(16).toUpperCase())) + ")",
-                    color: "#7c3aed", // Purple
-                    textColor: "#ffffff"
-                });
-            }
-            // Segment 3: Sequence Counter (Byte 3)
-            if (bytes.length >= 4) {
-                segments.push({
-                    start: 3,
-                    end: 3,
-                    name: "Sequence",
-                    desc: "Sequence Counter #" + (data.seq !== undefined ? data.seq : bytes[3]),
-                    color: "#d97706", // Amber
-                    textColor: "#ffffff"
-                });
-            }
-            // Dynamic TLV Channels (Bytes 4+)
-            var idx = 4;
-            while (idx < bytes.length) {
-                var startIdx = idx;
-                var ch = bytes[idx++];
-                if (idx >= bytes.length) break;
-                var typeCode = bytes[idx++];
-                var endIdx = idx - 1;
-                var chName = "Ch " + ch;
-                var chDesc = "";
-                var color = "#059669"; // Emerald
+        }
 
-                if (typeCode === 0x11) {
-                    if (idx + 1 < bytes.length) {
-                        endIdx = idx + 1;
-                        idx += 2;
-                        chName += " Temp";
-                        chDesc = (data.temperature !== undefined) ? (data.temperature + " °C") : "2-Byte Temperature";
-                        color = "#059669";
-                    } else break;
-                } else if (typeCode === 0x05) {
-                    if (idx + 1 < bytes.length) {
-                        endIdx = idx + 1;
-                        idx += 2;
-                        chName += " Battery";
-                        chDesc = (data.battery !== undefined) ? (data.battery + " V (" + (data.battery_mv || "") + "mV)") : "2-Byte Battery";
-                        color = "#0891b2"; // Cyan
-                    } else break;
-                } else if (typeCode === 0x01 || typeCode === 0x10) {
-                    if (idx < bytes.length) {
-                        endIdx = idx;
-                        idx += 1;
-                        chName += " State";
-                        chDesc = (data.state !== undefined) ? ("State: " + data.state) : "1-Byte Switch";
-                        color = "#ea580c"; // Orange
-                    } else break;
-                } else if (typeCode === 0x02 || typeCode === 0x12) {
-                    if (idx + 1 < bytes.length) {
-                        endIdx = idx + 1;
-                        idx += 2;
-                        chName += " Analog";
-                        chDesc = "2-Byte Analog Input";
-                        color = "#4f46e5"; // Indigo
-                    } else break;
-                } else {
-                    break;
+        // 3. Field Slicer Mode: Segment every configured byte slice!
+        if (decType === "fields" && scheme && scheme.fields && scheme.fields.length > 0) {
+            for (var fIdx = 0; fIdx < scheme.fields.length; fIdx++) {
+                var f = scheme.fields[fIdx];
+                if (!f || !f.name) continue;
+                var fOff = parseInt(f.offset, 10);
+                if (isNaN(fOff) || fOff < 0 || fOff >= bytes.length) continue;
+                var fLen = LoraDecoder.getFieldTypeByteLength(f.type, f.length);
+                var fEnd = Math.min(fOff + fLen - 1, bytes.length - 1);
+                var fVal = (data && data[f.name] !== undefined) ? (": " + data[f.name]) : "";
+                var col = FIELD_SLICE_COLORS[fIdx % FIELD_SLICE_COLORS.length];
+
+                // Remove any overlapping default Node ID segment if user explicitly sliced byte 0
+                for (var rem = segments.length - 1; rem >= 0; rem--) {
+                    if (!(fEnd < segments[rem].start || fOff > segments[rem].end)) {
+                        segments.splice(rem, 1);
+                    }
                 }
 
                 segments.push({
-                    start: startIdx,
-                    end: endIdx,
-                    name: chName,
-                    desc: chDesc,
-                    color: color,
+                    start: fOff,
+                    end: fEnd,
+                    name: f.name + fVal,
+                    desc: "Field '" + f.name + "' (" + (f.type || "uint8") + " at offset " + fOff + ")" + fVal,
+                    color: col,
+                    textColor: "#ffffff"
+                });
+            }
+        } else if (decType === "ctv" || decType === "tlv" || decType === "cayenne_lpp" || decType === "js") {
+            // 4. Channel Stream Segmentation (TLV / Cayenne LPP)
+            var prefOffset = (scheme && scheme.dataOffset !== undefined) ? parseInt(scheme.dataOffset, 10) : (decType === "cayenne_lpp" ? 0 : 4);
+            var streamParsed = LoraDecoder.parseChannelStream(bytes, prefOffset, true);
+
+            if (streamParsed.parsedAny) {
+                var chStart = streamParsed.offset;
+                if (chStart === 4 && bytes.length >= 4 && nodeRange.end < 2) {
+                    var cls = data.node_class ? ("Class " + data.node_class) : "";
+                    var cap = data.capability || "";
+                    var typeLabel = (cls || cap) ? (cls + " " + cap).trim() : "Device Type";
+                    segments.push({
+                        start: 2,
+                        end: 2,
+                        name: typeLabel,
+                        desc: typeLabel + " (0x" + (bytes[2] < 16 ? "0" : "") + bytes[2].toString(16).toUpperCase() + ")",
+                        color: "#7c3aed",
+                        textColor: "#ffffff"
+                    });
+                    segments.push({
+                        start: 3,
+                        end: 3,
+                        name: "Seq #" + bytes[3],
+                        desc: "Sequence Counter #" + bytes[3],
+                        color: "#d97706",
+                        textColor: "#ffffff"
+                    });
+                } else if (chStart === 6 && bytes.length >= 6 && nodeRange.end < 2) {
+                    var serHex = "";
+                    for (var s = 2; s < 6; s++) {
+                        serHex += (bytes[s] < 16 ? "0" : "") + bytes[s].toString(16).toUpperCase();
+                    }
+                    segments.push({
+                        start: 2,
+                        end: 5,
+                        name: "Serial (" + serHex + ")",
+                        desc: "4-Byte Device Serial / Address: " + serHex,
+                        color: "#7c3aed",
+                        textColor: "#ffffff"
+                    });
+                }
+
+                for (var cIdx = 0; cIdx < streamParsed.segments.length; cIdx++) {
+                    var chSeg = streamParsed.segments[cIdx];
+                    // Avoid colliding with Node ID segment if Cayenne LPP starts at 0
+                    if (chSeg.start <= nodeRange.end && chStart === 0) {
+                        segments = [];
+                    }
+                    segments.push(chSeg);
+                }
+            } else if (bytes.length >= 4 && nodeRange.end < 2 && decType === "ctv") {
+                segments.push({
+                    start: 2,
+                    end: 2,
+                    name: "Header[2]",
+                    desc: "Byte 2 (0x" + (bytes[2] < 16 ? "0" : "") + bytes[2].toString(16).toUpperCase() + ")",
+                    color: "#7c3aed",
+                    textColor: "#ffffff"
+                });
+                segments.push({
+                    start: 3,
+                    end: 3,
+                    name: "Header[3]",
+                    desc: "Byte 3 (0x" + (bytes[3] < 16 ? "0" : "") + bytes[3].toString(16).toUpperCase() + ")",
+                    color: "#d97706",
                     textColor: "#ffffff"
                 });
             }
         }
 
-        // Fill any unsegmented trailing bytes
+        // Fill any unsegmented bytes
         var covered = {};
         segments.forEach(function(s) {
             for (var j = s.start; j <= s.end; j++) covered[j] = true;
@@ -390,13 +686,18 @@
                 if (uncovStart === null) uncovStart = i;
             } else {
                 if (uncovStart !== null) {
+                    // Check if uncovStart..i-1 is all 0x00 padding at end
+                    var isZeroPad = (i === bytes.length);
+                    for (var zIdx = uncovStart; zIdx < i; zIdx++) {
+                        if (bytes[zIdx] !== 0) { isZeroPad = false; break; }
+                    }
                     segments.push({
                         start: uncovStart,
                         end: i - 1,
-                        name: "Payload",
-                        desc: (i - uncovStart) + " Bytes",
-                        color: "#94a3b8",
-                        textColor: "#ffffff"
+                        name: isZeroPad ? "Zero Pad" : "Payload",
+                        desc: (i - uncovStart) + " Bytes" + (isZeroPad ? " (Trailing Zero Padding)" : ""),
+                        color: isZeroPad ? "#cbd5e1" : "#64748b",
+                        textColor: isZeroPad ? "#334155" : "#ffffff"
                     });
                     uncovStart = null;
                 }
@@ -408,75 +709,65 @@
     };
 
     // -------------------------------------------------------------------------
-    // Standard Cayenne LPP (IPSO) Decoder
+    // Visual Field Slicer & Auto-Slicer Generator
     // -------------------------------------------------------------------------
 
-    LoraDecoder.decodeCayenneLpp = function(bytes) {
-        var out = {};
-        var i = 0;
-        var parsedAny = false;
-
-        while (i < bytes.length) {
-            var ch = bytes[i++];
-            if (i >= bytes.length) break;
-            var type = bytes[i++];
-            var pfx = "ch" + ch + "_";
-
-            if (type === 0x00) { // Digital Input (1B)
-                if (i >= bytes.length) break;
-                out[pfx + "digital_in"] = bytes[i++];
-                parsedAny = true;
-            } else if (type === 0x01) { // Digital Output (1B)
-                if (i >= bytes.length) break;
-                out[pfx + "digital_out"] = bytes[i++];
-                parsedAny = true;
-            } else if (type === 0x02) { // Analog Input (2B, 0.01 signed)
-                if (i + 1 >= bytes.length) break;
-                var val = (bytes[i++] << 8) | bytes[i++];
-                if (val & 0x8000) val -= 0x10000;
-                out[pfx + "analog_in"] = +(val * 0.01).toFixed(2);
-                parsedAny = true;
-            } else if (type === 0x03) { // Analog Output (2B, 0.01 signed)
-                if (i + 1 >= bytes.length) break;
-                var val = (bytes[i++] << 8) | bytes[i++];
-                if (val & 0x8000) val -= 0x10000;
-                out[pfx + "analog_out"] = +(val * 0.01).toFixed(2);
-                parsedAny = true;
-            } else if (type === 0x65) { // Illuminance (2B, 1 Lux)
-                if (i + 1 >= bytes.length) break;
-                out[pfx + "illuminance"] = (bytes[i++] << 8) | bytes[i++];
-                parsedAny = true;
-            } else if (type === 0x66) { // Presence (1B)
-                if (i >= bytes.length) break;
-                out[pfx + "presence"] = bytes[i++];
-                parsedAny = true;
-            } else if (type === 0x67) { // Temperature (2B, 0.1 °C signed)
-                if (i + 1 >= bytes.length) break;
-                var val = (bytes[i++] << 8) | bytes[i++];
-                if (val & 0x8000) val -= 0x10000;
-                out.temperature = +(val * 0.1).toFixed(1);
-                out[pfx + "temperature"] = out.temperature;
-                parsedAny = true;
-            } else if (type === 0x68) { // Humidity (1B, 0.5 %)
-                if (i >= bytes.length) break;
-                out.humidity = +(bytes[i++] * 0.5).toFixed(1);
-                out[pfx + "humidity"] = out.humidity;
-                parsedAny = true;
-            } else if (type === 0x73) { // Barometer (2B, 0.1 hPa)
-                if (i + 1 >= bytes.length) break;
-                out[pfx + "barometer"] = +(((bytes[i++] << 8) | bytes[i++]) * 0.1).toFixed(1);
-                parsedAny = true;
-            } else {
-                break;
-            }
-        }
-
-        return parsedAny ? out : null;
+    LoraDecoder.getFieldTypeByteLength = function(type, customLen) {
+        if (type === 'uint8' || type === 'int8' || type === 'bool') return 1;
+        if (type === 'uint16_be' || type === 'int16_be' || type === 'uint16_le' || type === 'int16_le') return 2;
+        if (type === 'int24_be' || type === 'uint24_be') return 3;
+        if (type === 'uint32_be' || type === 'int32_be' || type === 'uint32_le' || type === 'int32_le') return 4;
+        var parsed = parseInt(customLen, 10);
+        return (!isNaN(parsed) && parsed >= 1) ? parsed : 2;
     };
 
-    // -------------------------------------------------------------------------
-    // Visual Field Slicer
-    // -------------------------------------------------------------------------
+    LoraDecoder.autoGenerateFieldsFromBytes = function(bytes) {
+        if (!bytes || !bytes.length) return [];
+        var fields = [];
+        var stream = LoraDecoder.detectChannelStream(bytes, 4);
+        if (stream.valid && stream.channels.length > 0) {
+            if (stream.offset === 6 && bytes.length >= 6) {
+                fields.push({ name: "device_serial", offset: 2, length: 4, type: "hex", scale: 1, unit: "" });
+            } else if (stream.offset === 4 && bytes.length >= 4) {
+                fields.push({ name: "seq", offset: 3, length: 1, type: "uint8", scale: 1, unit: "" });
+            }
+            for (var i = 0; i < stream.channels.length; i++) {
+                var ch = stream.channels[i];
+                var vOff = ch.start + 2;
+                if (ch.type === 0x02 || ch.type === 0x12) {
+                    fields.push({ name: (ch.ch === 1 ? "battery" : ("ch" + ch.ch + "_analog")), offset: vOff, length: 2, type: "int16_be", scale: 0.01, unit: (ch.ch === 1 ? "V" : "") });
+                } else if (ch.type === 0x05) {
+                    fields.push({ name: "battery", offset: vOff, length: 2, type: "uint16_be", scale: 0.001, unit: "V" });
+                } else if (ch.type === 0x11 || ch.type === 0x67) {
+                    fields.push({ name: "temperature", offset: vOff, length: 2, type: "int16_be", scale: (ch.type === 0x67 ? 0.1 : 0.01), unit: "°C" });
+                } else if (ch.type === 0x68) {
+                    fields.push({ name: "humidity", offset: vOff, length: 1, type: "uint8", scale: 0.5, unit: "%" });
+                } else if (ch.type === 0x01 || ch.type === 0x10) {
+                    fields.push({ name: "state", offset: vOff, length: 1, type: "uint8", scale: 1, unit: "" });
+                } else if (ch.type === 0x71) {
+                    fields.push({ name: "accel_x", offset: vOff, length: 2, type: "int16_be", scale: 0.001, unit: "g" });
+                    fields.push({ name: "accel_y", offset: vOff + 2, length: 2, type: "int16_be", scale: 0.001, unit: "g" });
+                    fields.push({ name: "accel_z", offset: vOff + 4, length: 2, type: "int16_be", scale: 0.001, unit: "g" });
+                } else if (ch.type === 0x73) {
+                    fields.push({ name: "pressure", offset: vOff, length: 2, type: "uint16_be", scale: 0.1, unit: "hPa" });
+                } else if (ch.type === 0x88) {
+                    fields.push({ name: "latitude", offset: vOff, length: 3, type: "int24_be", scale: 0.0001, unit: "°" });
+                    fields.push({ name: "longitude", offset: vOff + 3, length: 3, type: "int24_be", scale: 0.0001, unit: "°" });
+                    fields.push({ name: "altitude", offset: vOff + 6, length: 3, type: "int24_be", scale: 0.01, unit: "m" });
+                }
+            }
+            return fields;
+        }
+
+        // Generic fallback slices for arbitrary packets
+        if (bytes.length >= 4) {
+            fields.push({ name: "field_1", offset: 2, length: 2, type: "uint16_be", scale: 1, unit: "" });
+        }
+        if (bytes.length >= 6) {
+            fields.push({ name: "field_2", offset: 4, length: 2, type: "int16_be", scale: 0.1, unit: "" });
+        }
+        return fields;
+    };
 
     LoraDecoder.decodeFields = function(bytes, fields) {
         var out = {};
@@ -484,16 +775,15 @@
 
         for (var i = 0; i < fields.length; i++) {
             var f = fields[i];
-            var off = parseInt(f.offset, 10) || 0;
-            var len = parseInt(f.length, 10) || 1;
+            if (!f || !f.name) continue;
+            var off = parseInt(f.offset, 10);
+            if (isNaN(off) || off < 0 || off >= bytes.length) continue;
+
+            var type = f.type || 'uint8';
+            var len = LoraDecoder.getFieldTypeByteLength(type, f.length);
             var scale = parseFloat(f.scale);
             if (isNaN(scale)) scale = 1.0;
             var add = parseFloat(f.add) || 0.0;
-            var unit = f.unit ? (" " + f.unit) : "";
-
-            if (off >= bytes.length) continue;
-
-            var type = f.type || 'uint8';
 
             if (type === 'hex') {
                 var h = '';
@@ -508,9 +798,15 @@
             if (type === 'ascii') {
                 var s = '';
                 for (var j = 0; j < len && (off + j) < bytes.length; j++) {
-                    s += String.fromCharCode(bytes[off + j]);
+                    var chCode = bytes[off + j];
+                    if (chCode >= 32 && chCode <= 126) s += String.fromCharCode(chCode);
                 }
                 out[f.name] = s;
+                continue;
+            }
+
+            if (type === 'bool') {
+                out[f.name] = (bytes[off] !== 0) ? "ON" : "OFF";
                 continue;
             }
 
@@ -530,17 +826,27 @@
             } else if (type === 'int16_le') {
                 rawVal = bytes[off] | ((bytes[off + 1] || 0) << 8);
                 if (rawVal & 0x8000) rawVal -= 0x10000;
+            } else if (type === 'uint24_be') {
+                rawVal = (bytes[off] << 16) | ((bytes[off + 1] || 0) << 8) | (bytes[off + 2] || 0);
+            } else if (type === 'int24_be') {
+                rawVal = (bytes[off] << 16) | ((bytes[off + 1] || 0) << 8) | (bytes[off + 2] || 0);
+                if (rawVal & 0x800000) rawVal -= 0x1000000;
             } else if (type === 'uint32_be') {
-                rawVal = ((bytes[off] << 24) >>> 0) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | (bytes[off + 3] || 0);
+                rawVal = ((bytes[off] << 24) >>> 0) + ((bytes[off + 1] || 0) << 16) + ((bytes[off + 2] || 0) << 8) + (bytes[off + 3] || 0);
+            } else if (type === 'int32_be') {
+                rawVal = (bytes[off] << 24) | ((bytes[off + 1] || 0) << 16) | ((bytes[off + 2] || 0) << 8) | (bytes[off + 3] || 0);
             } else if (type === 'uint32_le') {
-                rawVal = (bytes[off]) | (bytes[off + 1] << 8) | (bytes[off + 2] << 16) | ((bytes[off + 3] || 0) << 24);
+                rawVal = (bytes[off]) + ((bytes[off + 1] || 0) << 8) + ((bytes[off + 2] || 0) << 16) + (((bytes[off + 3] || 0) << 24) >>> 0);
             }
 
             var computed = (rawVal * scale) + add;
             if (scale < 1) {
-                computed = +computed.toFixed(3);
+                var decPlaces = (scale <= 0.0001) ? 4 : ((scale <= 0.001) ? 3 : ((scale <= 0.01) ? 2 : 1));
+                computed = +computed.toFixed(decPlaces);
+            } else {
+                computed = +computed.toFixed(2);
             }
-            out[f.name] = unit ? (computed + unit) : computed;
+            out[f.name] = computed;
         }
 
         return out;
@@ -604,10 +910,23 @@
         var decType = scheme.type || (scheme.jsCode ? 'js' : 'ctv');
 
         try {
-            if (decType === 'ctv' || decType === 'tlv') {
-                var ctvRes = LoraDecoder.decodeCtv(bytes, hex, scheme.dataOffset || 4);
-                if (ctvRes && Object.keys(ctvRes).length > 0) {
-                    return { success: true, data: ctvRes, error: null };
+            if (decType === 'fields') {
+                var fList = (scheme.fields && scheme.fields.length) ? scheme.fields : LoraDecoder.autoGenerateFieldsFromBytes(bytes);
+                var fResult = LoraDecoder.decodeFields(bytes, fList);
+                return { success: true, data: fResult, error: null };
+            }
+
+            if (decType === 'cayenne_lpp') {
+                var cOffset = (scheme.dataOffset !== undefined) ? scheme.dataOffset : 0;
+                var cResult = LoraDecoder.decodeCayenneLpp(bytes, cOffset);
+                if (cResult && Object.keys(cResult).length > 0) {
+                    return { success: true, data: cResult, error: null };
+                } else {
+                    return {
+                        success: false,
+                        data: { raw_hex: hex },
+                        error: "No valid Cayenne LPP / IPSO channels found at offset " + cOffset
+                    };
                 }
             }
 
@@ -619,25 +938,7 @@
                 };
             }
 
-            if (decType === 'cayenne_lpp') {
-                var cResult = LoraDecoder.decodeCayenneLpp(bytes);
-                if (cResult) {
-                    return { success: true, data: cResult, error: null };
-                } else {
-                    return {
-                        success: false,
-                        data: { raw_hex: hex },
-                        error: "Not valid Cayenne LPP structure"
-                    };
-                }
-            }
-
-            if (decType === 'fields') {
-                var fResult = LoraDecoder.decodeFields(bytes, scheme.fields || []);
-                return { success: true, data: fResult, error: null };
-            }
-
-            if (decType === 'js' || scheme.jsCode) {
+            if (decType === 'js') {
                 var jsCode = scheme.jsCode || '';
                 if (jsCode.trim()) {
                     var fn = new Function('bytes', 'hex', 'pkt', jsCode);
@@ -648,6 +949,13 @@
                     return { success: true, data: res, error: null };
                 }
             }
+
+            if (decType === 'ctv' || decType === 'tlv') {
+                var ctvRes = LoraDecoder.decodeCtv(bytes, hex, scheme.dataOffset !== undefined ? scheme.dataOffset : 4);
+                if (ctvRes && Object.keys(ctvRes).length > 0) {
+                    return { success: true, data: ctvRes, error: null };
+                }
+            }
         } catch(err) {
             return {
                 success: false,
@@ -656,7 +964,7 @@
             };
         }
 
-        // Intelligent Fallback: if packet has at least 4 bytes, decode via CTV
+        // Intelligent Fallback: if packet has at least 4 bytes, decode via CTV/LPP auto-detect
         if (bytes && bytes.length >= 4) {
             var autoCtv = LoraDecoder.decodeCtv(bytes, hex, 4);
             if (autoCtv && Object.keys(autoCtv).length > 0) {
@@ -693,6 +1001,7 @@
                 return {
                     schemeId: s.id,
                     schemeName: s.name,
+                    scheme: s,
                     matchType: s.matchType,
                     matchValue: s.matchValue,
                     success: execRes.success,
@@ -738,6 +1047,7 @@
         var parts = [];
         for (var k in data) {
             if (!data.hasOwnProperty(k)) continue;
+            if (['node_id', 'device_type', 'node_class', 'capability', 'raw_hex'].indexOf(k) !== -1) continue;
             var val = data[k];
             if (typeof val === 'object' && val !== null) {
                 val = JSON.stringify(val);
@@ -759,87 +1069,37 @@
         return [
             {
                 id: 'scheme_2b_node_tlv',
-                name: 'Standard 2-Byte Node ID + Device Type + TLV',
-                description: 'Standard Header: 2-Byte Node ID (bytes 0..1), 1-Byte Device Type (Class/Capability, byte 2), 1-Byte Seq (byte 3), followed by dynamic TLV sensors',
+                name: 'Standard 2-Byte Node ID + TLV / IPSO Channels',
+                description: 'Decodes 2-Byte Node ID (0..1) + Header + dynamic TLV / Cayenne LPP sensor channels (Temp, Batt, Hum, Accel, GPS, Switch)',
                 enabled: true,
                 matchType: 'condition',
                 matchCondition: '// Match standard 4+ byte header\nreturn bytes.length >= 4;',
                 nodeId: {
-                    source: 'offset',
+                    source: 'node_2b',
                     offset: 0,
                     length: 2,
                     format: 'hex',
                     prefix: ''
                 },
                 type: 'ctv',
-                dataOffset: 4,
-                jsCode: [
-                    '// Standard 2-Byte Node ID + Device Type + TLV Decoder (e.g. 12341100011109c402050ce4)',
-                    'var nodeId = ((bytes[0] < 16 ? "0" : "") + bytes[0].toString(16) + (bytes[1] < 16 ? "0" : "") + bytes[1].toString(16)).toUpperCase();',
-                    'var devType = bytes[2];',
-                    'var classCode = Math.floor(devType / 16);',
-                    'var capCode = devType % 16;',
-                    'var className = (classCode === 1) ? "A" : ((classCode === 2) ? "B" : ((classCode === 3) ? "C" : "Unknown"));',
-                    'var capMap = {1: "Sensor", 2: "Actuator", 3: "Combo", 4: "Meter", 5: "Security", 6: "Dimmer"};',
-                    'var capName = capMap[capCode] || "Generic";',
-                    'var seq = bytes[3];',
-                    '',
-                    'var out = {',
-                    '    node_id: nodeId,',
-                    '    device_type: "0x" + (devType < 16 ? "0" : "") + devType.toString(16).toUpperCase(),',
-                    '    node_class: className,',
-                    '    capability: capName,',
-                    '    seq: seq',
-                    '};',
-                    '',
-                    'var i = 4;',
-                    'while (i < bytes.length) {',
-                    '    var ch = bytes[i++];',
-                    '    if (i >= bytes.length) break;',
-                    '    var type = bytes[i++];',
-                    '    if (type === 0x11) { // 2-byte generic / temp',
-                    '        if (i + 1 >= bytes.length) break;',
-                    '        var raw = (bytes[i++] << 8) | bytes[i++];',
-                    '        if (raw & 0x8000) raw -= 0x10000;',
-                    '        var temp = (Math.abs(raw) > 500) ? +(raw * 0.01).toFixed(2) : +(raw * 0.1).toFixed(1);',
-                    '        out["temperature"] = temp;',
-                    '        out["ch" + ch + "_val"] = raw;',
-                    '    } else if (type === 0x05) { // 2-byte battery in mV',
-                    '        if (i + 1 >= bytes.length) break;',
-                    '        var mv = (bytes[i++] << 8) | bytes[i++];',
-                    '        out["battery"] = +(mv / 1000).toFixed(2);',
-                    '        out["battery_mv"] = mv;',
-                    '    } else if (type === 0x01 || type === 0x10) { // 1-byte digital',
-                    '        if (i >= bytes.length) break;',
-                    '        out["ch" + ch + "_state"] = (bytes[i++] === 1) ? "ON" : "OFF";',
-                    '        out["state"] = out["ch" + ch + "_state"];',
-                    '    } else if (type === 0x02 || type === 0x12) { // 2-byte analog',
-                    '        if (i + 1 >= bytes.length) break;',
-                    '        var aRaw = (bytes[i++] << 8) | bytes[i++];',
-                    '        if (aRaw & 0x8000) aRaw -= 0x10000;',
-                    '        out["ch" + ch + "_analog"] = +(aRaw * 0.01).toFixed(2);',
-                    '    } else {',
-                    '        break;',
-                    '    }',
-                    '}',
-                    'return out;'
-                ].join('\n')
+                dataOffset: 4
             },
             {
                 id: 'scheme_cayenne_lpp',
                 name: 'Cayenne LPP Standard Sensors',
-                description: 'Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)',
+                description: 'Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, accel, GPS)',
                 enabled: true,
                 matchType: 'condition',
-                matchCondition: '// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01);',
+                matchCondition: '// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01 || bytes[1] === 0x71 || bytes[1] === 0x88);',
                 nodeId: {
-                    source: 'offset',
+                    source: 'node_2b',
                     offset: 0,
                     length: 2,
                     format: 'hex',
                     prefix: ''
                 },
-                type: 'cayenne_lpp'
+                type: 'cayenne_lpp',
+                dataOffset: 0
             },
             {
                 id: 'scheme_ascii_ping',
@@ -848,7 +1108,7 @@
                 enabled: true,
                 matchType: 'condition',
                 nodeId: {
-                    source: 'offset',
+                    source: 'node_2b',
                     offset: 0,
                     length: 2,
                     format: 'hex',
@@ -871,7 +1131,7 @@
     // -------------------------------------------------------------------------
 
     LoraDecoder.globalNodeId = {
-        source: 'offset',
+        source: 'node_2b',
         offset: 0,
         length: 2,
         format: 'hex',

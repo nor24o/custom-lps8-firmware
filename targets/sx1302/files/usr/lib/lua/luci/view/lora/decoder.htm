@@ -45,7 +45,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin: 12px 0;
+    margin: 10px 0;
     padding: 10px;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
@@ -71,9 +71,9 @@
 }
 .byte-segment-hex {
     font-family: monospace;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
 }
 .byte-segment-label {
     font-size: 10px;
@@ -83,34 +83,34 @@
 }
 .byte-segment-idx {
     font-size: 9px;
-    opacity: 0.8;
+    opacity: 0.85;
 }
 
 /* Metric Cards Grid */
 .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 12px;
-    margin: 14px 0;
+    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+    gap: 10px;
+    margin: 10px 0;
 }
 .metric-tile {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 6px;
-    padding: 12px 14px;
+    padding: 10px 12px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 .metric-tile-title {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 700;
     color: #64748b;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 4px;
 }
 .metric-tile-value {
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 16px;
+    font-weight: 800;
     color: #0f172a;
     font-family: monospace;
 }
@@ -121,7 +121,7 @@
     border: 1px solid #e2e8f0;
     border-radius: 6px;
     padding: 14px 16px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .scheme-card:hover {
@@ -141,27 +141,56 @@
     border-radius: 0 0 6px 6px;
 }
 
-/* Tab Navigation */
-.studio-tabs {
-    display: flex;
-    border-bottom: 2px solid #e2e8f0;
-    margin-bottom: 14px;
-    gap: 4px;
+/* Field Slicer Table */
+.slicer-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    overflow: hidden;
 }
-.studio-tab-btn {
-    padding: 8px 16px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #64748b;
-    border: none;
-    background: none;
+.slicer-table th {
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 7px 8px;
+    text-align: left;
+    border-bottom: 1px solid #cbd5e1;
+}
+.slicer-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+.slicer-table tr:last-child td {
+    border-bottom: none;
+}
+.slicer-input {
+    width: 100%;
+    padding: 4px 6px;
+    font-size: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    box-sizing: border-box;
+    background: #fff;
+}
+.slicer-pill-btn {
+    background: #ffffff;
+    border: 1px solid #a7f3d0;
+    color: #047857;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
     cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
 }
-.studio-tab-btn.active {
-    color: #2563eb;
-    border-bottom-color: #2563eb;
+.slicer-pill-btn:hover {
+    background: #ecfdf5;
 }
 
 /* Code Editor */
@@ -243,7 +272,7 @@
                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                     <input type="text" id="test-hex" value="" 
                            style="flex: 1; min-width: 240px; padding: 8px 10px; font-family: monospace; font-size: 14px; border: 1px solid #cbd5e1; border-radius: 4px;" 
-                           placeholder="Enter raw HEX bytes or pick from history (e.g. AA0C6418...)" 
+                           placeholder="Enter raw HEX bytes or pick from history (e.g. CAFE96B840EB...)" 
                            oninput="runLiveDecode()" />
                     <button type="button" class="cbi-button" onclick="document.getElementById('test-hex').value=''; runLiveDecode();" title="Clear">✕</button>
                     <button type="button" class="cbi-button cbi-button-action" onclick="createSchemeFromCurrentHex()" title="Create and auto-save a new scheme tailored to this exact HEX payload"><%:✨ Create Scheme for this Payload%></button>
@@ -252,7 +281,7 @@
             <div style="flex: 1; min-width: 220px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Load from Gateway History:%></label>
                 <select id="sel-recent-pkts" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px;" onchange="loadRecentPacket(this.value)">
-                    <option value=""><%:-- Loading recent packets... --%></option>
+                    <option value="">-- Loading recent packets... --</option>
                 </select>
             </div>
         </div>
@@ -260,11 +289,11 @@
         <!-- Color-Coded 1-Click Test Presets -->
         <div style="margin-bottom: 12px; font-size: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
             <span style="color: #475569; font-weight: 700; margin-right: 4px;"><%:1-Click Test Presets:%></span>
-            <button type="button" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('12341100011109c402050ce4')">🌡️ <%:Class A Sensor (1234)%></button>
-            <button type="button" style="background: #faf5ff; border: 1px solid #e9d5ff; color: #7c3aed; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('56783201010101')">🔌 <%:Class C Actuator (5678)%></button>
-            <button type="button" style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('aa0c6418011108d002050fea')">🌤️ <%:Node AA0C (Weather)%></button>
-            <button type="button" style="background: #fffbeb; border: 1px solid #fde68a; color: #b45309; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('0167011002684803020064')">📡 <%:Cayenne LPP (IPSO)%></button>
-            <button type="button" style="background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('50494e475f4c505338')">💬 <%:ASCII Ping Text%></button>
+            <button type="button" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('cafe96b840eb010201490271fffb000c0425036700bb04880000000000000000')">📡 Node CAFE (Multi-Sensor LPP)</button>
+            <button type="button" style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('12341100011109c402050ce4')">🌡️ Class A Sensor (1234)</button>
+            <button type="button" style="background: #faf5ff; border: 1px solid #e9d5ff; color: #7c3aed; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('56783201010101')">🔌 Class C Actuator (5678)</button>
+            <button type="button" style="background: #fffbeb; border: 1px solid #fde68a; color: #b45309; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('0167011002684803020064')">🌡️ Cayenne LPP (IPSO)</button>
+            <button type="button" style="background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('50494e475f4c505338')">💬 ASCII Ping Text</button>
         </div>
 
         <!-- VISUAL COLOR-CODED BYTE STRIP -->
@@ -279,9 +308,9 @@
                 <button type="button" class="cbi-button" style="padding: 2px 6px; font-size: 11px;" onclick="copyText(document.getElementById('hero-node-id').innerText, 'Node ID copied!')" title="Copy Node ID">📋</button>
             </div>
             <div id="hero-badges" style="display: flex; gap: 6px; flex-wrap: wrap;">
-                <span id="hero-class-badge" class="studio-badge badge-purple"><%:Class A%></span>
-                <span id="hero-cap-badge" class="studio-badge badge-green"><%:Sensor%></span>
-                <span id="hero-scheme-badge" class="studio-badge badge-blue"><%:Scheme: Standard TLV%></span>
+                <span id="hero-class-badge" class="studio-badge badge-purple">Class A</span>
+                <span id="hero-cap-badge" class="studio-badge badge-green">Sensor</span>
+                <span id="hero-scheme-badge" class="studio-badge badge-blue">Scheme: Standard TLV</span>
             </div>
             <div style="margin-left: auto; font-size: 12px; color: #475569; display: flex; align-items: center; gap: 6px;">
                 <span><%:MQTT State Topic:%></span>
@@ -308,15 +337,17 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <h3><%:⚙️ Configured Decoder Schemes%></h3>
-                <span id="schemes-counter" class="studio-badge badge-slate">(4 Schemes)</span>
+                <span id="schemes-counter" class="studio-badge badge-slate">(0 Schemes)</span>
             </div>
             <!-- Global Fallback Selector -->
             <div style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
                 <label style="font-weight: 600; color: #475569;"><%:Global Fallback Node ID:%></label>
-                <select id="global-nodeid-source" style="padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px;" onchange="updateGlobalNodeId()">
-                    <option value="auto"><%:✨ 2-Byte Node ID (Offset 0..1 in Hex -> 1234, AA0C)%></option>
-                    <option value="single"><%:Single Byte Node ID (Byte 0 in Hex -> 12, AA)%></option>
-                    <option value="field"><%:From Decoded Property ('node_id')%></option>
+                <select id="global-nodeid-source" style="padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; font-weight: 600; background: #fff;" onchange="updateGlobalNodeId()">
+                    <option value="node_2b">✨ 2-Byte Node ID (Bytes 0..1 in Hex -> 1234, CAFE)</option>
+                    <option value="serial_4b">🆔 4-Byte Serial after Prefix (Bytes 2..5 -> 96B840EB)</option>
+                    <option value="mac_6b">📡 6-Byte Full Address (Bytes 0..5 -> CAFE96B840EB)</option>
+                    <option value="single">1️⃣ Single Byte Node ID (Byte 0 in Hex)</option>
+                    <option value="field">🏷️ From Decoded Property ('node_id')</option>
                 </select>
             </div>
         </div>
@@ -327,10 +358,10 @@
     </div>
 </div>
 
-<script type="text/javascript" src="<%=resource%>/lora_decoder.js?v=<%=os.time()%>"></script>
+<script type="text/javascript" src="<%=resource%>/lora_decoder.js?v=20261106_v3"></script>
 <script type="text/javascript">//<![CDATA[
 var g_schemes = [];
-var g_globalNodeId = { source: "auto", format: "hex", prefix: "" };
+var g_globalNodeId = { source: "node_2b", format: "hex", prefix: "" };
 var g_apiEndpoint = '<%=luci.dispatcher.build_url("admin/lora/api_decoders")%>';
 var g_packetsApi = '<%=luci.dispatcher.build_url("admin/lora/api_packets")%>';
 var g_expandedIndex = -1;
@@ -340,7 +371,6 @@ window.onload = function() {
     loadSchemes();
     loadRecentPackets();
 
-    // Deep link support (?hex=...)
     var urlParams = new URLSearchParams(window.location.search);
     var hexParam = urlParams.get('hex');
     if (hexParam) {
@@ -420,17 +450,29 @@ function loadRecentPackets() {
     xhr.send();
 }
 
+function normalizeGlobalNodeSource(rule) {
+    if (!rule || !rule.source) return "node_2b";
+    if (rule.source === "auto" || rule.source === "node_2b" || rule.source === "node_id_2b") return "node_2b";
+    if (rule.source === "offset") {
+        if (rule.offset === 2 && rule.length === 4) return "serial_4b";
+        if (rule.offset === 0 && rule.length === 6) return "mac_6b";
+        return "node_2b";
+    }
+    return rule.source;
+}
+
 function loadSchemes() {
     LoraDecoder.loadSchemes(g_apiEndpoint, function(err, schemes, globalRule) {
         g_schemes = schemes || LoraDecoder.getDefaultSchemes();
         if (globalRule) {
             g_globalNodeId = globalRule;
-            document.getElementById("global-nodeid-source").value = globalRule.source || "auto";
+            var normSrc = normalizeGlobalNodeSource(globalRule);
+            var gSel = document.getElementById("global-nodeid-source");
+            if (gSel) gSel.value = normSrc;
         }
         renderSchemesList();
         runLiveDecode();
 
-        // Check if deep link requested instant scheme creation from packet
         var urlParams = new URLSearchParams(window.location.search);
         var hexParam = urlParams.get('hex');
         var createParam = urlParams.get('create');
@@ -441,7 +483,8 @@ function loadSchemes() {
 }
 
 function updateGlobalNodeId() {
-    g_globalNodeId.source = document.getElementById("global-nodeid-source").value;
+    var val = document.getElementById("global-nodeid-source").value;
+    g_globalNodeId.source = val;
     LoraDecoder.globalNodeId = g_globalNodeId;
     saveAllSchemes(function() {
         showToast("Global fallback strategy updated & saved!", "success");
@@ -450,13 +493,79 @@ function updateGlobalNodeId() {
 }
 
 // -----------------------------------------------------------------------------
-// LIVE DECODER & VISUAL INSPECTOR
+// SHARED TELEMETRY METRICS RENDERER (WORKBENCH + DRAWER)
+// -----------------------------------------------------------------------------
+
+function buildTelemetryTilesHtml(data, fallbackHex) {
+    var html = '';
+    var tileCount = 0;
+    data = data || {};
+
+    if (data.temperature !== undefined) {
+        html += '<div class="metric-tile" style="border: 1.5px solid #fdba74; background: #fff7ed;"><div class="metric-tile-title" style="color: #c2410c;">🌡️ Temperature</div><div class="metric-tile-value" style="color: #9a3412;">' + escapeHtml(data.temperature) + ' °C</div></div>';
+        tileCount++;
+    }
+    if (data.battery !== undefined) {
+        var battStr = data.battery + " V" + (data.battery_mv ? (" (" + data.battery_mv + " mV)") : "");
+        html += '<div class="metric-tile" style="border: 1.5px solid #86efac; background: #f0fdf4;"><div class="metric-tile-title" style="color: #15803d;">🔋 Battery / Supply</div><div class="metric-tile-value" style="color: #166534;">' + escapeHtml(battStr) + '</div></div>';
+        tileCount++;
+    }
+    if (data.humidity !== undefined) {
+        html += '<div class="metric-tile" style="border: 1.5px solid #67e8f9; background: #ecfeff;"><div class="metric-tile-title" style="color: #0e7490;">💧 Humidity</div><div class="metric-tile-value" style="color: #155e75;">' + escapeHtml(data.humidity) + ' %</div></div>';
+        tileCount++;
+    }
+    if (data.pressure !== undefined) {
+        html += '<div class="metric-tile" style="border: 1.5px solid #c4b5fd; background: #f5f3ff;"><div class="metric-tile-title" style="color: #6d28d9;">⏱️ Barometer</div><div class="metric-tile-value" style="color: #5b21b6;">' + escapeHtml(data.pressure) + ' hPa</div></div>';
+        tileCount++;
+    }
+    if (data.state !== undefined) {
+        html += '<div class="metric-tile" style="border: 1.5px solid #7dd3fc; background: #f0f9ff;"><div class="metric-tile-title" style="color: #0369a1;">🔌 Switch / State</div><div class="metric-tile-value" style="color: #075985;">' + escapeHtml(data.state) + '</div></div>';
+        tileCount++;
+    }
+    if (data.accel_x !== undefined || data.accel_y !== undefined || data.accel_z !== undefined) {
+        var ax = (data.accel_x !== undefined ? data.accel_x : 0);
+        var ay = (data.accel_y !== undefined ? data.accel_y : 0);
+        var az = (data.accel_z !== undefined ? data.accel_z : 0);
+        html += '<div class="metric-tile" style="border: 1.5px solid #d8b4fe; background: #faf5ff; grid-column: span 2;"><div class="metric-tile-title" style="color: #6b21a8;">📐 3-Axis Accelerometer</div><div class="metric-tile-value" style="color: #581c87; font-size: 13px;">X: ' + ax + 'g &nbsp;|&nbsp; Y: ' + ay + 'g &nbsp;|&nbsp; Z: ' + az + 'g</div></div>';
+        tileCount++;
+    }
+    if (data.latitude !== undefined && data.longitude !== undefined) {
+        var gpsStr = data.latitude + "°, " + data.longitude + "°" + (data.altitude !== undefined ? (" (" + data.altitude + "m)") : "");
+        html += '<div class="metric-tile" style="border: 1.5px solid #99f6e4; background: #f0fdfa; grid-column: span 2;"><div class="metric-tile-title" style="color: #0f766e;">🛰️ GPS Location</div><div class="metric-tile-value" style="color: #115e59; font-size: 13px;">' + escapeHtml(gpsStr) + '</div></div>';
+        tileCount++;
+    }
+    if (data.device_serial !== undefined) {
+        html += '<div class="metric-tile" style="border: 1.5px solid #cbd5e1; background: #f8fafc;"><div class="metric-tile-title" style="color: #475569;">🆔 Device Serial</div><div class="metric-tile-value" style="color: #1e293b; font-size: 14px;">' + escapeHtml(data.device_serial) + '</div></div>';
+        tileCount++;
+    }
+    if (data.seq !== undefined) {
+        html += '<div class="metric-tile" style="border: 1.5px solid #a5b4fc; background: #eef2ff;"><div class="metric-tile-title" style="color: #4338ca;">🔢 Sequence</div><div class="metric-tile-value" style="color: #3730a3;">#' + escapeHtml(data.seq) + '</div></div>';
+        tileCount++;
+    }
+
+    var skipKeys = ['temperature','battery','battery_mv','humidity','pressure','state','accel_x','accel_y','accel_z','latitude','longitude','altitude','device_serial','seq','device_type','node_id','node_class','capability','raw_hex'];
+    for (var k in data) {
+        if (!data.hasOwnProperty(k)) continue;
+        if (skipKeys.indexOf(k) !== -1) continue;
+        var val = data[k];
+        html += '<div class="metric-tile"><div class="metric-tile-title">' + escapeHtml(k) + '</div><div class="metric-tile-value" style="font-size: 14px;">' + escapeHtml(typeof val === 'object' ? JSON.stringify(val) : val) + '</div></div>';
+        tileCount++;
+    }
+
+    if (tileCount === 0) {
+        html += '<div class="metric-tile" style="grid-column: 1 / -1; color: #64748b; font-size: 12px;">No discrete telemetry fields extracted (raw payload: ' + escapeHtml(data.raw_hex || fallbackHex || "") + ')</div>';
+    }
+    return html;
+}
+
+// -----------------------------------------------------------------------------
+// LIVE DECODER & VISUAL INSPECTOR (TOP WORKBENCH)
 // -----------------------------------------------------------------------------
 
 function runLiveDecode() {
     var hex = (document.getElementById("test-hex").value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '');
     if (!hex) {
-        document.getElementById("byte-strip").innerHTML = '<div style="color: #94a3b8; font-size: 13px;">Enter a HEX payload above to view byte segmentation</div>';
+        document.getElementById("byte-strip").innerHTML = '<div style="color: #94a3b8; font-size: 13px;">Enter a HEX payload above or click a preset to inspect byte segmentation</div>';
         document.getElementById("node-identity-banner").style.display = "none";
         document.getElementById("metrics-grid").innerHTML = "";
         document.getElementById("raw-json-out").innerText = "{}";
@@ -483,19 +592,10 @@ function runLiveDecode() {
                 segHex += (bytes[j] < 16 ? "0" : "") + bytes[j].toString(16).toUpperCase() + " ";
             }
             var idxRange = (s.start === s.end) ? ("[" + s.start + "]") : ("[" + s.start + ".." + s.end + "]");
-            stripHtml += '<div class="byte-segment" style="background: ' + s.color + '; color: ' + s.textColor + ';" title="' + s.desc + '">' +
+            stripHtml += '<div class="byte-segment" style="background: ' + s.color + '; color: ' + s.textColor + ';" title="' + escapeHtml(s.desc) + '">' +
                             '<span class="byte-segment-idx">' + idxRange + '</span>' +
                             '<span class="byte-segment-hex">' + segHex.trim() + '</span>' +
-                            '<span class="byte-segment-label">' + s.name + '</span>' +
-                         '</div>';
-        }
-    } else {
-        for (var i = 0; i < bytes.length; i++) {
-            var b = bytes[i];
-            var bHex = (b < 16 ? "0" : "") + b.toString(16).toUpperCase();
-            stripHtml += '<div class="byte-segment" style="background: #64748b; color: #fff;">' +
-                            '<span class="byte-segment-idx">[' + i + ']</span>' +
-                            '<span class="byte-segment-hex">' + bHex + '</span>' +
+                            '<span class="byte-segment-label">' + escapeHtml(s.name) + '</span>' +
                          '</div>';
         }
     }
@@ -513,65 +613,78 @@ function runLiveDecode() {
     var cap = data.capability ? data.capability : "Sensor";
     document.getElementById("hero-class-badge").innerText = cls;
     document.getElementById("hero-cap-badge").innerText = cap;
-    document.getElementById("hero-scheme-badge").innerText = result.schemeName || "Default";
+    document.getElementById("hero-scheme-badge").innerText = "Scheme: " + (result.schemeName || "Default");
 
     // 3. RENDER METRICS GRID
     var grid = document.getElementById("metrics-grid");
-    grid.innerHTML = "";
-
     if (result.error) {
         grid.innerHTML = '<div class="metric-tile" style="grid-column: 1 / -1; border-color: #fca5a5; background: #fff5f5;">' +
-                            '<div class="metric-tile-title" style="color: #dc2626;"><%:Decoder Error%></div>' +
-                            '<div style="color: #dc2626; font-size: 13px;">' + result.error + '</div>' +
+                            '<div class="metric-tile-title" style="color: #dc2626;">Decoder Error</div>' +
+                            '<div style="color: #dc2626; font-size: 13px;">' + escapeHtml(result.error) + '</div>' +
                          '</div>';
     } else {
-        // Essential Metric Tiles
-        if (data.temperature !== undefined) {
-            addMetricTile(grid, "🌡️ Temperature", data.temperature + " °C");
-        }
-        if (data.battery !== undefined) {
-            var battStr = data.battery + " V" + (data.battery_mv ? (" (" + data.battery_mv + " mV)") : "");
-            addMetricTile(grid, "🔋 Battery", battStr);
-        }
-        if (data.state !== undefined) {
-            addMetricTile(grid, "🔌 Actuator State", data.state);
-        }
-        if (data.seq !== undefined) {
-            addMetricTile(grid, "🔢 Sequence Counter", "#" + data.seq);
-        }
-        if (data.humidity !== undefined) {
-            addMetricTile(grid, "💧 Humidity", data.humidity + " %");
-        }
-        if (data.pressure !== undefined) {
-            addMetricTile(grid, "⏱️ Pressure", data.pressure + " hPa");
-        }
-        if (data.device_type !== undefined) {
-            addMetricTile(grid, "🏷️ Descriptor Byte", data.device_type);
-        }
-
-        // Remaining fields
-        for (var k in data) {
-            if (!data.hasOwnProperty(k)) continue;
-            if (['temperature','battery','battery_mv','state','seq','humidity','pressure','device_type','node_id','node_class','capability'].indexOf(k) !== -1) continue;
-            var val = data[k];
-            addMetricTile(grid, k, (typeof val === 'object' ? JSON.stringify(val) : val));
-        }
+        grid.innerHTML = buildTelemetryTilesHtml(data, hex);
     }
 
     // 4. RAW JSON OUTPUT
     document.getElementById("raw-json-out").innerText = JSON.stringify(result.data, null, 2);
 }
 
-function addMetricTile(cont, title, val) {
-    var div = document.createElement("div");
-    div.className = "metric-tile";
-    div.innerHTML = '<div class="metric-tile-title">' + title + '</div><div class="metric-tile-value">' + val + '</div>';
-    cont.appendChild(div);
-}
-
 // -----------------------------------------------------------------------------
 // SCHEMES MANAGER & IN-PLACE ACCORDION EDITOR
 // -----------------------------------------------------------------------------
+
+function getSchemeBadgesInfo(s) {
+    var matchBadge = "badge-blue";
+    var matchText = "Catch-All";
+    if (s.matchType === "prefix") { matchBadge = "badge-blue"; matchText = "Prefix: " + (s.matchValue || "").toUpperCase(); }
+    else if (s.matchType === "size") { matchBadge = "badge-amber"; matchText = "Size: " + (s.matchValue || "") + "B"; }
+    else if (s.matchType === "condition") { matchBadge = "badge-purple"; matchText = "JS Rule"; }
+    else if (s.matchType === "regex") { matchBadge = "badge-slate"; matchText = "Regex: " + (s.matchValue || ""); }
+
+    var typeBadge = "badge-slate";
+    var typeText = "JavaScript";
+    if (s.type === "ctv" || s.type === "tlv") { typeBadge = "badge-green"; typeText = "TLV / IPSO (Offset " + (s.dataOffset !== undefined ? s.dataOffset : 4) + ")"; }
+    else if (s.type === "cayenne_lpp") { typeBadge = "badge-purple"; typeText = "Cayenne LPP (Offset " + (s.dataOffset !== undefined ? s.dataOffset : 0) + ")"; }
+    else if (s.type === "fields") { typeBadge = "badge-blue"; typeText = "Field Slicer (" + (s.fields ? s.fields.length : 0) + " fields)"; }
+    else if (s.type === "ascii") { typeBadge = "badge-amber"; typeText = "ASCII Text"; }
+
+    var nodeRule = s.nodeId || {};
+    var nodeText = "Node ID: 2-Byte Hex (0..1)";
+    if (nodeRule.source === "serial_4b") nodeText = "Node ID: 4-Byte Serial (2..5)";
+    else if (nodeRule.source === "mac_6b") nodeText = "Node ID: 6-Byte MAC (0..5)";
+    else if (nodeRule.source === "offset") nodeText = "Node ID: Offset " + (nodeRule.offset || 0) + " (" + (nodeRule.length || 2) + "B)";
+    else if (nodeRule.source === "field") nodeText = "Node ID: Field '" + (nodeRule.fieldName || "node_id") + "'";
+    else if (nodeRule.source === "single") nodeText = "Node ID: Single Byte (0)";
+
+    var borderAccent = "#2563eb";
+    var numBg = "#eff6ff"; var numColor = "#1d4ed8"; var numBorder = "#bfdbfe";
+    if (s.type === "ctv" || s.type === "tlv") {
+        borderAccent = "#10b981";
+        numBg = "#ecfdf5"; numColor = "#047857"; numBorder = "#a7f3d0";
+    } else if (s.type === "cayenne_lpp") {
+        borderAccent = "#8b5cf6";
+        numBg = "#faf5ff"; numColor = "#6b21a8"; numBorder = "#e9d5ff";
+    } else if (s.type === "fields") {
+        borderAccent = "#0284c7";
+        numBg = "#f0f9ff"; numColor = "#0369a1"; numBorder = "#bae6fd";
+    } else if (s.type === "ascii") {
+        borderAccent = "#f59e0b";
+        numBg = "#fffbeb"; numColor = "#b45309"; numBorder = "#fde68a";
+    }
+
+    return {
+        matchBadge: matchBadge,
+        matchText: matchText,
+        typeBadge: typeBadge,
+        typeText: typeText,
+        nodeText: nodeText,
+        borderAccent: borderAccent,
+        numBg: numBg,
+        numColor: numColor,
+        numBorder: numBorder
+    };
+}
 
 function renderSchemesList() {
     var cont = document.getElementById("schemes-container");
@@ -579,7 +692,7 @@ function renderSchemesList() {
     document.getElementById("schemes-counter").innerText = "(" + g_schemes.length + " Schemes)";
 
     if (!g_schemes || g_schemes.length === 0) {
-        cont.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 30px;"><%:No decoding schemes defined. Click "+ Add New Scheme" to create one.%></div>';
+        cont.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 30px;">No decoding schemes defined. Click "+ Add New Scheme" to create one.</div>';
         return;
     }
 
@@ -589,61 +702,28 @@ function renderSchemesList() {
         card.className = "scheme-card" + (s.enabled ? "" : " disabled");
         card.id = "scheme-card-" + i;
 
-        var matchBadge = "badge-blue";
-        var matchText = "Default";
-        if (s.matchType === "prefix") { matchBadge = "badge-blue"; matchText = "Prefix: " + (s.matchValue || ""); }
-        else if (s.matchType === "size") { matchBadge = "badge-amber"; matchText = "Size: " + (s.matchValue || "") + "B"; }
-        else if (s.matchType === "condition") { matchBadge = "badge-purple"; matchText = "Condition"; }
-        else if (s.matchType === "regex") { matchBadge = "badge-slate"; matchText = "Regex: " + (s.matchValue || ""); }
+        var info = getSchemeBadgesInfo(s);
+        var descHtml = s.description ? ('<div id="scheme-card-desc-' + i + '" style="font-size: 12px; color: #64748b; margin-top: 4px;">' + escapeHtml(s.description) + '</div>') : '';
 
-        var typeBadge = "badge-slate";
-        var typeText = "JavaScript";
-        if (s.type === "ctv" || s.type === "tlv") { typeBadge = "badge-green"; typeText = "TLV Channels"; }
-        else if (s.type === "fields") { typeBadge = "badge-blue"; typeText = "Field Slicer (" + (s.fields ? s.fields.length : 0) + ")"; }
-        else if (s.type === "cayenne_lpp") { typeBadge = "badge-purple"; typeText = "Cayenne LPP"; }
-        else if (s.type === "ascii") { typeBadge = "badge-amber"; typeText = "ASCII"; }
-
-        var nodeRule = s.nodeId || {};
-        var nodeText = "Node ID: 2-Byte Hex (Offset 0..1)";
-        if (nodeRule.source === "offset") nodeText = "Node ID: Offset " + (nodeRule.offset || 0) + " (" + (nodeRule.length || 1) + "B)";
-        else if (nodeRule.source === "field") nodeText = "Node ID: Field '" + (nodeRule.fieldName || "node_id") + "'";
-        else if (nodeRule.source === "single") nodeText = "Node ID: Single Byte";
-
-        var descHtml = s.description ? ('<div style="font-size: 12px; color: #64748b; margin-top: 4px;">' + s.description + '</div>') : '';
-
-        // Distinct colorful left accent border based on engine type
-        var borderAccent = "#2563eb"; // Royal Blue (JS/Default)
-        var numBg = "#eff6ff"; var numColor = "#1d4ed8"; var numBorder = "#bfdbfe";
-        if (s.type === "ctv" || s.type === "tlv") {
-            borderAccent = "#10b981"; // Emerald
-            numBg = "#ecfdf5"; numColor = "#047857"; numBorder = "#a7f3d0";
-        } else if (s.type === "cayenne_lpp") {
-            borderAccent = "#8b5cf6"; // Purple
-            numBg = "#faf5ff"; numColor = "#6b21a8"; numBorder = "#e9d5ff";
-        } else if (s.type === "ascii") {
-            borderAccent = "#f59e0b"; // Amber
-            numBg = "#fffbeb"; numColor = "#b45309"; numBorder = "#fde68a";
-        }
-
-        card.style.borderLeft = "6px solid " + borderAccent;
+        card.style.borderLeft = "6px solid " + info.borderAccent;
         card.style.borderRadius = "6px";
         card.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
 
         card.innerHTML = 
             '<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">' +
                 '<div style="display: flex; align-items: center; gap: 12px;">' +
-                    '<input type="checkbox" ' + (s.enabled ? 'checked="checked"' : '') + ' onchange="toggleSchemeActive(' + i + ', this.checked)" title="Enable / Disable Scheme" style="cursor: pointer; transform: scale(1.25); accent-color: ' + borderAccent + ';" />' +
-                    '<span style="background: ' + numBg + '; color: ' + numColor + '; border: 1px solid ' + numBorder + '; border-radius: 4px; padding: 2px 7px; font-weight: 800; font-size: 11px;">#' + (i + 1) + '</span>' +
+                    '<input type="checkbox" ' + (s.enabled ? 'checked="checked"' : '') + ' onchange="toggleSchemeActive(' + i + ', this.checked)" title="Enable / Disable Scheme" style="cursor: pointer; transform: scale(1.25); accent-color: ' + info.borderAccent + ';" />' +
+                    '<span id="scheme-card-num-' + i + '" style="background: ' + info.numBg + '; color: ' + info.numColor + '; border: 1px solid ' + info.numBorder + '; border-radius: 4px; padding: 2px 7px; font-weight: 800; font-size: 11px;">#' + (i + 1) + '</span>' +
                     '<div>' +
                         '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">' +
-                            '<strong style="font-size: 14px; font-weight: 700; color: #0f172a;">' + (s.name || "Untitled Scheme") + '</strong>' +
+                            '<strong id="scheme-card-title-' + i + '" style="font-size: 14px; font-weight: 700; color: #0f172a;">' + escapeHtml(s.name || "Untitled Scheme") + '</strong>' +
                             '<span style="font-size: 11px; font-weight: 700; color: ' + (s.enabled ? '#059669' : '#94a3b8') + ';">' + (s.enabled ? '● Active' : '○ Disabled') + '</span>' +
                         '</div>' +
-                        '<div style="display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap;">' +
-                            '<span class="studio-badge ' + matchBadge + '">' + matchText + '</span>' +
-                            '<span class="studio-badge ' + typeBadge + '">' + typeText + '</span>' +
-                            '<span class="studio-badge badge-slate">' + nodeText + '</span>' +
-                            (s.sampleHex ? '<span class="studio-badge badge-slate" style="font-family: monospace;" title="Bound Test Payload">🎯 ' + s.sampleHex.substring(0, 8) + '...</span>' : '') +
+                        '<div id="scheme-card-badges-' + i + '" style="display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap;">' +
+                            '<span class="studio-badge ' + info.matchBadge + '">' + escapeHtml(info.matchText) + '</span>' +
+                            '<span class="studio-badge ' + info.typeBadge + '">' + escapeHtml(info.typeText) + '</span>' +
+                            '<span class="studio-badge badge-slate">' + escapeHtml(info.nodeText) + '</span>' +
+                            (s.sampleHex ? '<span class="studio-badge badge-slate" style="font-family: monospace;" title="Bound Test Payload">🎯 ' + escapeHtml(s.sampleHex.substring(0, 10)) + '...</span>' : '') +
                         '</div>' +
                         descHtml +
                     '</div>' +
@@ -663,6 +743,27 @@ function renderSchemesList() {
     }
 }
 
+function updateSchemeCardSummary(idx) {
+    var s = g_schemes[idx];
+    var card = document.getElementById("scheme-card-" + idx);
+    if (!s || !card) return;
+
+    var info = getSchemeBadgesInfo(s);
+    card.style.borderLeft = "6px solid " + info.borderAccent;
+
+    var titleEl = document.getElementById("scheme-card-title-" + idx);
+    if (titleEl) titleEl.innerText = s.name || "Untitled Scheme";
+
+    var badgesEl = document.getElementById("scheme-card-badges-" + idx);
+    if (badgesEl) {
+        badgesEl.innerHTML =
+            '<span class="studio-badge ' + info.matchBadge + '">' + escapeHtml(info.matchText) + '</span>' +
+            '<span class="studio-badge ' + info.typeBadge + '">' + escapeHtml(info.typeText) + '</span>' +
+            '<span class="studio-badge badge-slate">' + escapeHtml(info.nodeText) + '</span>' +
+            (s.sampleHex ? '<span class="studio-badge badge-slate" style="font-family: monospace;" title="Bound Test Payload">🎯 ' + escapeHtml(s.sampleHex.substring(0, 10)) + '...</span>' : '');
+    }
+}
+
 function toggleSchemeActive(idx, isChecked) {
     if (g_schemes[idx]) {
         g_schemes[idx].enabled = isChecked;
@@ -672,21 +773,6 @@ function toggleSchemeActive(idx, isChecked) {
             runLiveDecode();
         });
     }
-}
-
-function testSchemeOnWorkbench(idx) {
-    var s = g_schemes[idx];
-    if (!s) return;
-    var sampleHex = "12341100011109c402050ce4";
-    if (s.id === "scheme_2b_node_tlv") sampleHex = "12341100011109c402050ce4";
-    else if (s.matchType === "prefix" && s.matchValue) sampleHex = s.matchValue + "1100011109c4";
-    else if (s.type === "ascii") sampleHex = "50494e475f4c505338";
-    else if (s.type === "cayenne_lpp") sampleHex = "01670110026848";
-
-    document.getElementById("test-hex").value = sampleHex;
-    runLiveDecode();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    showToast("Tested on Workbench: " + s.name, "info");
 }
 
 function moveScheme(idx, dir) {
@@ -737,7 +823,6 @@ function toggleSchemeDrawer(idx) {
         drawer.style.display = "none";
         g_expandedIndex = -1;
     } else {
-        // Close other drawers
         if (g_expandedIndex >= 0 && g_expandedIndex !== idx) {
             var prev = document.getElementById("scheme-drawer-" + g_expandedIndex);
             if (prev) prev.style.display = "none";
@@ -771,43 +856,55 @@ function openNewSchemeDrawer() {
 function buildSchemeDrawerHtml(idx, container) {
     var s = g_schemes[idx];
     var nRule = s.nodeId || {};
+    var nSrc = nRule.source || "node_2b";
+    if (nSrc === "auto") nSrc = "node_2b";
+    if (nSrc === "offset" && nRule.offset === 0 && nRule.length === 2) nSrc = "node_2b";
+    if (nSrc === "offset" && nRule.offset === 2 && nRule.length === 4) nSrc = "serial_4b";
+    if (nSrc === "offset" && nRule.offset === 0 && nRule.length === 6) nSrc = "mac_6b";
+
     var decType = s.type || "ctv";
+    if (decType === "tlv") decType = "ctv";
     var sampleHex = getDefaultSampleHex(s);
     var candidateHex = window.g_activeCandidate || "";
+
+    if (decType === "fields" && (!s.fields || s.fields.length === 0)) {
+        var initBytes = LoraDecoder.hexToBytes(sampleHex);
+        s.fields = LoraDecoder.autoGenerateFieldsFromBytes(initBytes);
+    }
 
     container.innerHTML = 
         '<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.04); font-size: 12px;">' +
             '<!-- TOP BAR: SCHEME NAME & CONTINUOUS AUTO-SAVE INDICATOR -->' +
             '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1.5px solid #e2e8f0; flex-wrap: wrap; gap: 8px;">' +
-                '<div style="display: flex; align-items: center; gap: 8px; flex: 2; min-width: 220px;">' +
+                '<div style="display: flex; align-items: center; gap: 8px; flex: 2; min-width: 240px;">' +
                     '<span style="font-size: 16px;">✏️</span>' +
                     '<input type="text" id="dr-name-' + idx + '" value="' + escapeHtml(s.name || "") + '" ' +
-                           'style="font-size: 14px; font-weight: 700; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px 10px; width: 100%; max-width: 340px;" ' +
-                           'placeholder="Scheme Name (e.g. Node AA0C Sensor)" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                           'style="font-size: 14px; font-weight: 700; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px 10px; width: 100%; max-width: 360px;" ' +
+                           'placeholder="Scheme Name (e.g. Node CAFE Multi-Sensor)" oninput="onDrawerFieldChange(' + idx + ')" />' +
                 '</div>' +
                 '<div id="dr-autosave-top-' + idx + '">' +
-                    '<span style="font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">⚡ <%:Auto-saved to Gateway%></span>' +
+                    '<span style="font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">⚡ Auto-saved to Gateway</span>' +
                 '</div>' +
             '</div>' +
 
             '<!-- 3 DISTINCT COLOR-CODED FUNCTIONAL ZONES -->' +
-            '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 12px;">' +
+            '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(265px, 1fr)); gap: 10px; margin-bottom: 12px;">' +
                 
                 '<!-- ZONE 1: MATCH RULE (BLUE ZONE) -->' +
                 '<div style="background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #2563eb; border-radius: 6px; padding: 10px 12px;">' +
                     '<div style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
-                        '<span>🎯</span> <%:1. Packet Match Rule%>' +
+                        '<span>🎯</span> 1. Packet Match Rule' +
                     '</div>' +
                     '<div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">' +
-                        '<select id="dr-match-type-' + idx + '" style="flex: 1; min-width: 110px; padding: 4px 6px; font-size: 11px; font-weight: 600; border: 1px solid #93c5fd; border-radius: 4px; background: #fff;" onchange="updateDrawerMatchFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
-                            '<option value="prefix" ' + (s.matchType === "prefix" ? "selected" : "") + '><%:Hex Prefix%></option>' +
-                            '<option value="size" ' + (s.matchType === "size" ? "selected" : "") + '><%:Exact Size (Bytes)%></option>' +
-                            '<option value="condition" ' + (s.matchType === "condition" ? "selected" : "") + '><%:Custom Code%></option>' +
-                            '<option value="regex" ' + (s.matchType === "regex" ? "selected" : "") + '><%:Hex Regex%></option>' +
-                            '<option value="default" ' + (s.matchType === "default" ? "selected" : "") + '><%:Catch-All%></option>' +
+                        '<select id="dr-match-type-' + idx + '" style="flex: 1; min-width: 115px; padding: 5px 6px; font-size: 11px; font-weight: 700; border: 1px solid #93c5fd; border-radius: 4px; background: #fff;" onchange="updateDrawerMatchFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
+                            '<option value="prefix" ' + (s.matchType === "prefix" ? "selected" : "") + '>Hex Prefix</option>' +
+                            '<option value="size" ' + (s.matchType === "size" ? "selected" : "") + '>Exact Size (Bytes)</option>' +
+                            '<option value="condition" ' + (s.matchType === "condition" ? "selected" : "") + '>Custom JS Rule</option>' +
+                            '<option value="regex" ' + (s.matchType === "regex" ? "selected" : "") + '>Hex Regex</option>' +
+                            '<option value="default" ' + (s.matchType === "default" ? "selected" : "") + '>Catch-All</option>' +
                         '</select>' +
                         '<div id="box-dr-matchval-' + idx + '" style="flex: 1; min-width: 90px; display: ' + (s.matchType === "condition" || s.matchType === "default" ? "none" : "block") + ';">' +
-                            '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" placeholder="e.g. AA0C" style="width: 100%; padding: 4px 6px; font-size: 12px; font-family: monospace; font-weight: 700; border: 1px solid #93c5fd; border-radius: 4px; background: #fff;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                            '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" placeholder="e.g. CAFE" style="width: 100%; padding: 5px 6px; font-size: 12px; font-family: monospace; font-weight: 700; border: 1px solid #93c5fd; border-radius: 4px; background: #fff; box-sizing: border-box;" oninput="onDrawerFieldChange(' + idx + ')" />' +
                         '</div>' +
                     '</div>' +
                     '<div id="box-dr-matchcond-' + idx + '" style="display: ' + (s.matchType === "condition" ? "block" : "none") + '; margin-top: 6px;">' +
@@ -818,53 +915,88 @@ function buildSchemeDrawerHtml(idx, container) {
                 '<!-- ZONE 2: NODE ID ROUTING (PURPLE ZONE) -->' +
                 '<div style="background: #faf5ff; border: 1px solid #e9d5ff; border-left: 4px solid #7c3aed; border-radius: 6px; padding: 10px 12px;">' +
                     '<div style="font-size: 11px; font-weight: 800; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
-                        '<span>🆔</span> <%:2. Node ID Routing%>' +
+                        '<span>🆔</span> 2. Node ID Extraction' +
                     '</div>' +
                     '<div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">' +
-                        '<select id="dr-node-src-' + idx + '" style="flex: 2; min-width: 120px; padding: 4px 6px; font-size: 11px; font-weight: 600; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" onchange="onDrawerFieldChange(' + idx + ')">' +
-                            '<option value="node_2b" ' + (nRule.source === "node_2b" || !nRule.source || nRule.source === "auto" ? "selected" : "") + '><%:2-Byte Hex (Offset 0..1)%></option>' +
-                            '<option value="offset" ' + (nRule.source === "offset" ? "selected" : "") + '><%:Custom Offset%></option>' +
-                            '<option value="field" ' + (nRule.source === "field" ? "selected" : "") + '><%:From Property%></option>' +
-                            '<option value="single" ' + (nRule.source === "single" ? "selected" : "") + '><%:Single Byte (Byte 0)%></option>' +
+                        '<select id="dr-node-src-' + idx + '" style="flex: 2; min-width: 135px; padding: 5px 6px; font-size: 11px; font-weight: 700; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" onchange="updateDrawerNodeFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
+                            '<option value="node_2b" ' + (nSrc === "node_2b" ? "selected" : "") + '>2-Byte Hex (Bytes 0..1)</option>' +
+                            '<option value="serial_4b" ' + (nSrc === "serial_4b" ? "selected" : "") + '>4-Byte Serial (Bytes 2..5)</option>' +
+                            '<option value="mac_6b" ' + (nSrc === "mac_6b" ? "selected" : "") + '>6-Byte Header/MAC (Bytes 0..5)</option>' +
+                            '<option value="single" ' + (nSrc === "single" ? "selected" : "") + '>Single Byte (Byte 0)</option>' +
+                            '<option value="offset" ' + (nSrc === "offset" ? "selected" : "") + '>Custom Byte Offset & Len</option>' +
+                            '<option value="field" ' + (nSrc === "field" ? "selected" : "") + '>From Decoded Field</option>' +
                         '</select>' +
-                        '<select id="dr-node-fmt-' + idx + '" style="flex: 1; min-width: 60px; padding: 4px 4px; font-size: 11px; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" onchange="onDrawerFieldChange(' + idx + ')">' +
-                            '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '><%:Hex%></option>' +
-                            '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '><%:Dec%></option>' +
+                        '<select id="dr-node-fmt-' + idx + '" style="flex: 1; min-width: 60px; padding: 5px 4px; font-size: 11px; font-weight: 600; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" onchange="onDrawerFieldChange(' + idx + ')">' +
+                            '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '>Hex</option>' +
+                            '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '>Dec</option>' +
                         '</select>' +
-                        '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" placeholder="<%:Prefix (NODE_)%>" style="flex: 1; min-width: 70px; padding: 4px 6px; font-size: 11px; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                    '</div>' +
+                    '<div id="box-dr-node-offset-' + idx + '" style="display: ' + (nSrc === "offset" ? "flex" : "none") + '; gap: 6px; align-items: center; margin-top: 6px;">' +
+                        '<span style="font-size: 10px; font-weight: 700; color: #6b21a8;">Offset:</span>' +
+                        '<input type="number" id="dr-node-off-' + idx + '" value="' + (nRule.offset !== undefined ? nRule.offset : 0) + '" min="0" max="32" style="width: 48px; padding: 3px 5px; font-size: 11px; border: 1px solid #d8b4fe; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                        '<span style="font-size: 10px; font-weight: 700; color: #6b21a8;">Len (B):</span>' +
+                        '<input type="number" id="dr-node-len-' + idx + '" value="' + (nRule.length !== undefined ? nRule.length : 2) + '" min="1" max="8" style="width: 48px; padding: 3px 5px; font-size: 11px; border: 1px solid #d8b4fe; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                    '</div>' +
+                    '<div style="display: flex; gap: 6px; align-items: center; margin-top: 6px;">' +
+                        '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" placeholder="Optional Prefix (e.g. NODE_)" style="flex: 1; padding: 4px 6px; font-size: 11px; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" oninput="onDrawerFieldChange(' + idx + ')" />' +
                     '</div>' +
                 '</div>' +
 
                 '<!-- ZONE 3: TELEMETRY DECODER ENGINE (EMERALD ZONE) -->' +
                 '<div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-left: 4px solid #059669; border-radius: 6px; padding: 10px 12px;">' +
                     '<div style="font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
-                        '<span>⚙️</span> <%:3. Telemetry Decoder Engine%>' +
+                        '<span>⚙️</span> 3. Telemetry Decoder Engine' +
                     '</div>' +
                     '<div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">' +
-                        '<select id="dr-dectype-' + idx + '" style="flex: 2; min-width: 120px; padding: 4px 6px; font-size: 11px; font-weight: 700; border: 1px solid #6ee7b7; border-radius: 4px; background: #fff;" onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
-                            '<option value="ctv" ' + (decType === "ctv" || decType === "tlv" ? "selected" : "") + '><%:TLV / Channel-Value%></option>' +
-                            '<option value="js" ' + (decType === "js" ? "selected" : "") + '><%:JavaScript Function%></option>' +
-                            '<option value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? "selected" : "") + '><%:Cayenne LPP%></option>' +
-                            '<option value="ascii" ' + (decType === "ascii" ? "selected" : "") + '><%:Plain ASCII Text%></option>' +
-                            '<option value="fields" ' + (decType === "fields" ? "selected" : "") + '><%:Field Slicer%></option>' +
+                        '<select id="dr-dectype-' + idx + '" style="flex: 1; width: 100%; padding: 5px 6px; font-size: 11px; font-weight: 700; border: 1px solid #6ee7b7; border-radius: 4px; background: #fff;" onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
+                            '<option value="ctv" ' + (decType === "ctv" ? "selected" : "") + '>TLV / IPSO Channel-Value (Auto-Offset)</option>' +
+                            '<option value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? "selected" : "") + '>Cayenne LPP Standard Sensors</option>' +
+                            '<option value="fields" ' + (decType === "fields" ? "selected" : "") + '>Visual Byte Field Slicer (Custom Map)</option>' +
+                            '<option value="js" ' + (decType === "js" ? "selected" : "") + '>Custom JavaScript Function</option>' +
+                            '<option value="ascii" ' + (decType === "ascii" ? "selected" : "") + '>Plain ASCII Text</option>' +
                         '</select>' +
-                        '<div id="box-dr-dec-ctv-' + idx + '" style="display: ' + (decType === "ctv" || decType === "tlv" ? "flex" : "none") + '; align-items: center; gap: 4px; flex: 1; min-width: 100px;">' +
-                            '<span style="font-size: 10px; font-weight: 700; color: #065f46; white-space: nowrap;"><%:Start:%></span>' +
-                            '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 45px; padding: 3px 5px; font-size: 11px; font-weight: 700; border: 1px solid #6ee7b7; border-radius: 4px; background: #fff;" oninput="onDrawerFieldChange(' + idx + ')" />' +
-                        '</div>' +
                     '</div>' +
-                    '<div id="box-dr-dec-js-' + idx + '" style="display: ' + (decType === "js" ? "block" : "none") + '; margin-top: 6px;">' +
-                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">' +
-                            '<span style="font-size: 10px; color: #065f46; font-family: monospace;">decode(bytes, hex, pkt)</span>' +
-                            '<div style="font-size: 10px;">' +
-                                '<button type="button" class="cbi-button" style="padding: 1px 4px; font-size: 9px;" onclick="insertJsCode(' + idx + ', \'temp\')">Temp</button> ' +
-                                '<button type="button" class="cbi-button" style="padding: 1px 4px; font-size: 9px;" onclick="insertJsCode(' + idx + ', \'batt\')">Battery</button>' +
-                            '</div>' +
+                    '<div id="box-dr-dec-offset-' + idx + '" style="display: ' + (decType === "ctv" || decType === "cayenne_lpp" ? "flex" : "none") + '; align-items: center; justify-content: space-between; gap: 6px; margin-top: 6px;">' +
+                        '<span style="font-size: 10px; font-weight: 700; color: #065f46;">Channels Start Byte:</span>' +
+                        '<div style="display: flex; align-items: center; gap: 4px;">' +
+                            '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : (decType === "cayenne_lpp" ? 6 : 4)) + '" min="0" max="24" style="width: 50px; padding: 3px 5px; font-size: 11px; font-weight: 700; border: 1px solid #6ee7b7; border-radius: 4px; background: #fff;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                            '<button type="button" class="slicer-pill-btn" onclick="autoDetectDrawerOffset(' + idx + ')" title="Auto-detect channel start byte from test payload">⚡ Auto</button>' +
                         '</div>' +
-                        '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 80px; font-size: 11px; padding: 6px;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
                     '</div>' +
                 '</div>' +
 
+            '</div>' +
+
+            '<!-- DEDICATED FULL-WIDTH WORKSPACE FOR VISUAL FIELD SLICER -->' +
+            '<div id="box-dr-dec-fields-' + idx + '" style="display: ' + (decType === "fields" ? "block" : "none") + '; background: #f0f9ff; border: 1.5px solid #bae6fd; border-left: 5px solid #0284c7; border-radius: 6px; padding: 12px; margin-bottom: 12px;">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">' +
+                    '<div>' +
+                        '<strong style="font-size: 12px; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px;">🔪 Interactive Byte Field Slicer</strong>' +
+                        '<span style="font-size: 11px; color: #0284c7; margin-left: 8px;">Map raw byte offsets to named telemetry metrics in real time</span>' +
+                    '</div>' +
+                    '<div style="display: flex; gap: 5px; flex-wrap: wrap;">' +
+                        '<button type="button" style="background: #0284c7; color: #fff; border: none; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer;" onclick="addSlicerField(' + idx + ')">＋ Add Byte Field</button>' +
+                        '<button type="button" class="slicer-pill-btn" style="border-color: #7dd3fc; color: #0369a1;" onclick="autoSliceFromPayload(' + idx + ')">⚡ Auto-Slice Payload</button>' +
+                        '<button type="button" class="slicer-pill-btn" style="border-color: #7dd3fc; color: #0369a1;" onclick="addPresetSlicerField(' + idx + ', \'temperature\', \'int16_be\', 0.1, \'°C\')">+ Temp (2B)</button>' +
+                        '<button type="button" class="slicer-pill-btn" style="border-color: #7dd3fc; color: #0369a1;" onclick="addPresetSlicerField(' + idx + ', \'battery\', \'uint16_be\', 0.01, \'V\')">+ Battery (2B)</button>' +
+                        '<button type="button" class="slicer-pill-btn" style="border-color: #7dd3fc; color: #0369a1;" onclick="addPresetSlicerField(' + idx + ', \'humidity\', \'uint8\', 0.5, \'%\')">+ Humidity (1B)</button>' +
+                        '<button type="button" class="slicer-pill-btn" style="border-color: #7dd3fc; color: #0369a1;" onclick="addPresetSlicerField(' + idx + ', \'state\', \'bool\', 1, \'\')">+ Switch (1B)</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div id="dr-slicer-rows-wrap-' + idx + '"></div>' +
+            '</div>' +
+
+            '<!-- DEDICATED FULL-WIDTH WORKSPACE FOR CUSTOM JAVASCRIPT DECODER -->' +
+            '<div id="box-dr-dec-js-' + idx + '" style="display: ' + (decType === "js" ? "block" : "none") + '; background: #f8fafc; border: 1.5px solid #cbd5e1; border-left: 5px solid #059669; border-radius: 6px; padding: 12px; margin-bottom: 12px;">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;">' +
+                    '<span style="font-size: 12px; font-weight: 800; color: #065f46; font-family: monospace;">function decode(bytes, hex, pkt) { ... }</span>' +
+                    '<div style="display: flex; gap: 5px; flex-wrap: wrap;">' +
+                        '<button type="button" class="slicer-pill-btn" onclick="insertJsCode(' + idx + ', \'lpp\')">⚡ Generate Parser from Payload</button>' +
+                        '<button type="button" class="slicer-pill-btn" onclick="insertJsCode(' + idx + ', \'temp\')">+ 2B Temp</button>' +
+                        '<button type="button" class="slicer-pill-btn" onclick="insertJsCode(' + idx + ', \'batt\')">+ 2B Battery</button>' +
+                    '</div>' +
+                '</div>' +
+                '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 135px; font-size: 12px; padding: 8px;" placeholder="// Example:\nvar out = {};\nout.temperature = ((bytes[4] << 8) | bytes[5]) / 10.0;\nreturn out;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
             '</div>' +
 
             '<!-- ZONE 4: LIVE INTERACTIVE TEST CONSOLE (VIBRANT BLUE GLOW BORDER) -->' +
@@ -872,17 +1004,15 @@ function buildSchemeDrawerHtml(idx, container) {
                 
                 '<!-- Test Control Bar -->' +
                 '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;">' +
-                    '<div style="display: flex; align-items: center; gap: 6px;">' +
-                        '<span style="font-size: 12px; font-weight: 800; color: #1e3a8a;"><%:🧪 TEST PAYLOAD:%></span>' +
-                    '</div>' +
+                    '<span style="font-size: 12px; font-weight: 800; color: #1e3a8a;">🧪 TEST PAYLOAD:</span>' +
                     '<input type="text" id="dr-test-hex-' + idx + '" value="' + escapeHtml(sampleHex) + '" ' +
-                           'style="flex: 2; min-width: 180px; padding: 6px 10px; font-family: monospace; font-size: 13px; font-weight: 700; border: 1.5px solid #93c5fd; border-radius: 4px; background: #f8fafc;" ' +
-                           'placeholder="<%:Enter payload HEX...%>" oninput="onDrawerTestHexChange(' + idx + ')" />' +
-                    (candidateHex ? '<button type="button" class="cbi-button" style="background: #2563eb; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,0.4);" onclick="applyCandidateToDrawer(' + idx + ')">🎯 <%:Use Candidate%></button>' : '') +
-                    '<select id="dr-recent-pkts-' + idx + '" style="padding: 5px 8px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
-                        '<option value=""><%:History...%></option>' +
+                           'style="flex: 2; min-width: 200px; padding: 6px 10px; font-family: monospace; font-size: 13px; font-weight: 700; border: 1.5px solid #93c5fd; border-radius: 4px; background: #f8fafc;" ' +
+                           'placeholder="Enter payload HEX..." oninput="onDrawerTestHexChange(' + idx + ')" />' +
+                    (candidateHex ? '<button type="button" class="cbi-button" style="background: #2563eb; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,0.4);" onclick="applyCandidateToDrawer(' + idx + ')">🎯 Use Candidate</button>' : '') +
+                    '<select id="dr-recent-pkts-' + idx + '" style="padding: 5px 8px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; max-width: 240px;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
+                        '<option value="">-- Load recent packet --</option>' +
                     '</select>' +
-                    '<button type="button" class="cbi-button" style="background: #059669; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to scheme">📌 <%:Bind%></button>' +
+                    '<button type="button" class="cbi-button" style="background: #059669; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to scheme">📌 Bind</button>' +
                     '<span id="dr-test-status-badge-' + idx + '" class="studio-badge badge-slate" style="margin-left: auto;">Ready</span>' +
                 '</div>' +
 
@@ -893,21 +1023,195 @@ function buildSchemeDrawerHtml(idx, container) {
             '<!-- TIGHT FOOTER (AUTO-SAVED) -->' +
             '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1.5px solid #e2e8f0;">' +
                 '<div id="dr-autosave-bottom-' + idx + '" style="font-size: 11px; font-weight: 700; color: #059669; display: flex; align-items: center; gap: 4px;">' +
-                    '<span>✓ <%:All changes continuously auto-saved to gateway%></span>' +
+                    '<span>✓ All changes continuously auto-saved to gateway</span>' +
                 '</div>' +
                 '<div>' +
-                    '<button type="button" style="background: #0f172a; color: #ffffff; font-weight: 700; font-size: 11px; border: none; padding: 4px 14px; border-radius: 4px; cursor: pointer;" onclick="toggleSchemeDrawer(' + idx + ')"><%:Done / Close%></button>' +
+                    '<button type="button" style="background: #0f172a; color: #ffffff; font-weight: 700; font-size: 11px; border: none; padding: 5px 16px; border-radius: 4px; cursor: pointer;" onclick="toggleSchemeDrawer(' + idx + ')">Done / Close</button>' +
                 '</div>' +
             '</div>' +
         '</div>';
+
+    renderSlicerRowsTable(idx);
 }
 
-function switchDrawerTab(idx, tabName) {
-    var tabs = ['match', 'node', 'dec'];
-    for (var i = 0; i < tabs.length; i++) {
-        var t = tabs[i];
-        document.getElementById("tab-btn-" + t + "-" + idx).className = "studio-tab-btn" + (t === tabName ? " active" : "");
-        document.getElementById("tab-content-" + t + "-" + idx).style.display = (t === tabName ? "block" : "none");
+// -----------------------------------------------------------------------------
+// FIELD SLICER INTERACTIVE TABLE LOGIC
+// -----------------------------------------------------------------------------
+
+function renderSlicerRowsTable(idx) {
+    var wrap = document.getElementById("dr-slicer-rows-wrap-" + idx);
+    if (!wrap || !g_schemes[idx]) return;
+    var fields = g_schemes[idx].fields || [];
+
+    var hexInp = document.getElementById("dr-test-hex-" + idx);
+    var hex = hexInp ? (hexInp.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : (g_schemes[idx].sampleHex || "");
+    var bytes = LoraDecoder.hexToBytes(hex);
+    var liveDecoded = LoraDecoder.decodeFields(bytes, fields);
+
+    if (fields.length === 0) {
+        wrap.innerHTML = '<div style="padding: 12px; text-align: center; color: #0369a1; background: #fff; border: 1px dashed #7dd3fc; border-radius: 4px;">No byte fields configured yet. Click <strong>"⚡ Auto-Slice Payload"</strong> or <strong>"＋ Add Byte Field"</strong> above to start slicing bytes!</div>';
+        return;
+    }
+
+    var html = '<table class="slicer-table">' +
+        '<thead><tr>' +
+            '<th style="width: 22%;">Field Key</th>' +
+            '<th style="width: 12%;">Byte Offset</th>' +
+            '<th style="width: 22%;">Data Type</th>' +
+            '<th style="width: 10%;">Len (B)</th>' +
+            '<th style="width: 12%;">Scale / Mult</th>' +
+            '<th style="width: 10%;">Unit</th>' +
+            '<th style="width: 16%;">Live Decoded</th>' +
+            '<th style="width: 6%; text-align: center;">✕</th>' +
+        '</tr></thead><tbody>';
+
+    var typesList = [
+        { v: 'uint8', l: 'uint8 (1B Unsigned)' },
+        { v: 'int8', l: 'int8 (1B Signed)' },
+        { v: 'uint16_be', l: 'uint16_be (2B Big-End)' },
+        { v: 'int16_be', l: 'int16_be (2B Signed BE)' },
+        { v: 'uint16_le', l: 'uint16_le (2B Little-End)' },
+        { v: 'int16_le', l: 'int16_le (2B Signed LE)' },
+        { v: 'int24_be', l: 'int24_be (3B Signed BE)' },
+        { v: 'uint32_be', l: 'uint32_be (4B Big-End)' },
+        { v: 'bool', l: 'bool (1B ON/OFF)' },
+        { v: 'hex', l: 'hex (Raw Hex String)' },
+        { v: 'ascii', l: 'ascii (Text String)' }
+    ];
+
+    for (var fIdx = 0; fIdx < fields.length; fIdx++) {
+        var f = fields[fIdx];
+        var fLen = LoraDecoder.getFieldTypeByteLength(f.type || 'uint8', f.length);
+        var isVarLen = (f.type === 'hex' || f.type === 'ascii');
+        var liveVal = (liveDecoded && f.name && liveDecoded[f.name] !== undefined) ? (liveDecoded[f.name] + (f.unit ? (" " + f.unit) : "")) : "—";
+
+        var typeOpts = '';
+        for (var t = 0; t < typesList.length; t++) {
+            typeOpts += '<option value="' + typesList[t].v + '" ' + ((f.type || 'uint8') === typesList[t].v ? 'selected' : '') + '>' + typesList[t].l + '</option>';
+        }
+
+        html += '<tr>' +
+            '<td><input type="text" class="slicer-input" style="font-weight: 700; color: #0f172a;" value="' + escapeHtml(f.name || "") + '" placeholder="e.g. temperature" oninput="onSlicerCellInput(' + idx + ', ' + fIdx + ', \'name\', this.value)" /></td>' +
+            '<td><input type="number" class="slicer-input" style="font-family: monospace; font-weight: 700;" min="0" max="64" value="' + (f.offset !== undefined ? f.offset : 0) + '" oninput="onSlicerCellInput(' + idx + ', ' + fIdx + ', \'offset\', this.value)" /></td>' +
+            '<td><select class="slicer-input" onchange="onSlicerCellInput(' + idx + ', ' + fIdx + ', \'type\', this.value)">' + typeOpts + '</select></td>' +
+            '<td><input type="number" class="slicer-input" min="1" max="32" value="' + fLen + '" ' + (isVarLen ? '' : 'disabled style="background:#f1f5f9; color:#64748b;"') + ' oninput="onSlicerCellInput(' + idx + ', ' + fIdx + ', \'length\', this.value)" /></td>' +
+            '<td><input type="number" step="any" class="slicer-input" style="font-family: monospace;" value="' + (f.scale !== undefined ? f.scale : 1) + '" oninput="onSlicerCellInput(' + idx + ', ' + fIdx + ', \'scale\', this.value)" /></td>' +
+            '<td><input type="text" class="slicer-input" value="' + escapeHtml(f.unit || "") + '" placeholder="°C, V, %" oninput="onSlicerCellInput(' + idx + ', ' + fIdx + ', \'unit\', this.value)" /></td>' +
+            '<td><span id="dr-slicer-live-' + idx + '-' + fIdx + '" class="studio-badge badge-green" style="font-family: monospace; font-size: 11px;">' + escapeHtml(liveVal) + '</span></td>' +
+            '<td style="text-align: center;"><button type="button" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-weight: 700;" onclick="removeSlicerField(' + idx + ', ' + fIdx + ')" title="Remove field">✕</button></td>' +
+        '</tr>';
+    }
+
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+}
+
+function onSlicerCellInput(idx, fIdx, prop, val) {
+    if (!g_schemes[idx] || !g_schemes[idx].fields || !g_schemes[idx].fields[fIdx]) return;
+    var f = g_schemes[idx].fields[fIdx];
+    if (prop === 'offset' || prop === 'length') {
+        f[prop] = parseInt(val, 10) || 0;
+    } else if (prop === 'scale') {
+        f[prop] = parseFloat(val);
+        if (isNaN(f[prop])) f[prop] = 1;
+    } else {
+        f[prop] = val;
+    }
+    if (prop === 'type') {
+        f.length = LoraDecoder.getFieldTypeByteLength(val, f.length);
+        renderSlicerRowsTable(idx);
+    }
+    onDrawerFieldChange(idx);
+    updateSlicerLiveBadges(idx);
+}
+
+function updateSlicerLiveBadges(idx) {
+    if (!g_schemes[idx] || !g_schemes[idx].fields) return;
+    var fields = g_schemes[idx].fields;
+    var hexInp = document.getElementById("dr-test-hex-" + idx);
+    var hex = hexInp ? (hexInp.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : "";
+    var bytes = LoraDecoder.hexToBytes(hex);
+    var liveDecoded = LoraDecoder.decodeFields(bytes, fields);
+    for (var i = 0; i < fields.length; i++) {
+        var el = document.getElementById("dr-slicer-live-" + idx + "-" + i);
+        if (el) {
+            var f = fields[i];
+            var v = (liveDecoded && f.name && liveDecoded[f.name] !== undefined) ? (liveDecoded[f.name] + (f.unit ? (" " + f.unit) : "")) : "—";
+            el.innerText = v;
+        }
+    }
+}
+
+function getNextSlicerOffset(idx) {
+    var fields = (g_schemes[idx] && g_schemes[idx].fields) || [];
+    if (fields.length === 0) return 2;
+    var last = fields[fields.length - 1];
+    var len = LoraDecoder.getFieldTypeByteLength(last.type || 'uint8', last.length);
+    return (parseInt(last.offset, 10) || 0) + len;
+}
+
+function addSlicerField(idx) {
+    if (!g_schemes[idx]) return;
+    if (!g_schemes[idx].fields) g_schemes[idx].fields = [];
+    var nextOff = getNextSlicerOffset(idx);
+    g_schemes[idx].fields.push({
+        name: "field_" + (g_schemes[idx].fields.length + 1),
+        offset: nextOff,
+        length: 2,
+        type: "int16_be",
+        scale: 0.1,
+        unit: ""
+    });
+    renderSlicerRowsTable(idx);
+    onDrawerFieldChange(idx);
+}
+
+function addPresetSlicerField(idx, name, type, scale, unit) {
+    if (!g_schemes[idx]) return;
+    if (!g_schemes[idx].fields) g_schemes[idx].fields = [];
+    var nextOff = getNextSlicerOffset(idx);
+    g_schemes[idx].fields.push({
+        name: name,
+        offset: nextOff,
+        length: LoraDecoder.getFieldTypeByteLength(type, 2),
+        type: type,
+        scale: scale,
+        unit: unit
+    });
+    renderSlicerRowsTable(idx);
+    onDrawerFieldChange(idx);
+}
+
+function removeSlicerField(idx, fIdx) {
+    if (!g_schemes[idx] || !g_schemes[idx].fields) return;
+    g_schemes[idx].fields.splice(fIdx, 1);
+    renderSlicerRowsTable(idx);
+    onDrawerFieldChange(idx);
+}
+
+function autoSliceFromPayload(idx) {
+    if (!g_schemes[idx]) return;
+    var hexInp = document.getElementById("dr-test-hex-" + idx);
+    var hex = hexInp ? (hexInp.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : (g_schemes[idx].sampleHex || "");
+    var bytes = LoraDecoder.hexToBytes(hex);
+    g_schemes[idx].fields = LoraDecoder.autoGenerateFieldsFromBytes(bytes);
+    renderSlicerRowsTable(idx);
+    onDrawerFieldChange(idx);
+    showToast("Auto-generated " + g_schemes[idx].fields.length + " byte slices from payload!", "success");
+}
+
+function autoDetectDrawerOffset(idx) {
+    var hexInp = document.getElementById("dr-test-hex-" + idx);
+    var hex = hexInp ? (hexInp.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : "";
+    var bytes = LoraDecoder.hexToBytes(hex);
+    var stream = LoraDecoder.detectChannelStream(bytes, 4);
+    var offEl = document.getElementById("dr-ctv-offset-" + idx);
+    if (offEl && stream.valid) {
+        offEl.value = stream.offset;
+        onDrawerFieldChange(idx);
+        showToast("Detected valid sensor channel stream at Byte Offset " + stream.offset + "!", "success");
+    } else {
+        showToast("Could not auto-detect standard TLV/LPP channel header; try Visual Byte Field Slicer", "info");
     }
 }
 
@@ -917,57 +1221,49 @@ function updateDrawerMatchFields(idx) {
     document.getElementById("box-dr-matchcond-" + idx).style.display = (mt === "condition") ? "block" : "none";
 }
 
+function updateDrawerNodeFields(idx) {
+    var src = document.getElementById("dr-node-src-" + idx).value;
+    var offBox = document.getElementById("box-dr-node-offset-" + idx);
+    if (offBox) offBox.style.display = (src === "offset") ? "flex" : "none";
+}
+
 function updateDrawerDecTypeFields(idx) {
     var sel = document.getElementById("dr-dectype-" + idx);
     var val = sel ? sel.value : "ctv";
-    var ctvBox = document.getElementById("box-dr-dec-ctv-" + idx);
+    var offBox = document.getElementById("box-dr-dec-offset-" + idx);
+    var fieldsBox = document.getElementById("box-dr-dec-fields-" + idx);
     var jsBox = document.getElementById("box-dr-dec-js-" + idx);
-    if (ctvBox) ctvBox.style.display = (val === "ctv" || val === "tlv") ? "flex" : "none";
+
+    if (offBox) offBox.style.display = (val === "ctv" || val === "tlv" || val === "cayenne_lpp") ? "flex" : "none";
+    if (fieldsBox) {
+        fieldsBox.style.display = (val === "fields") ? "block" : "none";
+        if (val === "fields" && g_schemes[idx]) {
+            if (!g_schemes[idx].fields || g_schemes[idx].fields.length === 0) {
+                var hexInp = document.getElementById("dr-test-hex-" + idx);
+                var hex = hexInp ? hexInp.value : (g_schemes[idx].sampleHex || "");
+                g_schemes[idx].fields = LoraDecoder.autoGenerateFieldsFromBytes(LoraDecoder.hexToBytes(hex));
+            }
+            renderSlicerRowsTable(idx);
+        }
+    }
     if (jsBox) jsBox.style.display = (val === "js") ? "block" : "none";
 }
 
 function insertJsCode(idx, type) {
     var ta = document.getElementById("dr-js-code-" + idx);
     if (!ta) return;
-    var snippet = "";
-    if (type === "temp") snippet = "var temp = ((bytes[4] << 8) | bytes[5]) / 100.0;\nout['temperature'] = temp;\n";
-    else if (type === "batt") snippet = "var mv = (bytes[6] << 8) | bytes[7];\nout['battery'] = +(mv / 1000).toFixed(2);\nout['battery_mv'] = mv;\n";
-    else if (type === "uint16") snippet = "var val = (bytes[i] << 8) | bytes[i+1];\n";
-    ta.value += snippet;
-    runDrawerDirectTest(idx);
-}
-
-function saveDrawerScheme(idx) {
-    var s = g_schemes[idx];
-    if (!s) return;
-
-    s.name = (document.getElementById("dr-name-" + idx).value || "").trim() || "Untitled Scheme";
-    s.description = (document.getElementById("dr-desc-" + idx).value || "").trim();
-    s.matchType = document.getElementById("dr-match-type-" + idx).value;
-    s.matchValue = (document.getElementById("dr-match-val-" + idx).value || "").trim();
-    var condEl = document.getElementById("dr-match-cond-" + idx);
-    if (condEl) s.matchCondition = condEl.value.trim();
-
-    s.nodeId = {
-        source: document.getElementById("dr-node-src-" + idx).value,
-        format: document.getElementById("dr-node-fmt-" + idx).value,
-        prefix: (document.getElementById("dr-node-pfx-" + idx).value || "").trim()
-    };
-
-    var radios = document.getElementsByName("dr-dectype-" + idx);
-    for (var i = 0; i < radios.length; i++) { if (radios[i].checked) { s.type = radios[i].value; break; } }
-
-    if (s.type === "ctv") {
-        s.dataOffset = parseInt(document.getElementById("dr-ctv-offset-" + idx).value, 10) || 4;
-    } else if (s.type === "js") {
-        s.jsCode = document.getElementById("dr-js-code-" + idx).value;
+    if (type === "lpp") {
+        ta.value = [
+            "// Auto-generated Multi-Sensor Decoder",
+            "var parsed = LoraDecoder.decodeCtv(bytes, hex, 6);",
+            "return parsed;"
+        ].join("\n");
+    } else if (type === "temp") {
+        ta.value += "\nvar rawTemp = (bytes[4] << 8) | bytes[5];\nif (rawTemp & 0x8000) rawTemp -= 0x10000;\nout['temperature'] = +(rawTemp * 0.1).toFixed(1);\n";
+    } else if (type === "batt") {
+        ta.value += "\nvar mv = (bytes[6] << 8) | bytes[7];\nout['battery'] = +(mv / 1000).toFixed(2);\n";
     }
-
-    saveAllSchemes(function() {
-        showToast("Scheme '" + s.name + "' saved directly to gateway!", "success");
-        renderSchemesList();
-        runLiveDecode();
-    });
+    onDrawerFieldChange(idx);
 }
 
 // -----------------------------------------------------------------------------
@@ -991,7 +1287,7 @@ function saveAllSchemes(cb) {
 function resetToDefaults() {
     if (confirm("Reset all decoding schemes to default templates? Custom changes will be replaced.")) {
         g_schemes = LoraDecoder.getDefaultSchemes();
-        g_globalNodeId = { source: "auto", format: "hex", prefix: "" };
+        g_globalNodeId = { source: "node_2b", format: "hex", prefix: "" };
         saveAllSchemes(function() {
             showToast("Reset to defaults successfully!", "success");
             renderSchemesList();
@@ -1050,10 +1346,8 @@ function escapeHtml(str) {
 
 function getDefaultSampleHex(s) {
     if (!s) return '';
-    // 1. If scheme has a permanently bound sampleHex from creation or test, use it!
     if (s.sampleHex && s.sampleHex.length > 0) return s.sampleHex;
 
-    // 2. If scheme matches a prefix, find real packet from history that matches
     if (s.matchType === 'prefix' && s.matchValue && window.g_recentPackets) {
         var pfx = String(s.matchValue).trim().toLowerCase();
         for (var i = 0; i < window.g_recentPackets.length; i++) {
@@ -1065,7 +1359,6 @@ function getDefaultSampleHex(s) {
         }
     }
 
-    // 3. If workbench currently has a valid hex matching this scheme, use it
     var wbEl = document.getElementById("test-hex");
     var wbHex = wbEl ? (wbEl.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : "";
     if (wbHex) {
@@ -1076,24 +1369,22 @@ function getDefaultSampleHex(s) {
         }
     }
 
-    // 4. If recent packets exist on gateway, use the latest real packet
     if (window.g_recentPackets && window.g_recentPackets.length > 0 && window.g_recentPackets[0].hex) {
         return window.g_recentPackets[0].hex;
     }
 
-    // 5. Standard defaults only if no real packets exist
     if (s.type === 'ascii') return '50494e475f4c505338';
-    if (s.type === 'cayenne_lpp') return '0167011002684803020064';
+    if (s.type === 'cayenne_lpp') return 'cafe96b840eb010201490271fffb000c0425036700bb04880000000000000000';
     if (s.matchType === 'prefix' && s.matchValue) return s.matchValue;
 
-    return '';
+    return '12341100011109c402050ce4';
 }
 
 function populateDrawerRecentPackets(idx) {
     var sel = document.getElementById("dr-recent-pkts-" + idx);
     if (!sel) return;
     var pkts = window.g_recentPackets || [];
-    sel.innerHTML = '<option value=""><%:-- Load recent packet (' + pkts.length + ' available) --%></option>';
+    sel.innerHTML = '<option value="">-- Load recent packet (' + pkts.length + ' available) --</option>';
     for (var i = 0; i < pkts.length; i++) {
         var p = pkts[i];
         if (!p.hex) continue;
@@ -1106,15 +1397,7 @@ function populateDrawerRecentPackets(idx) {
 
 function loadDrawerRecentPacket(idx, hexVal) {
     if (!hexVal) return;
-    var inp = document.getElementById("dr-test-hex-" + idx);
-    if (inp) {
-        inp.value = hexVal;
-        if (g_schemes[idx]) {
-            g_schemes[idx].sampleHex = hexVal.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
-        }
-        runDrawerDirectTest(idx);
-        scheduleAutoSave(idx);
-    }
+    setDrawerTestHex(idx, hexVal);
 }
 
 function setDrawerTestHex(idx, hexVal) {
@@ -1124,6 +1407,7 @@ function setDrawerTestHex(idx, hexVal) {
         if (g_schemes[idx]) {
             g_schemes[idx].sampleHex = hexVal.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
         }
+        updateSlicerLiveBadges(idx);
         runDrawerDirectTest(idx);
         scheduleAutoSave(idx);
     }
@@ -1131,31 +1415,36 @@ function setDrawerTestHex(idx, hexVal) {
 
 function readTempSchemeFromDrawer(idx) {
     var orig = g_schemes[idx] || {};
+    var nSrc = document.getElementById("dr-node-src-" + idx) ? document.getElementById("dr-node-src-" + idx).value : (orig.nodeId ? orig.nodeId.source : "node_2b");
+    var nOff = document.getElementById("dr-node-off-" + idx) ? parseInt(document.getElementById("dr-node-off-" + idx).value, 10) : (orig.nodeId && orig.nodeId.offset !== undefined ? orig.nodeId.offset : 0);
+    var nLen = document.getElementById("dr-node-len-" + idx) ? parseInt(document.getElementById("dr-node-len-" + idx).value, 10) : (orig.nodeId && orig.nodeId.length !== undefined ? orig.nodeId.length : 2);
+
     var s = {
         id: orig.id || ("scheme_" + Date.now()),
         name: (document.getElementById("dr-name-" + idx) ? document.getElementById("dr-name-" + idx).value : orig.name) || "Custom Scheme",
-        description: document.getElementById("dr-desc-" + idx) ? document.getElementById("dr-desc-" + idx).value : orig.description,
-        enabled: true,
+        description: orig.description || "",
+        enabled: orig.enabled !== false,
         matchType: document.getElementById("dr-match-type-" + idx) ? document.getElementById("dr-match-type-" + idx).value : (orig.matchType || "prefix"),
         matchValue: document.getElementById("dr-match-val-" + idx) ? document.getElementById("dr-match-val-" + idx).value.trim() : (orig.matchValue || ""),
         matchCondition: document.getElementById("dr-match-cond-" + idx) ? document.getElementById("dr-match-cond-" + idx).value.trim() : (orig.matchCondition || ""),
         nodeId: {
-            source: document.getElementById("dr-node-src-" + idx) ? document.getElementById("dr-node-src-" + idx).value : "node_2b",
+            source: nSrc,
+            offset: isNaN(nOff) ? 0 : nOff,
+            length: isNaN(nLen) ? 2 : nLen,
             format: document.getElementById("dr-node-fmt-" + idx) ? document.getElementById("dr-node-fmt-" + idx).value : "hex",
             prefix: document.getElementById("dr-node-pfx-" + idx) ? document.getElementById("dr-node-pfx-" + idx).value.trim() : ""
         }
     };
 
-    var radios = document.getElementsByName("dr-dectype-" + idx);
-    var dType = orig.type || "ctv";
-    for (var i = 0; i < radios.length; i++) {
-        if (radios[i].checked) { dType = radios[i].value; break; }
-    }
-    s.type = dType;
+    var dtSelect = document.getElementById("dr-dectype-" + idx);
+    s.type = dtSelect ? dtSelect.value : (orig.type || "ctv");
 
-    if (s.type === "ctv") {
+    if (s.type === "ctv" || s.type === "tlv" || s.type === "cayenne_lpp") {
         var offEl = document.getElementById("dr-ctv-offset-" + idx);
-        s.dataOffset = offEl ? (parseInt(offEl.value, 10) || 4) : 4;
+        var parsedOff = offEl ? parseInt(offEl.value, 10) : NaN;
+        s.dataOffset = !isNaN(parsedOff) ? parsedOff : (orig.dataOffset !== undefined ? orig.dataOffset : 4);
+    } else if (s.type === "fields") {
+        s.fields = orig.fields || [];
     } else if (s.type === "js") {
         var jsEl = document.getElementById("dr-js-code-" + idx);
         s.jsCode = jsEl ? jsEl.value : (orig.jsCode || "");
@@ -1173,8 +1462,8 @@ function runDrawerDirectTest(idx) {
     var hex = hexInp ? (hexInp.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : "";
 
     if (!hex) {
-        if (badgeEl) { badgeEl.className = "studio-badge badge-slate"; badgeEl.innerText = "<%:Awaiting Payload%>"; }
-        outCont.innerHTML = '<div style="padding: 12px; color: #94a3b8; font-size: 12px; text-align: center; border: 1px dashed #cbd5e1; border-radius: 4px; margin-top: 8px;"><%:Enter a HEX payload or choose a preset above to test this scheme in real time.%></div>';
+        if (badgeEl) { badgeEl.className = "studio-badge badge-slate"; badgeEl.innerText = "Awaiting Payload"; }
+        outCont.innerHTML = '<div style="padding: 12px; color: #94a3b8; font-size: 12px; text-align: center; border: 1px dashed #cbd5e1; border-radius: 4px; margin-top: 8px;">Enter a HEX payload or choose a packet from history above to test this scheme in real time.</div>';
         return;
     }
 
@@ -1201,17 +1490,17 @@ function runDrawerDirectTest(idx) {
     }
     var nodeId = (nodeRes && nodeRes.id) ? nodeRes.id : "UNKNOWN";
 
-    // 4. Update Header Badge
+    // 4. Update Header Badge (Plain text, no HTML entities!)
     if (badgeEl) {
         if (execRes && execRes.error) {
             badgeEl.className = "studio-badge badge-red";
-            badgeEl.innerText = "<%:Error%>";
+            badgeEl.innerText = "Decoder Error";
         } else if (isMatched) {
             badgeEl.className = "studio-badge badge-green";
-            badgeEl.innerText = "<%:Matched & Valid%>";
+            badgeEl.innerText = "✓ Matched & Valid";
         } else {
             badgeEl.className = "studio-badge badge-amber";
-            badgeEl.innerText = "<%:No Rule Match%>";
+            badgeEl.innerText = "No Rule Match";
         }
     }
 
@@ -1223,8 +1512,8 @@ function runDrawerDirectTest(idx) {
                    '<div style="display: flex; align-items: center; gap: 8px;">' +
                        '<span style="font-size: 16px;">✅</span>' +
                        '<div>' +
-                           '<strong style="color: #065f46; font-size: 13px;"><%:Scheme Matched Successfully%></strong>' +
-                           '<div style="font-size: 11px; color: #047857;">Rule: ' + escapeHtml(tempScheme.matchType) + (tempScheme.matchValue ? (' = <code>' + escapeHtml(tempScheme.matchValue) + '</code>') : '') + ' | Payload Size: ' + bytes.length + ' Bytes</div>' +
+                           '<strong style="color: #065f46; font-size: 13px;">Scheme Matched Successfully</strong>' +
+                           '<div style="font-size: 11px; color: #047857;">Rule: ' + escapeHtml(tempScheme.matchType) + (tempScheme.matchValue ? (' = <code>' + escapeHtml(tempScheme.matchValue) + '</code>') : '') + ' | Payload Size: ' + bytes.length + ' Bytes | Engine: <strong>' + escapeHtml(tempScheme.type.toUpperCase()) + '</strong></div>' +
                        '</div>' +
                    '</div>' +
                    '<div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">' +
@@ -1234,15 +1523,15 @@ function runDrawerDirectTest(idx) {
                '</div>';
     } else {
         outHtml += '<div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px 12px; margin-top: 10px; font-size: 12px; color: #92400e;">' +
-                   '<strong><%:⚠️ Notice:%></strong> <%:Payload did not match this scheme filter rule%> (Strategy: <code>' + escapeHtml(tempScheme.matchType) + '</code>, Value: <code>' + escapeHtml(tempScheme.matchValue || "none") + '</code>). ' +
-                   '<%:Direct decoder execution was evaluated below in test override mode:%>' +
+                   '<strong>⚠️ Notice:</strong> Payload did not match this scheme filter rule (Strategy: <code>' + escapeHtml(tempScheme.matchType) + '</code>, Value: <code>' + escapeHtml(tempScheme.matchValue || "none") + '</code>). ' +
+                   'Direct decoder preview is shown below:' +
                '</div>';
     }
 
     // Diagnostic Error Callout
     if (execRes && execRes.error) {
         outHtml += '<div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 6px; padding: 12px; margin-top: 10px; color: #991b1b; font-size: 12px;">' +
-                       '<strong><%:❌ Decoder Execution Error:%></strong>' +
+                       '<strong>❌ Decoder Execution Error:</strong>' +
                        '<div style="margin-top: 4px; font-family: monospace; white-space: pre-wrap; font-size: 11px; background: #ffffff; padding: 6px; border: 1px solid #fecaca; border-radius: 4px;">' + escapeHtml(execRes.error) + '</div>' +
                    '</div>';
         outCont.innerHTML = outHtml;
@@ -1256,7 +1545,7 @@ function runDrawerDirectTest(idx) {
     var segs = LoraDecoder.segmentBytes ? LoraDecoder.segmentBytes(bytes, hex, segResult) : [];
     if (segs && segs.length > 0) {
         outHtml += '<div style="margin-top: 10px;">' +
-                       '<div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;"><%:Visual Byte Segmentation:%></div>' +
+                       '<div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Visual Byte Segmentation:</div>' +
                        '<div class="byte-strip" style="background: #ffffff; margin: 4px 0 10px 0;">';
         for (var i = 0; i < segs.length; i++) {
             var s = segs[i];
@@ -1275,63 +1564,22 @@ function runDrawerDirectTest(idx) {
     }
 
     // Telemetry Metrics Grid
-    outHtml += '<div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; margin-bottom: 4px;"><%:Extracted Telemetry Metrics:%></div>';
-    outHtml += '<div class="metrics-grid" style="margin: 4px 0 10px 0;">';
-
-    var tileCount = 0;
-    if (data.temperature !== undefined) {
-        outHtml += '<div class="metric-tile" style="border: 1.5px solid #fdba74; background: #fff7ed;"><div class="metric-tile-title" style="color: #c2410c;">🌡️ <%:Temperature%></div><div class="metric-tile-value" style="color: #9a3412;">' + data.temperature + ' °C</div></div>';
-        tileCount++;
-    }
-    if (data.battery !== undefined) {
-        var battStr = data.battery + " V" + (data.battery_mv ? (" (" + data.battery_mv + " mV)") : "");
-        outHtml += '<div class="metric-tile" style="border: 1.5px solid #86efac; background: #f0fdf4;"><div class="metric-tile-title" style="color: #15803d;">🔋 <%:Battery%></div><div class="metric-tile-value" style="color: #166534;">' + battStr + '</div></div>';
-        tileCount++;
-    }
-    if (data.state !== undefined) {
-        outHtml += '<div class="metric-tile" style="border: 1.5px solid #7dd3fc; background: #f0f9ff;"><div class="metric-tile-title" style="color: #0369a1;">🔌 <%:Actuator State%></div><div class="metric-tile-value" style="color: #075985;">' + escapeHtml(data.state) + '</div></div>';
-        tileCount++;
-    }
-    if (data.seq !== undefined) {
-        outHtml += '<div class="metric-tile" style="border: 1.5px solid #a5b4fc; background: #eef2ff;"><div class="metric-tile-title" style="color: #4338ca;">🔢 <%:Sequence Counter%></div><div class="metric-tile-value" style="color: #3730a3;">#' + data.seq + '</div></div>';
-        tileCount++;
-    }
-    if (data.humidity !== undefined) {
-        outHtml += '<div class="metric-tile" style="border: 1.5px solid #67e8f9; background: #ecfeff;"><div class="metric-tile-title" style="color: #0e7490;">💧 <%:Humidity%></div><div class="metric-tile-value" style="color: #155e75;">' + data.humidity + ' %</div></div>';
-        tileCount++;
-    }
-    if (data.pressure !== undefined) {
-        outHtml += '<div class="metric-tile" style="border: 1.5px solid #c4b5fd; background: #f5f3ff;"><div class="metric-tile-title" style="color: #6d28d9;">⏱️ <%:Pressure%></div><div class="metric-tile-value" style="color: #5b21b6;">' + data.pressure + ' hPa</div></div>';
-        tileCount++;
-    }
-
-    for (var k in data) {
-        if (!data.hasOwnProperty(k)) continue;
-        if (['temperature','battery','battery_mv','state','seq','humidity','pressure','device_type','node_id','node_class','capability','raw_hex'].indexOf(k) !== -1) continue;
-        var val = data[k];
-        outHtml += '<div class="metric-tile"><div class="metric-tile-title">' + escapeHtml(k) + '</div><div class="metric-tile-value">' + escapeHtml(typeof val === 'object' ? JSON.stringify(val) : val) + '</div></div>';
-        tileCount++;
-    }
-
-    if (tileCount === 0) {
-        outHtml += '<div class="metric-tile" style="grid-column: 1 / -1; color: #64748b; font-size: 12px;"><%:No discrete telemetry fields extracted (raw payload:%> ' + escapeHtml(data.raw_hex || hex) + ')</div>';
-    }
-    outHtml += '</div>';
+    outHtml += '<div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; margin-bottom: 4px;">Extracted Telemetry Metrics:</div>';
+    outHtml += '<div class="metrics-grid" style="margin: 4px 0 10px 0;">' + buildTelemetryTilesHtml(data, hex) + '</div>';
 
     // Raw JSON details block with Copy button
     var jsonStr = JSON.stringify(data, null, 2);
     var preId = "dr-raw-json-" + idx;
     outHtml += '<details open style="margin-top: 10px;">' +
-                   '<summary style="font-size: 11px; font-weight: 700; color: #475569; cursor: pointer;"><%:📄 Decoded Output JSON%></summary>' +
+                   '<summary style="font-size: 11px; font-weight: 700; color: #475569; cursor: pointer;">📄 Decoded Output JSON</summary>' +
                    '<div style="position: relative; margin-top: 6px;">' +
-                       '<button type="button" class="cbi-button" style="position: absolute; top: 8px; right: 8px; z-index: 5; padding: 2px 7px; font-size: 10px;" onclick="copyText(document.getElementById(\'' + preId + '\').innerText, \'JSON copied!\')"><%:Copy JSON%></button>' +
+                       '<button type="button" class="cbi-button" style="position: absolute; top: 8px; right: 8px; z-index: 5; padding: 2px 7px; font-size: 10px;" onclick="copyText(document.getElementById(\'' + preId + '\').innerText, \'JSON copied!\')">Copy JSON</button>' +
                        '<pre id="' + preId + '" class="code-editor" style="max-height: 180px; overflow-y: auto; margin: 0; font-size: 11px;">' + escapeHtml(jsonStr) + '</pre>' +
                    '</div>' +
                '</details>';
 
     outCont.innerHTML = outHtml;
 }
-
 
 // -----------------------------------------------------------------------------
 // INTELLIGENT DECODER CREATION & CONTINUOUS AUTO-SAVE ENGINE
@@ -1340,6 +1588,8 @@ function runDrawerDirectTest(idx) {
 var g_autoSaveTimers = {};
 
 function onDrawerFieldChange(idx) {
+    syncDrawerToScheme(idx);
+    updateSchemeCardSummary(idx);
     runDrawerDirectTest(idx);
     scheduleAutoSave(idx);
 }
@@ -1349,6 +1599,7 @@ function onDrawerTestHexChange(idx) {
     if (hexEl && hexEl.value && g_schemes[idx]) {
         g_schemes[idx].sampleHex = hexEl.value.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
     }
+    updateSlicerLiveBadges(idx);
     runDrawerDirectTest(idx);
     scheduleAutoSave(idx);
 }
@@ -1376,7 +1627,7 @@ function scheduleAutoSave(idx) {
     }
     g_autoSaveTimers[idx] = setTimeout(function() {
         performAutoSave(idx);
-    }, 450);
+    }, 400);
 }
 
 function performAutoSave(idx) {
@@ -1398,11 +1649,11 @@ function setDrawerAutoSaveIndicator(idx, state, errDetail) {
     var html = "";
 
     if (state === "saving") {
-        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 2px 7px;">⏳ <%:Auto-saving to gateway...%></span>';
+        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 2px 7px;">⏳ Auto-saving to gateway...</span>';
     } else if (state === "saved") {
-        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 2px 7px;">✓ <%:Auto-saved to gateway%></span>';
+        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 2px 7px;">✓ Auto-saved to gateway</span>';
     } else if (state === "error") {
-        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 2px 7px;">⚠️ <%:Save Error:%> ' + escapeHtml(errDetail || "Failed") + '</span>';
+        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 2px 7px;">⚠️ Save Error: ' + escapeHtml(errDetail || "Failed") + '</span>';
     }
 
     if (topEl) topEl.innerHTML = html;
@@ -1416,9 +1667,6 @@ function syncDrawerToScheme(idx) {
     var nameEl = document.getElementById("dr-name-" + idx);
     if (nameEl) s.name = nameEl.value.trim() || s.name;
 
-    var descEl = document.getElementById("dr-desc-" + idx);
-    if (descEl) s.description = descEl.value.trim();
-
     var mtEl = document.getElementById("dr-match-type-" + idx);
     if (mtEl) s.matchType = mtEl.value;
 
@@ -1431,8 +1679,14 @@ function syncDrawerToScheme(idx) {
     var nSrcEl = document.getElementById("dr-node-src-" + idx);
     var nFmtEl = document.getElementById("dr-node-fmt-" + idx);
     var nPfxEl = document.getElementById("dr-node-pfx-" + idx);
+    var nOffEl = document.getElementById("dr-node-off-" + idx);
+    var nLenEl = document.getElementById("dr-node-len-" + idx);
+
+    var nSrc = nSrcEl ? nSrcEl.value : "node_2b";
     s.nodeId = {
-        source: nSrcEl ? nSrcEl.value : "node_2b",
+        source: nSrc,
+        offset: nOffEl ? (parseInt(nOffEl.value, 10) || 0) : 0,
+        length: nLenEl ? (parseInt(nLenEl.value, 10) || 2) : 2,
         format: nFmtEl ? nFmtEl.value : "hex",
         prefix: nPfxEl ? nPfxEl.value.trim() : ""
     };
@@ -1440,9 +1694,10 @@ function syncDrawerToScheme(idx) {
     var dtEl = document.getElementById("dr-dectype-" + idx);
     if (dtEl) s.type = dtEl.value;
 
-    if (s.type === "ctv") {
+    if (s.type === "ctv" || s.type === "tlv" || s.type === "cayenne_lpp") {
         var offEl = document.getElementById("dr-ctv-offset-" + idx);
-        s.dataOffset = offEl ? (parseInt(offEl.value, 10) || 4) : 4;
+        var parsedOff = offEl ? parseInt(offEl.value, 10) : NaN;
+        if (!isNaN(parsedOff)) s.dataOffset = parsedOff;
     } else if (s.type === "js") {
         var jsEl = document.getElementById("dr-js-code-" + idx);
         if (jsEl) s.jsCode = jsEl.value;
@@ -1453,16 +1708,6 @@ function syncDrawerToScheme(idx) {
         s.sampleHex = testHexEl.value.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
     }
 }
-
-function updateSchemeCardSummary(idx) {
-    var s = g_schemes[idx];
-    var card = document.getElementById("scheme-card-" + idx);
-    if (!s || !card) return;
-
-    var titleEl = card.querySelector("strong");
-    if (titleEl) titleEl.innerText = s.name || "Untitled Scheme";
-}
-
 
 // -----------------------------------------------------------------------------
 // DECODE CANDIDATE PAYLOAD MANAGEMENT
@@ -1503,16 +1748,16 @@ function renderActiveCandidateBanner() {
             '<div style="display: flex; align-items: center; gap: 10px;">' +
                 '<span style="font-size: 22px;">🎯</span>' +
                 '<div>' +
-                    '<div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9; font-weight: 700;"><%:Active Decode Candidate Payload%></div>' +
+                    '<div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9; font-weight: 700;">Active Decode Candidate Payload</div>' +
                     '<div style="display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-wrap: wrap;">' +
-                        '<code style="font-family: monospace; font-size: 14px; font-weight: 800; color: #fef08a; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">' + hex + '</code>' +
-                        '<span style="font-size: 11px; opacity: 0.95; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 3px;">' + bytes.length + ' Bytes | Node: ' + pfx + '</span>' +
+                        '<code style="font-family: monospace; font-size: 14px; font-weight: 800; color: #fef08a; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">' + escapeHtml(hex) + '</code>' +
+                        '<span style="font-size: 11px; opacity: 0.95; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 3px;">' + bytes.length + ' Bytes | Prefix: ' + escapeHtml(pfx) + '</span>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
             '<div style="display: flex; gap: 8px; align-items: center;">' +
-                '<button type="button" style="background: #f59e0b; color: #000; font-weight: 800; font-size: 12px; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" onclick="createSchemeFromHex(window.g_activeCandidate)" title="Create scheme for this candidate"><%:✨ Create Scheme for Candidate%></button>' +
-                '<button type="button" style="background: rgba(255,255,255,0.2); color: #fff; font-weight: 700; font-size: 12px; border: 1px solid rgba(255,255,255,0.4); padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="clearActiveCandidate()" title="Dismiss candidate">✕ <%:Dismiss%></button>' +
+                '<button type="button" style="background: #f59e0b; color: #000; font-weight: 800; font-size: 12px; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" onclick="createSchemeFromHex(window.g_activeCandidate)">✨ Create Scheme for Candidate</button>' +
+                '<button type="button" style="background: rgba(255,255,255,0.2); color: #fff; font-weight: 700; font-size: 12px; border: 1px solid rgba(255,255,255,0.4); padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="clearActiveCandidate()">✕ Dismiss</button>' +
             '</div>' +
         '</div>';
 }
@@ -1545,7 +1790,6 @@ function createSchemeFromHex(rawHex) {
     var pfx = (hex.length >= 4) ? hex.substring(0, 4) : hex;
     var nodeName = pfx.toUpperCase();
 
-    // Check if a scheme already matches this prefix
     var existingIdx = -1;
     for (var i = 0; i < g_schemes.length; i++) {
         if (g_schemes[i].matchType === "prefix" && String(g_schemes[i].matchValue).toLowerCase() === pfx) {
@@ -1554,8 +1798,16 @@ function createSchemeFromHex(rawHex) {
         }
     }
 
+    // Smart structure detection for the payload
+    var stream = LoraDecoder.detectChannelStream(bytes, 4);
+    var detectedOffset = stream.valid ? stream.offset : 4;
+    var detectedType = (stream.valid && stream.offset === 6) ? "cayenne_lpp" : "ctv";
+
     if (existingIdx >= 0) {
         g_schemes[existingIdx].sampleHex = hex;
+        if (stream.valid) {
+            g_schemes[existingIdx].dataOffset = detectedOffset;
+        }
         renderSchemesList();
         toggleSchemeDrawer(existingIdx);
         setDrawerTestHex(existingIdx, hex);
@@ -1564,16 +1816,17 @@ function createSchemeFromHex(rawHex) {
         return;
     }
 
-    // Class & Capability inspection from byte 2
-    var devTitle = "Node " + nodeName + " Custom Scheme";
-    if (bytes.length >= 3) {
+    var devTitle = "Node " + nodeName + " Sensor Scheme";
+    if (stream.valid && stream.offset === 6) {
+        devTitle = "Node " + nodeName + " (Multi-Sensor LPP)";
+    } else if (bytes.length >= 3 && detectedOffset === 4) {
         var devType = bytes[2];
         var classCode = Math.floor(devType / 16);
         var capCode = devType % 16;
         var className = (classCode === 1) ? "Class A" : ((classCode === 2) ? "Class B" : ((classCode === 3) ? "Class C" : ""));
         var capMap = {1: "Sensor", 2: "Actuator", 3: "Combo", 4: "Meter", 5: "Security", 6: "Dimmer"};
-        var capName = capMap[capCode] || "";
-        if (className || capName) {
+        var capName = capMap[capCode] || "Sensor";
+        if (className) {
             devTitle = "Node " + nodeName + " (" + (className + " " + capName).trim() + ")";
         }
     }
@@ -1585,9 +1838,10 @@ function createSchemeFromHex(rawHex) {
         enabled: true,
         matchType: "prefix",
         matchValue: pfx,
-        nodeId: { source: "node_2b", format: "hex", prefix: "" },
-        type: "ctv",
-        dataOffset: 4,
+        nodeId: { source: "node_2b", offset: 0, length: 2, format: "hex", prefix: "" },
+        type: detectedType,
+        dataOffset: detectedOffset,
+        fields: LoraDecoder.autoGenerateFieldsFromBytes(bytes),
         sampleHex: hex
     };
 
@@ -1596,7 +1850,6 @@ function createSchemeFromHex(rawHex) {
     toggleSchemeDrawer(0);
     setDrawerTestHex(0, hex);
 
-    // Auto-save immediately to gateway!
     saveAllSchemes(function() {
         showToast("Created & auto-saved scheme for Node " + nodeName + "!", "success");
     });
@@ -1609,13 +1862,7 @@ function createSchemeFromCurrentHex() {
     }
 
     if (!hex) {
-        hex = prompt("Enter the raw HEX payload for the new scheme (e.g. AA0C6418...):", "");
-        if (hex) hex = hex.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
-    }
-
-    if (!hex) {
-        showToast("Please enter or select a HEX payload to create a scheme", "info");
-        return;
+        hex = "cafe96b840eb010201490271fffb000c0425036700bb04880000000000000000";
     }
 
     createSchemeFromHex(hex);

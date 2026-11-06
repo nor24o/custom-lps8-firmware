@@ -1,5 +1,5 @@
 <%+header%>
-<script type="text/javascript" src="<%=resource%>/lora_decoder.js?v=2026.11.06"></script>
+<script type="text/javascript" src="<%=resource%>/lora_decoder.js?v=20261106_v3"></script>
 
 <style type="text/css">
 .lora-container {
@@ -561,6 +561,12 @@ function renderTelemetryChips(data, schemeName) {
     if (data.pressure !== undefined) {
         chips += '<span class="telem-chip telem-press" title="Barometric Pressure">⏱️ ' + data.pressure + ' hPa</span>';
     }
+    if (data.accel_x !== undefined || data.accel_y !== undefined || data.accel_z !== undefined) {
+        chips += '<span class="telem-chip telem-press" title="3-Axis Accelerometer (X, Y, Z)">📐 ' + (data.accel_x || 0) + 'g, ' + (data.accel_y || 0) + 'g, ' + (data.accel_z || 0) + 'g</span>';
+    }
+    if (data.latitude !== undefined && data.longitude !== undefined) {
+        chips += '<span class="telem-chip telem-hum" title="GPS Coordinates">🛰️ ' + data.latitude + '°, ' + data.longitude + '°</span>';
+    }
     if (data.text !== undefined) {
         chips += '<span class="telem-chip telem-ascii" title="ASCII Message">💬 "' + data.text + '"</span>';
     }
@@ -570,7 +576,10 @@ function renderTelemetryChips(data, schemeName) {
         if (!data.hasOwnProperty(k)) continue;
         if (k === 'temperature' || k === 'battery' || k === 'battery_mv' || k === 'state' ||
             k === 'humidity' || k === 'pressure' || k === 'text' || k === 'node_id' ||
-            k === 'device_type' || k === 'node_class' || k === 'capability' || k === 'seq') {
+            k === 'device_type' || k === 'node_class' || k === 'capability' || k === 'seq' ||
+            k === 'accel_x' || k === 'accel_y' || k === 'accel_z' ||
+            k === 'latitude' || k === 'longitude' || k === 'altitude' ||
+            k === 'device_serial' || k === 'raw_hex' || k === 'ch1_analog_in' || k === 'ch3_temperature') {
             continue;
         }
         var val = data[k];

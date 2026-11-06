@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updated": "2026-11-06T00:00:00Z",
+  "updated": "2026-11-06T20:00:00Z",
   "globalNodeId": {
-    "source": "offset",
+    "source": "node_2b",
     "offset": 0,
     "length": 2,
     "format": "hex",
@@ -10,38 +10,64 @@
   },
   "schemes": [
     {
+      "id": "scheme_node_cafe",
+      "name": "Node CAFE (Multi-Sensor LPP)",
+      "description": "Created directly from packet payload cafe96b840eb0102... (32B)",
+      "enabled": true,
+      "matchType": "prefix",
+      "matchValue": "cafe",
+      "nodeId": {
+        "source": "node_2b",
+        "offset": 0,
+        "length": 2,
+        "format": "hex",
+        "prefix": ""
+      },
+      "type": "cayenne_lpp",
+      "dataOffset": 6,
+      "sampleHex": "cafe96b840eb010201490271fffb000c0425036700bb04880000000000000000",
+      "fields": [
+        { "name": "device_serial", "offset": 2, "length": 4, "type": "hex", "scale": 1, "unit": "" },
+        { "name": "battery", "offset": 8, "length": 2, "type": "int16_be", "scale": 0.01, "unit": "V" },
+        { "name": "accel_x", "offset": 12, "length": 2, "type": "int16_be", "scale": 0.001, "unit": "g" },
+        { "name": "accel_y", "offset": 14, "length": 2, "type": "int16_be", "scale": 0.001, "unit": "g" },
+        { "name": "accel_z", "offset": 16, "length": 2, "type": "int16_be", "scale": 0.001, "unit": "g" },
+        { "name": "temperature", "offset": 20, "length": 2, "type": "int16_be", "scale": 0.1, "unit": "°C" }
+      ]
+    },
+    {
       "id": "scheme_2b_node_tlv",
-      "name": "Standard 2-Byte Node ID + Device Type + TLV",
-      "description": "Standard Header: 2-Byte Node ID (bytes 0..1), 1-Byte Device Type (Class/Capability, byte 2), 1-Byte Seq (byte 3), followed by dynamic TLV sensors",
+      "name": "Standard 2-Byte Node ID + TLV / IPSO Channels",
+      "description": "Decodes 2-Byte Node ID (0..1) + Header + dynamic TLV / Cayenne LPP sensor channels (Temp, Batt, Hum, Accel, GPS, Switch)",
       "enabled": true,
       "matchType": "condition",
       "matchCondition": "// Match standard 4+ byte header\nreturn bytes.length >= 4;",
       "nodeId": {
-        "source": "offset",
+        "source": "node_2b",
         "offset": 0,
         "length": 2,
         "format": "hex",
         "prefix": ""
       },
       "type": "ctv",
-      "dataOffset": 4,
-      "jsCode": "// Standard 2-Byte Node ID + Device Type + TLV Decoder (e.g. 12341100011109c402050ce4)\nvar nodeId = ((bytes[0] < 16 ? '0' : '') + bytes[0].toString(16) + (bytes[1] < 16 ? '0' : '') + bytes[1].toString(16)).toUpperCase();\nvar devType = bytes[2];\nvar classCode = Math.floor(devType / 16);\nvar capCode = devType % 16;\nvar className = (classCode === 1) ? 'A' : ((classCode === 2) ? 'B' : ((classCode === 3) ? 'C' : 'Unknown'));\nvar capMap = {1: 'Sensor', 2: 'Actuator', 3: 'Combo', 4: 'Meter', 5: 'Security', 6: 'Dimmer'};\nvar capName = capMap[capCode] || 'Generic';\nvar seq = bytes[3];\n\nvar out = {\n    node_id: nodeId,\n    device_type: '0x' + (devType < 16 ? '0' : '') + devType.toString(16).toUpperCase(),\n    node_class: className,\n    capability: capName,\n    seq: seq\n};\n\nvar i = 4;\nwhile (i < bytes.length) {\n    var ch = bytes[i++];\n    if (i >= bytes.length) break;\n    var type = bytes[i++];\n    if (type === 0x11) { // 2-byte generic / temp\n        if (i + 1 >= bytes.length) break;\n        var raw = (bytes[i++] << 8) | bytes[i++];\n        if (raw & 0x8000) raw -= 0x10000;\n        var temp = (Math.abs(raw) > 500) ? +(raw * 0.01).toFixed(2) : +(raw * 0.1).toFixed(1);\n        out['temperature'] = temp;\n        out['ch' + ch + '_val'] = raw;\n    } else if (type === 0x05) { // 2-byte battery in mV\n        if (i + 1 >= bytes.length) break;\n        var mv = (bytes[i++] << 8) | bytes[i++];\n        out['battery'] = +(mv / 1000).toFixed(2);\n        out['battery_mv'] = mv;\n    } else if (type === 0x01 || type === 0x10) { // 1-byte digital\n        if (i >= bytes.length) break;\n        out['ch' + ch + '_state'] = (bytes[i++] === 1) ? 'ON' : 'OFF';\n        out['state'] = out['ch' + ch + '_state'];\n    } else if (type === 0x02 || type === 0x12) { // 2-byte analog\n        if (i + 1 >= bytes.length) break;\n        var aRaw = (bytes[i++] << 8) | bytes[i++];\n        if (aRaw & 0x8000) aRaw -= 0x10000;\n        out['ch' + ch + '_analog'] = +(aRaw * 0.01).toFixed(2);\n    } else {\n        break;\n    }\n}\nreturn out;"
+      "dataOffset": 4
     },
     {
       "id": "scheme_cayenne_lpp",
       "name": "Cayenne LPP Standard Sensors",
-      "description": "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
+      "description": "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, accel, GPS)",
       "enabled": true,
       "matchType": "condition",
-      "matchCondition": "// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01);",
+      "matchCondition": "// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01 || bytes[1] === 0x71 || bytes[1] === 0x88);",
       "nodeId": {
-        "source": "offset",
+        "source": "node_2b",
         "offset": 0,
         "length": 2,
         "format": "hex",
         "prefix": ""
       },
-      "type": "cayenne_lpp"
+      "type": "cayenne_lpp",
+      "dataOffset": 0
     },
     {
       "id": "scheme_ascii_ping",
@@ -51,7 +77,7 @@
       "matchType": "condition",
       "matchCondition": "// Match if all bytes are printable ASCII chars\nif (bytes.length < 2) return false;\nreturn bytes.every(function(b) {\n    return (b >= 32 && b <= 126) || b === 10 || b === 13;\n});",
       "nodeId": {
-        "source": "offset",
+        "source": "node_2b",
         "offset": 0,
         "length": 2,
         "format": "hex",
