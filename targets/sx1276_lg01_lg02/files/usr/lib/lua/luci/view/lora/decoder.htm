@@ -393,15 +393,21 @@ function loadRecentPackets() {
         if (xhr.readyState === 4 && xhr.status === 200) {
             try {
                 var pkts = JSON.parse(xhr.responseText);
+                window.g_recentPackets = pkts || [];
                 var sel = document.getElementById("sel-recent-pkts");
-                sel.innerHTML = '<option value="">-- Select from history (' + pkts.length + ' packets) --</option>';
-                for (var i = 0; i < pkts.length; i++) {
-                    var p = pkts[i];
-                    if (!p.hex) continue;
-                    var opt = document.createElement("option");
-                    opt.value = p.hex;
-                    opt.text = (p.time || "") + " | " + p.hex.substring(0, 16) + (p.hex.length > 16 ? "..." : "") + " (" + p.size + "B, " + (p.freq || "") + "MHz)";
-                    sel.appendChild(opt);
+                if (sel) {
+                    sel.innerHTML = '<option value="">-- Select from history (' + pkts.length + ' packets) --</option>';
+                    for (var i = 0; i < pkts.length; i++) {
+                        var p = pkts[i];
+                        if (!p.hex) continue;
+                        var opt = document.createElement("option");
+                        opt.value = p.hex;
+                        opt.text = (p.time || "") + " | " + p.hex.substring(0, 16) + (p.hex.length > 16 ? "..." : "") + " (" + p.size + "B, " + (p.freq || "") + "MHz)";
+                        sel.appendChild(opt);
+                    }
+                }
+                if (g_expandedIndex >= 0) {
+                    populateDrawerRecentPackets(g_expandedIndex);
                 }
             } catch(e) {}
         }
@@ -608,7 +614,7 @@ function renderSchemesList() {
                     '</div>' +
                 '</div>' +
                 '<div style="display: flex; gap: 6px; align-items: center;">' +
-                    '<button type="button" class="cbi-button" onclick="testSchemeOnWorkbench(' + i + ')" title="Load sample into workbench and test">⚡ Test</button>' +
+                    '<button type="button" class="cbi-button" onclick="testSchemeInDrawer(' + i + ')" title="Directly test inside this scheme folder">⚡ Test</button>' +
                     '<button type="button" class="cbi-button" onclick="toggleSchemeDrawer(' + i + ')">✏️ Edit</button>' +
                     '<button type="button" class="cbi-button" onclick="moveScheme(' + i + ', -1)" ' + (i === 0 ? 'disabled' : '') + '>▲</button>' +
                     '<button type="button" class="cbi-button" onclick="moveScheme(' + i + ', 1)" ' + (i === g_schemes.length - 1 ? 'disabled' : '') + '>▼</button>' +
@@ -704,6 +710,22 @@ function toggleSchemeDrawer(idx) {
         buildSchemeDrawerHtml(idx, drawer);
         drawer.style.display = "block";
         g_expandedIndex = idx;
+        populateDrawerRecentPackets(idx);
+        runDrawerDirectTest(idx);
+    }
+}
+
+function testSchemeInDrawer(idx) {
+    var drawer = document.getElementById("scheme-drawer-" + idx);
+    if (!drawer || drawer.style.display !== "block") {
+        toggleSchemeDrawer(idx);
+    } else {
+        populateDrawerRecentPackets(idx);
+        runDrawerDirectTest(idx);
+    }
+    var box = document.getElementById("dr-test-box-" + idx);
+    if (box) {
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 }
 
@@ -728,17 +750,18 @@ function buildSchemeDrawerHtml(idx, container) {
     var s = g_schemes[idx];
     var nRule = s.nodeId || {};
     var decType = s.type || "ctv";
+    var sampleHex = getDefaultSampleHex(s);
 
     container.innerHTML = 
         '<div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px;">' +
             '<div style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">' +
                 '<div style="flex: 2; min-width: 220px;">' +
                     '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Scheme Name%></label>' +
-                    '<input type="text" id="dr-name-' + idx + '" value="' + (s.name || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" />' +
+                    '<input type="text" id="dr-name-' + idx + '" value="' + escapeHtml(s.name || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="runDrawerDirectTest(' + idx + ')" />' +
                 '</div>' +
                 '<div style="flex: 3; min-width: 280px;">' +
                     '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Description / Notes%></label>' +
-                    '<input type="text" id="dr-desc-' + idx + '" value="' + (s.description || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" />' +
+                    '<input type="text" id="dr-desc-' + idx + '" value="' + escapeHtml(s.description || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="runDrawerDirectTest(' + idx + ')" />' +
                 '</div>' +
             '</div>' +
 
@@ -753,7 +776,7 @@ function buildSchemeDrawerHtml(idx, container) {
                 '<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">' +
                     '<div style="flex: 1; min-width: 180px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Match Strategy%></label>' +
-                        '<select id="dr-match-type-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerMatchFields(' + idx + ')">' +
+                        '<select id="dr-match-type-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerMatchFields(' + idx + '); runDrawerDirectTest(' + idx + ');">' +
                             '<option value="prefix" ' + (s.matchType === "prefix" ? "selected" : "") + '><%:Hex Prefix / Header (e.g. 1234 or aa)%></option>' +
                             '<option value="size" ' + (s.matchType === "size" ? "selected" : "") + '><%:Exact Payload Size in Bytes%></option>' +
                             '<option value="condition" ' + (s.matchType === "condition" ? "selected" : "") + '><%:Custom Condition Function%></option>' +
@@ -763,12 +786,12 @@ function buildSchemeDrawerHtml(idx, container) {
                     '</div>' +
                     '<div style="flex: 2; min-width: 220px;" id="box-dr-matchval-' + idx + '">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Match Value (Hex Prefix or Size)%></label>' +
-                        '<input type="text" id="dr-match-val-' + idx + '" value="' + (s.matchValue || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: monospace;" />' +
+                        '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: monospace;" oninput="runDrawerDirectTest(' + idx + ')" />' +
                     '</div>' +
                 '</div>' +
                 '<div id="box-dr-matchcond-' + idx + '" style="display: ' + (s.matchType === "condition" ? "block" : "none") + '; margin-top: 10px;">' +
                     '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Condition Function (returns true / false):%></label>' +
-                    '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 60px;" placeholder="// return bytes.length >= 4;">' + (s.matchCondition || "") + '</textarea>' +
+                    '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 60px;" placeholder="// return bytes.length >= 4;" oninput="runDrawerDirectTest(' + idx + ')">' + escapeHtml(s.matchCondition || "") + '</textarea>' +
                 '</div>' +
             '</div>' +
 
@@ -777,7 +800,7 @@ function buildSchemeDrawerHtml(idx, container) {
                 '<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">' +
                     '<div style="flex: 2; min-width: 240px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Node ID Source%></label>' +
-                        '<select id="dr-node-src-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;">' +
+                        '<select id="dr-node-src-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="runDrawerDirectTest(' + idx + ')">' +
                             '<option value="node_2b" ' + (nRule.source === "node_2b" || !nRule.source || nRule.source === "auto" ? "selected" : "") + '><%:✨ 2-Byte Node ID (Offset 0..1 in Hex -> 1234, AA0C)%></option>' +
                             '<option value="offset" ' + (nRule.source === "offset" ? "selected" : "") + '><%:Custom Byte Offset & Length%></option>' +
                             '<option value="field" ' + (nRule.source === "field" ? "selected" : "") + '><%:From Decoded Property Name%></option>' +
@@ -786,14 +809,14 @@ function buildSchemeDrawerHtml(idx, container) {
                     '</div>' +
                     '<div style="flex: 1; min-width: 140px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Output Format%></label>' +
-                        '<select id="dr-node-fmt-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;">' +
+                        '<select id="dr-node-fmt-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="runDrawerDirectTest(' + idx + ')">' +
                             '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '><%:Hex (e.g. 1234, AA0C)%></option>' +
                             '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '><%:Decimal Number%></option>' +
                         '</select>' +
                     '</div>' +
                     '<div style="flex: 1; min-width: 120px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Optional Prefix%></label>' +
-                        '<input type="text" id="dr-node-pfx-' + idx + '" value="' + (nRule.prefix || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" placeholder="e.g. NODE_" />' +
+                        '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" placeholder="e.g. NODE_" oninput="runDrawerDirectTest(' + idx + ')" />' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -801,17 +824,17 @@ function buildSchemeDrawerHtml(idx, container) {
             '<!-- TAB 3: PAYLOAD DECODER ENGINE -->' +
             '<div id="tab-content-dec-' + idx + '" style="display: none;">' +
                 '<div style="margin-bottom: 12px; display: flex; gap: 14px; flex-wrap: wrap;">' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ctv" ' + (decType === "ctv" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + ')" /> <strong><%:TLV / Channel-Type-Value%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="js" ' + (decType === "js" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + ')" /> <strong><%:JavaScript Function%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="fields" ' + (decType === "fields" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + ')" /> <strong><%:Field Slicer%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + ')" /> <strong><%:Cayenne LPP%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ascii" ' + (decType === "ascii" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + ')" /> <strong><%:Plain ASCII%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ctv" ' + (decType === "ctv" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:TLV / Channel-Type-Value%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="js" ' + (decType === "js" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:JavaScript Function%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="fields" ' + (decType === "fields" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:Field Slicer%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:Cayenne LPP%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ascii" ' + (decType === "ascii" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:Plain ASCII%></strong></label>' +
                 '</div>' +
 
                 '<!-- CTV Offset -->' +
                 '<div id="box-dr-dec-ctv-' + idx + '" style="display: ' + (decType === "ctv" ? "block" : "none") + '; padding: 10px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; font-size: 12px;">' +
                     '<strong><%:Dynamic TLV Parser Active:%></strong> Channel records start at Byte Index: ' +
-                    '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 60px; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 4px;" />' +
+                    '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 60px; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="runDrawerDirectTest(' + idx + ')" />' +
                 '</div>' +
 
                 '<!-- JS Code Editor -->' +
@@ -825,8 +848,46 @@ function buildSchemeDrawerHtml(idx, container) {
                             '<button type="button" class="cbi-button" style="padding: 1px 6px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'uint16\')">uint16_be</button>' +
                         '</div>' +
                     '</div>' +
-                    '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 160px;">' + (s.jsCode || "") + '</textarea>' +
+                    '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 160px;" oninput="runDrawerDirectTest(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
                 '</div>' +
+            '</div>' +
+
+            '<!-- DIRECT IN-DRAWER TEST CONSOLE -->' +
+            '<div id="dr-test-box-' + idx + '" style="margin-top: 16px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 14px;">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">' +
+                    '<div style="display: flex; align-items: center; gap: 8px;">' +
+                        '<strong style="font-size: 13px; color: #0f172a;"><%:🧪 Direct Scheme Test & Verification Console%></strong>' +
+                        '<span id="dr-test-status-badge-' + idx + '" class="studio-badge badge-slate"><%:Ready%></span>' +
+                    '</div>' +
+                    '<button type="button" class="cbi-button cbi-button-action" onclick="runDrawerDirectTest(' + idx + ')" style="padding: 4px 12px; font-weight: 700; font-size: 12px;"><%:▶ Run Test Now%></button>' +
+                '</div>' +
+                '<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px;">' +
+                    '<div style="flex: 2; min-width: 280px;">' +
+                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Test Payload (HEX String):%></label>' +
+                        '<div style="display: flex; gap: 6px;">' +
+                            '<input type="text" id="dr-test-hex-' + idx + '" value="' + escapeHtml(sampleHex) + '" ' +
+                                   'style="flex: 1; padding: 7px 10px; font-family: monospace; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff;" ' +
+                                   'placeholder="<%:Enter raw HEX bytes (e.g. 12341100011109c4...)%>" ' +
+                                   'oninput="runDrawerDirectTest(' + idx + ')" />' +
+                            '<button type="button" class="cbi-button" onclick="document.getElementById(\'dr-test-hex-' + idx + '\').value=\'\'; runDrawerDirectTest(' + idx + ');" title="Clear">✕</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div style="flex: 1; min-width: 200px;">' +
+                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Load from Gateway History:%></label>' +
+                        '<select id="dr-recent-pkts-' + idx + '" style="width: 100%; padding: 7px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; background: #ffffff;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
+                            '<option value=""><%:-- Load recent packet --%></option>' +
+                        '</select>' +
+                    '</div>' +
+                '</div>' +
+                '<div style="margin-bottom: 10px; font-size: 11px; display: flex; gap: 5px; flex-wrap: wrap; align-items: center;">' +
+                    '<span style="color: #64748b; font-weight: 600;"><%:Quick Presets:%></span>' +
+                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'12341100011109c402050ce4\')">⚡ Class A Sensor</button>' +
+                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'56783201010101\')">⚡ Class C Actuator</button>' +
+                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'aa0c6418011108d002050fea\')">⚡ Node AA0C</button>' +
+                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'0167011002684803020064\')">⚡ Cayenne LPP</button>' +
+                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'50494e475f4c505338\')">⚡ ASCII Ping</button>' +
+                '</div>' +
+                '<div id="dr-test-out-' + idx + '"></div>' +
             '</div>' +
 
             '<!-- DRAWER ACTIONS -->' +
@@ -868,6 +929,7 @@ function insertJsCode(idx, type) {
     else if (type === "batt") snippet = "var mv = (bytes[6] << 8) | bytes[7];\nout['battery'] = +(mv / 1000).toFixed(2);\nout['battery_mv'] = mv;\n";
     else if (type === "uint16") snippet = "var val = (bytes[i] << 8) | bytes[i+1];\n";
     ta.value += snippet;
+    runDrawerDirectTest(idx);
 }
 
 function saveDrawerScheme(idx) {
@@ -966,6 +1028,270 @@ function importSchemes(evt) {
     };
     reader.readAsText(file);
 }
+
+// -----------------------------------------------------------------------------
+// IN-DRAWER DIRECT TEST & VERIFICATION ENGINE (ZERO ALERTS, REAL-TIME FEEDBACK)
+// -----------------------------------------------------------------------------
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getDefaultSampleHex(s) {
+    if (!s) return '12341100011109c402050ce4';
+    if (s.id === 'scheme_2b_node_tlv') return '12341100011109c402050ce4';
+    if (s.matchType === 'prefix' && s.matchValue) {
+        var pfx = String(s.matchValue).trim().toLowerCase();
+        if (pfx === 'aa' || pfx === 'aa0c') return 'aa0c6418011108d002050fea';
+        if (pfx === '5678') return '56783201010101';
+        return pfx + '1100011109c402050ce4';
+    }
+    if (s.type === 'ascii') return '50494e475f4c505338';
+    if (s.type === 'cayenne_lpp') return '0167011002684803020064';
+    return '12341100011109c402050ce4';
+}
+
+function populateDrawerRecentPackets(idx) {
+    var sel = document.getElementById("dr-recent-pkts-" + idx);
+    if (!sel) return;
+    var pkts = window.g_recentPackets || [];
+    sel.innerHTML = '<option value=""><%:-- Load recent packet (' + pkts.length + ' available) --%></option>';
+    for (var i = 0; i < pkts.length; i++) {
+        var p = pkts[i];
+        if (!p.hex) continue;
+        var opt = document.createElement("option");
+        opt.value = p.hex;
+        opt.text = (p.time || "") + " | " + p.hex.substring(0, 14) + (p.hex.length > 14 ? "..." : "") + " (" + p.size + "B)";
+        sel.appendChild(opt);
+    }
+}
+
+function loadDrawerRecentPacket(idx, hexVal) {
+    if (!hexVal) return;
+    var inp = document.getElementById("dr-test-hex-" + idx);
+    if (inp) {
+        inp.value = hexVal;
+        runDrawerDirectTest(idx);
+    }
+}
+
+function setDrawerTestHex(idx, hexVal) {
+    var inp = document.getElementById("dr-test-hex-" + idx);
+    if (inp) {
+        inp.value = hexVal;
+        runDrawerDirectTest(idx);
+    }
+}
+
+function readTempSchemeFromDrawer(idx) {
+    var orig = g_schemes[idx] || {};
+    var s = {
+        id: orig.id || ("scheme_" + Date.now()),
+        name: (document.getElementById("dr-name-" + idx) ? document.getElementById("dr-name-" + idx).value : orig.name) || "Custom Scheme",
+        description: document.getElementById("dr-desc-" + idx) ? document.getElementById("dr-desc-" + idx).value : orig.description,
+        enabled: true,
+        matchType: document.getElementById("dr-match-type-" + idx) ? document.getElementById("dr-match-type-" + idx).value : (orig.matchType || "prefix"),
+        matchValue: document.getElementById("dr-match-val-" + idx) ? document.getElementById("dr-match-val-" + idx).value.trim() : (orig.matchValue || ""),
+        matchCondition: document.getElementById("dr-match-cond-" + idx) ? document.getElementById("dr-match-cond-" + idx).value.trim() : (orig.matchCondition || ""),
+        nodeId: {
+            source: document.getElementById("dr-node-src-" + idx) ? document.getElementById("dr-node-src-" + idx).value : "node_2b",
+            format: document.getElementById("dr-node-fmt-" + idx) ? document.getElementById("dr-node-fmt-" + idx).value : "hex",
+            prefix: document.getElementById("dr-node-pfx-" + idx) ? document.getElementById("dr-node-pfx-" + idx).value.trim() : ""
+        }
+    };
+
+    var radios = document.getElementsByName("dr-dectype-" + idx);
+    var dType = orig.type || "ctv";
+    for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) { dType = radios[i].value; break; }
+    }
+    s.type = dType;
+
+    if (s.type === "ctv") {
+        var offEl = document.getElementById("dr-ctv-offset-" + idx);
+        s.dataOffset = offEl ? (parseInt(offEl.value, 10) || 4) : 4;
+    } else if (s.type === "js") {
+        var jsEl = document.getElementById("dr-js-code-" + idx);
+        s.jsCode = jsEl ? jsEl.value : (orig.jsCode || "");
+    }
+    return s;
+}
+
+function runDrawerDirectTest(idx) {
+    var outCont = document.getElementById("dr-test-out-" + idx);
+    var badgeEl = document.getElementById("dr-test-status-badge-" + idx);
+    if (!outCont) return;
+
+    var tempScheme = readTempSchemeFromDrawer(idx);
+    var hexInp = document.getElementById("dr-test-hex-" + idx);
+    var hex = hexInp ? (hexInp.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : "";
+
+    if (!hex) {
+        if (badgeEl) { badgeEl.className = "studio-badge badge-slate"; badgeEl.innerText = "<%:Awaiting Payload%>"; }
+        outCont.innerHTML = '<div style="padding: 12px; color: #94a3b8; font-size: 12px; text-align: center; border: 1px dashed #cbd5e1; border-radius: 4px; margin-top: 8px;"><%:Enter a HEX payload or choose a preset above to test this scheme in real time.%></div>';
+        return;
+    }
+
+    var bytes = LoraDecoder.hexToBytes(hex);
+    var packetInfo = { hex: hex, size: bytes.length, freq: 868.1, rssi: -55, snr: 10 };
+
+    // 1. Evaluate Rule Match
+    var isMatched = LoraDecoder.matchScheme(tempScheme, bytes, hex, packetInfo);
+
+    // 2. Execute Decoder
+    var execRes;
+    try {
+        execRes = LoraDecoder.executeScheme(tempScheme, bytes, hex, packetInfo);
+    } catch(e) {
+        execRes = { success: false, data: null, error: e.message || String(e) };
+    }
+
+    // 3. Extract Node ID
+    var nodeRes;
+    try {
+        nodeRes = LoraDecoder.extractNodeId(bytes, hex, tempScheme, execRes ? execRes.data : null, g_globalNodeId);
+    } catch(e) {
+        nodeRes = { id: "ERROR", method: e.message };
+    }
+    var nodeId = (nodeRes && nodeRes.id) ? nodeRes.id : "UNKNOWN";
+
+    // 4. Update Header Badge
+    if (badgeEl) {
+        if (execRes && execRes.error) {
+            badgeEl.className = "studio-badge badge-red";
+            badgeEl.innerText = "<%:Error%>";
+        } else if (isMatched) {
+            badgeEl.className = "studio-badge badge-green";
+            badgeEl.innerText = "<%:Matched & Valid%>";
+        } else {
+            badgeEl.className = "studio-badge badge-amber";
+            badgeEl.innerText = "<%:No Rule Match%>";
+        }
+    }
+
+    var outHtml = '';
+
+    // Match Status Notification Bar
+    if (isMatched) {
+        outHtml += '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 10px 12px; margin-top: 10px;">' +
+                   '<div style="display: flex; align-items: center; gap: 8px;">' +
+                       '<span style="font-size: 16px;">✅</span>' +
+                       '<div>' +
+                           '<strong style="color: #065f46; font-size: 13px;"><%:Scheme Matched Successfully%></strong>' +
+                           '<div style="font-size: 11px; color: #047857;">Rule: ' + escapeHtml(tempScheme.matchType) + (tempScheme.matchValue ? (' = <code>' + escapeHtml(tempScheme.matchValue) + '</code>') : '') + ' | Payload Size: ' + bytes.length + ' Bytes</div>' +
+                       '</div>' +
+                   '</div>' +
+                   '<div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">' +
+                       '<span class="studio-badge badge-blue">Node ID: <strong>' + escapeHtml(nodeId) + '</strong></span>' +
+                       '<span class="studio-badge badge-slate">Topic: lora/' + escapeHtml(nodeId) + '/state</span>' +
+                   '</div>' +
+               '</div>';
+    } else {
+        outHtml += '<div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px 12px; margin-top: 10px; font-size: 12px; color: #92400e;">' +
+                   '<strong><%:⚠️ Notice:%></strong> <%:Payload did not match this scheme filter rule%> (Strategy: <code>' + escapeHtml(tempScheme.matchType) + '</code>, Value: <code>' + escapeHtml(tempScheme.matchValue || "none") + '</code>). ' +
+                   '<%:Direct decoder execution was evaluated below in test override mode:%>' +
+               '</div>';
+    }
+
+    // Diagnostic Error Callout
+    if (execRes && execRes.error) {
+        outHtml += '<div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 6px; padding: 12px; margin-top: 10px; color: #991b1b; font-size: 12px;">' +
+                       '<strong><%:❌ Decoder Execution Error:%></strong>' +
+                       '<div style="margin-top: 4px; font-family: monospace; white-space: pre-wrap; font-size: 11px; background: #ffffff; padding: 6px; border: 1px solid #fecaca; border-radius: 4px;">' + escapeHtml(execRes.error) + '</div>' +
+                   '</div>';
+        outCont.innerHTML = outHtml;
+        return;
+    }
+
+    var data = (execRes && execRes.data) ? execRes.data : {};
+
+    // Visual Byte Strip
+    var segResult = { schemeId: tempScheme.id, scheme: tempScheme, data: data };
+    var segs = LoraDecoder.segmentBytes ? LoraDecoder.segmentBytes(bytes, hex, segResult) : [];
+    if (segs && segs.length > 0) {
+        outHtml += '<div style="margin-top: 10px;">' +
+                       '<div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;"><%:Visual Byte Segmentation:%></div>' +
+                       '<div class="byte-strip" style="background: #ffffff; margin: 4px 0 10px 0;">';
+        for (var i = 0; i < segs.length; i++) {
+            var s = segs[i];
+            var segHex = "";
+            for (var j = s.start; j <= s.end && j < bytes.length; j++) {
+                segHex += (bytes[j] < 16 ? "0" : "") + bytes[j].toString(16).toUpperCase() + " ";
+            }
+            var idxRange = (s.start === s.end) ? ("[" + s.start + "]") : ("[" + s.start + ".." + s.end + "]");
+            outHtml += '<div class="byte-segment" style="background: ' + s.color + '; color: ' + s.textColor + ';" title="' + escapeHtml(s.desc) + '">' +
+                           '<span class="byte-segment-idx">' + idxRange + '</span>' +
+                           '<span class="byte-segment-hex">' + segHex.trim() + '</span>' +
+                           '<span class="byte-segment-label">' + escapeHtml(s.name) + '</span>' +
+                       '</div>';
+        }
+        outHtml += '</div></div>';
+    }
+
+    // Telemetry Metrics Grid
+    outHtml += '<div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; margin-bottom: 4px;"><%:Extracted Telemetry Metrics:%></div>';
+    outHtml += '<div class="metrics-grid" style="margin: 4px 0 10px 0;">';
+
+    var tileCount = 0;
+    if (data.temperature !== undefined) {
+        outHtml += '<div class="metric-tile"><div class="metric-tile-title">🌡️ <%:Temperature%></div><div class="metric-tile-value">' + data.temperature + ' °C</div></div>';
+        tileCount++;
+    }
+    if (data.battery !== undefined) {
+        var battStr = data.battery + " V" + (data.battery_mv ? (" (" + data.battery_mv + " mV)") : "");
+        outHtml += '<div class="metric-tile"><div class="metric-tile-title">🔋 <%:Battery%></div><div class="metric-tile-value">' + battStr + '</div></div>';
+        tileCount++;
+    }
+    if (data.state !== undefined) {
+        outHtml += '<div class="metric-tile"><div class="metric-tile-title">🔌 <%:Actuator State%></div><div class="metric-tile-value">' + escapeHtml(data.state) + '</div></div>';
+        tileCount++;
+    }
+    if (data.seq !== undefined) {
+        outHtml += '<div class="metric-tile"><div class="metric-tile-title">🔢 <%:Sequence Counter%></div><div class="metric-tile-value">#' + data.seq + '</div></div>';
+        tileCount++;
+    }
+    if (data.humidity !== undefined) {
+        outHtml += '<div class="metric-tile"><div class="metric-tile-title">💧 <%:Humidity%></div><div class="metric-tile-value">' + data.humidity + ' %</div></div>';
+        tileCount++;
+    }
+    if (data.pressure !== undefined) {
+        outHtml += '<div class="metric-tile"><div class="metric-tile-title">⏱️ <%:Pressure%></div><div class="metric-tile-value">' + data.pressure + ' hPa</div></div>';
+        tileCount++;
+    }
+
+    for (var k in data) {
+        if (!data.hasOwnProperty(k)) continue;
+        if (['temperature','battery','battery_mv','state','seq','humidity','pressure','device_type','node_id','node_class','capability','raw_hex'].indexOf(k) !== -1) continue;
+        var val = data[k];
+        outHtml += '<div class="metric-tile"><div class="metric-tile-title">' + escapeHtml(k) + '</div><div class="metric-tile-value">' + escapeHtml(typeof val === 'object' ? JSON.stringify(val) : val) + '</div></div>';
+        tileCount++;
+    }
+
+    if (tileCount === 0) {
+        outHtml += '<div class="metric-tile" style="grid-column: 1 / -1; color: #64748b; font-size: 12px;"><%:No discrete telemetry fields extracted (raw payload:%> ' + escapeHtml(data.raw_hex || hex) + ')</div>';
+    }
+    outHtml += '</div>';
+
+    // Raw JSON details block with Copy button
+    var jsonStr = JSON.stringify(data, null, 2);
+    var preId = "dr-raw-json-" + idx;
+    outHtml += '<details open style="margin-top: 10px;">' +
+                   '<summary style="font-size: 11px; font-weight: 700; color: #475569; cursor: pointer;"><%:📄 Decoded Output JSON%></summary>' +
+                   '<div style="position: relative; margin-top: 6px;">' +
+                       '<button type="button" class="cbi-button" style="position: absolute; top: 8px; right: 8px; z-index: 5; padding: 2px 7px; font-size: 10px;" onclick="copyText(document.getElementById(\'' + preId + '\').innerText, \'JSON copied!\')"><%:Copy JSON%></button>' +
+                       '<pre id="' + preId + '" class="code-editor" style="max-height: 180px; overflow-y: auto; margin: 0; font-size: 11px;">' + escapeHtml(jsonStr) + '</pre>' +
+                   '</div>' +
+               '</details>';
+
+    outCont.innerHTML = outHtml;
+}
+
 //]]></script>
 
 <%+footer%>
