@@ -325,8 +325,11 @@
                 <pre id="pm-json" style="background: #2d3748; color: #edf2f7; padding: 8px; border-radius: 4px; font-size: 11px; margin-top: 6px; max-height: 120px; overflow-y: auto;"></pre>
             </details>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px;">
-                <a id="pm-decoder-link" href="#" class="cbi-button cbi-button-action" style="text-decoration: none;"><%:Open in Decoder Studio ➔%></a>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px; gap: 8px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a id="pm-decoder-link" href="#" class="cbi-button" style="text-decoration: none;"><%:Open in Decoder Studio ➔%></a>
+                    <a id="pm-create-scheme-link" href="#" class="cbi-button cbi-button-action" style="text-decoration: none;"><%:✨ Create Scheme for this Packet ➔%></a>
+                </div>
                 <button type="button" class="cbi-button" onclick="closePacketModal()"><%:Close%></button>
             </div>
         </div>
@@ -684,6 +687,10 @@ function openPacketModal(idx) {
     }
 
     document.getElementById("pm-decoder-link").href = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>?hex=' + encodeURIComponent(p.hex || '');
+    var createLink = document.getElementById("pm-create-scheme-link");
+    if (createLink) {
+        createLink.href = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>?create=1&hex=' + encodeURIComponent(p.hex || '');
+    }
     document.getElementById("pkt-modal").style.display = "flex";
 }
 

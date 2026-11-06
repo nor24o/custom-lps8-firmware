@@ -215,7 +215,8 @@
                 <%:Real-time payload inspection, interactive multi-scheme decoders, and Node ID routing to Home Assistant and SQLite.%>
             </div>
         </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <span style="font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;">⚡ <%:Auto-save Active%></span>
             <button type="button" class="cbi-button cbi-button-action" onclick="openNewSchemeDrawer()"><%:＋ Add New Scheme%></button>
             <button type="button" class="cbi-button cbi-button-apply" onclick="saveAllSchemes()"><%:💾 Save to Gateway%></button>
             <button type="button" class="cbi-button" onclick="exportSchemes()"><%:📤 Export JSON%></button>
@@ -236,12 +237,13 @@
         <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px;">
             <div style="flex: 2; min-width: 320px;">
                 <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;"><%:Payload (HEX String):%></label>
-                <div style="display: flex; gap: 6px;">
-                    <input type="text" id="test-hex" value="12341100011109c402050ce4" 
-                           style="flex: 1; padding: 8px 10px; font-family: monospace; font-size: 14px; border: 1px solid #cbd5e1; border-radius: 4px;" 
-                           placeholder="Enter raw HEX bytes (e.g. 12341100011109c4...)" 
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <input type="text" id="test-hex" value="" 
+                           style="flex: 1; min-width: 240px; padding: 8px 10px; font-family: monospace; font-size: 14px; border: 1px solid #cbd5e1; border-radius: 4px;" 
+                           placeholder="Enter raw HEX bytes or pick from history (e.g. AA0C6418...)" 
                            oninput="runLiveDecode()" />
                     <button type="button" class="cbi-button" onclick="document.getElementById('test-hex').value=''; runLiveDecode();" title="Clear">✕</button>
+                    <button type="button" class="cbi-button cbi-button-action" onclick="createSchemeFromCurrentHex()" title="Create and auto-save a new scheme tailored to this exact HEX payload"><%:✨ Create Scheme for this Payload%></button>
                 </div>
             </div>
             <div style="flex: 1; min-width: 220px;">
@@ -424,6 +426,14 @@ function loadSchemes() {
         }
         renderSchemesList();
         runLiveDecode();
+
+        // Check if deep link requested instant scheme creation from packet
+        var urlParams = new URLSearchParams(window.location.search);
+        var hexParam = urlParams.get('hex');
+        var createParam = urlParams.get('create');
+        if (createParam === '1' && hexParam) {
+            createSchemeFromHex(hexParam.trim());
+        }
     });
 }
 
@@ -730,20 +740,7 @@ function testSchemeInDrawer(idx) {
 }
 
 function openNewSchemeDrawer() {
-    var newScheme = {
-        id: "scheme_" + Date.now(),
-        name: "New LoRa Node Scheme",
-        description: "Custom decoder scheme",
-        enabled: true,
-        matchType: "prefix",
-        matchValue: "1234",
-        nodeId: { source: "node_2b", format: "hex" },
-        type: "ctv",
-        dataOffset: 4
-    };
-    g_schemes.unshift(newScheme);
-    renderSchemesList();
-    toggleSchemeDrawer(0);
+    createSchemeFromCurrentHex();
 }
 
 function buildSchemeDrawerHtml(idx, container) {
@@ -754,14 +751,17 @@ function buildSchemeDrawerHtml(idx, container) {
 
     container.innerHTML = 
         '<div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px;">' +
-            '<div style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">' +
+            '<div style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; align-items: flex-end;">' +
                 '<div style="flex: 2; min-width: 220px;">' +
                     '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Scheme Name%></label>' +
-                    '<input type="text" id="dr-name-' + idx + '" value="' + escapeHtml(s.name || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="runDrawerDirectTest(' + idx + ')" />' +
+                    '<input type="text" id="dr-name-' + idx + '" value="' + escapeHtml(s.name || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
                 '</div>' +
                 '<div style="flex: 3; min-width: 280px;">' +
                     '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Description / Notes%></label>' +
-                    '<input type="text" id="dr-desc-' + idx + '" value="' + escapeHtml(s.description || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="runDrawerDirectTest(' + idx + ')" />' +
+                    '<input type="text" id="dr-desc-' + idx + '" value="' + escapeHtml(s.description || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                '</div>' +
+                '<div id="dr-autosave-top-' + idx + '" style="padding-bottom: 6px;">' +
+                    '<span style="font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 7px;">✓ <%:Auto-saved%></span>' +
                 '</div>' +
             '</div>' +
 
@@ -776,7 +776,7 @@ function buildSchemeDrawerHtml(idx, container) {
                 '<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">' +
                     '<div style="flex: 1; min-width: 180px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Match Strategy%></label>' +
-                        '<select id="dr-match-type-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerMatchFields(' + idx + '); runDrawerDirectTest(' + idx + ');">' +
+                        '<select id="dr-match-type-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerMatchFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
                             '<option value="prefix" ' + (s.matchType === "prefix" ? "selected" : "") + '><%:Hex Prefix / Header (e.g. 1234 or aa)%></option>' +
                             '<option value="size" ' + (s.matchType === "size" ? "selected" : "") + '><%:Exact Payload Size in Bytes%></option>' +
                             '<option value="condition" ' + (s.matchType === "condition" ? "selected" : "") + '><%:Custom Condition Function%></option>' +
@@ -786,12 +786,12 @@ function buildSchemeDrawerHtml(idx, container) {
                     '</div>' +
                     '<div style="flex: 2; min-width: 220px;" id="box-dr-matchval-' + idx + '">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Match Value (Hex Prefix or Size)%></label>' +
-                        '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: monospace;" oninput="runDrawerDirectTest(' + idx + ')" />' +
+                        '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: monospace;" oninput="onDrawerFieldChange(' + idx + ')" />' +
                     '</div>' +
                 '</div>' +
                 '<div id="box-dr-matchcond-' + idx + '" style="display: ' + (s.matchType === "condition" ? "block" : "none") + '; margin-top: 10px;">' +
                     '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Condition Function (returns true / false):%></label>' +
-                    '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 60px;" placeholder="// return bytes.length >= 4;" oninput="runDrawerDirectTest(' + idx + ')">' + escapeHtml(s.matchCondition || "") + '</textarea>' +
+                    '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 60px;" placeholder="// return bytes.length >= 4;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.matchCondition || "") + '</textarea>' +
                 '</div>' +
             '</div>' +
 
@@ -800,7 +800,7 @@ function buildSchemeDrawerHtml(idx, container) {
                 '<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">' +
                     '<div style="flex: 2; min-width: 240px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Node ID Source%></label>' +
-                        '<select id="dr-node-src-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="runDrawerDirectTest(' + idx + ')">' +
+                        '<select id="dr-node-src-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="onDrawerFieldChange(' + idx + ')">' +
                             '<option value="node_2b" ' + (nRule.source === "node_2b" || !nRule.source || nRule.source === "auto" ? "selected" : "") + '><%:✨ 2-Byte Node ID (Offset 0..1 in Hex -> 1234, AA0C)%></option>' +
                             '<option value="offset" ' + (nRule.source === "offset" ? "selected" : "") + '><%:Custom Byte Offset & Length%></option>' +
                             '<option value="field" ' + (nRule.source === "field" ? "selected" : "") + '><%:From Decoded Property Name%></option>' +
@@ -809,14 +809,14 @@ function buildSchemeDrawerHtml(idx, container) {
                     '</div>' +
                     '<div style="flex: 1; min-width: 140px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Output Format%></label>' +
-                        '<select id="dr-node-fmt-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="runDrawerDirectTest(' + idx + ')">' +
+                        '<select id="dr-node-fmt-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="onDrawerFieldChange(' + idx + ')">' +
                             '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '><%:Hex (e.g. 1234, AA0C)%></option>' +
                             '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '><%:Decimal Number%></option>' +
                         '</select>' +
                     '</div>' +
                     '<div style="flex: 1; min-width: 120px;">' +
                         '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Optional Prefix%></label>' +
-                        '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" placeholder="e.g. NODE_" oninput="runDrawerDirectTest(' + idx + ')" />' +
+                        '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" placeholder="e.g. NODE_" oninput="onDrawerFieldChange(' + idx + ')" />' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -824,17 +824,17 @@ function buildSchemeDrawerHtml(idx, container) {
             '<!-- TAB 3: PAYLOAD DECODER ENGINE -->' +
             '<div id="tab-content-dec-' + idx + '" style="display: none;">' +
                 '<div style="margin-bottom: 12px; display: flex; gap: 14px; flex-wrap: wrap;">' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ctv" ' + (decType === "ctv" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:TLV / Channel-Type-Value%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="js" ' + (decType === "js" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:JavaScript Function%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="fields" ' + (decType === "fields" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:Field Slicer%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:Cayenne LPP%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ascii" ' + (decType === "ascii" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); runDrawerDirectTest(' + idx + ');" /> <strong><%:Plain ASCII%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ctv" ' + (decType === "ctv" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:TLV / Channel-Type-Value%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="js" ' + (decType === "js" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:JavaScript Function%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="fields" ' + (decType === "fields" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:Field Slicer%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:Cayenne LPP%></strong></label>' +
+                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ascii" ' + (decType === "ascii" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:Plain ASCII%></strong></label>' +
                 '</div>' +
 
                 '<!-- CTV Offset -->' +
                 '<div id="box-dr-dec-ctv-' + idx + '" style="display: ' + (decType === "ctv" ? "block" : "none") + '; padding: 10px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; font-size: 12px;">' +
                     '<strong><%:Dynamic TLV Parser Active:%></strong> Channel records start at Byte Index: ' +
-                    '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 60px; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="runDrawerDirectTest(' + idx + ')" />' +
+                    '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 60px; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
                 '</div>' +
 
                 '<!-- JS Code Editor -->' +
@@ -848,7 +848,7 @@ function buildSchemeDrawerHtml(idx, container) {
                             '<button type="button" class="cbi-button" style="padding: 1px 6px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'uint16\')">uint16_be</button>' +
                         '</div>' +
                     '</div>' +
-                    '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 160px;" oninput="runDrawerDirectTest(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
+                    '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 160px;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
                 '</div>' +
             '</div>' +
 
@@ -859,7 +859,10 @@ function buildSchemeDrawerHtml(idx, container) {
                         '<strong style="font-size: 13px; color: #0f172a;"><%:🧪 Direct Scheme Test & Verification Console%></strong>' +
                         '<span id="dr-test-status-badge-' + idx + '" class="studio-badge badge-slate"><%:Ready%></span>' +
                     '</div>' +
-                    '<button type="button" class="cbi-button cbi-button-action" onclick="runDrawerDirectTest(' + idx + ')" style="padding: 4px 12px; font-weight: 700; font-size: 12px;"><%:▶ Run Test Now%></button>' +
+                    '<div style="display: flex; gap: 6px;">' +
+                        '<button type="button" class="cbi-button" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to this scheme and auto-save"><%:📌 Bind Payload%></button>' +
+                        '<button type="button" class="cbi-button cbi-button-action" onclick="runDrawerDirectTest(' + idx + ')" style="padding: 4px 12px; font-weight: 700; font-size: 12px;"><%:▶ Run Test Now%></button>' +
+                    '</div>' +
                 '</div>' +
                 '<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px;">' +
                     '<div style="flex: 2; min-width: 280px;">' +
@@ -867,8 +870,8 @@ function buildSchemeDrawerHtml(idx, container) {
                         '<div style="display: flex; gap: 6px;">' +
                             '<input type="text" id="dr-test-hex-' + idx + '" value="' + escapeHtml(sampleHex) + '" ' +
                                    'style="flex: 1; padding: 7px 10px; font-family: monospace; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff;" ' +
-                                   'placeholder="<%:Enter raw HEX bytes (e.g. 12341100011109c4...)%>" ' +
-                                   'oninput="runDrawerDirectTest(' + idx + ')" />' +
+                                   'placeholder="<%:Enter raw HEX bytes (e.g. AA0C6418...)%>" ' +
+                                   'oninput="onDrawerTestHexChange(' + idx + ')" />' +
                             '<button type="button" class="cbi-button" onclick="document.getElementById(\'dr-test-hex-' + idx + '\').value=\'\'; runDrawerDirectTest(' + idx + ');" title="Clear">✕</button>' +
                         '</div>' +
                     '</div>' +
@@ -890,10 +893,15 @@ function buildSchemeDrawerHtml(idx, container) {
                 '<div id="dr-test-out-' + idx + '"></div>' +
             '</div>' +
 
-            '<!-- DRAWER ACTIONS -->' +
-            '<div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px;">' +
-                '<button type="button" class="cbi-button" onclick="toggleSchemeDrawer(' + idx + ')"><%:Cancel%></button>' +
-                '<button type="button" class="cbi-button cbi-button-apply" onclick="saveDrawerScheme(' + idx + ')"><%:💾 Save & Apply to Gateway%></button>' +
+            '<!-- DRAWER ACTIONS (AUTO-SAVED) -->' +
+            '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px; flex-wrap: wrap; gap: 8px;">' +
+                '<div id="dr-autosave-bottom-' + idx + '" style="font-size: 12px; color: #059669; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">' +
+                    '<span style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 8px;">✓ <%:All changes auto-saved to gateway%></span>' +
+                '</div>' +
+                '<div style="display: flex; gap: 8px;">' +
+                    '<button type="button" class="cbi-button" onclick="toggleSchemeDrawer(' + idx + ')"><%:Close%></button>' +
+                    '<button type="button" class="cbi-button cbi-button-apply" onclick="performAutoSave(' + idx + ')"><%:💾 Save Now%></button>' +
+                '</div>' +
             '</div>' +
         '</div>';
 }
@@ -1044,17 +1052,44 @@ function escapeHtml(str) {
 }
 
 function getDefaultSampleHex(s) {
-    if (!s) return '12341100011109c402050ce4';
-    if (s.id === 'scheme_2b_node_tlv') return '12341100011109c402050ce4';
-    if (s.matchType === 'prefix' && s.matchValue) {
+    if (!s) return '';
+    // 1. If scheme has a permanently bound sampleHex from creation or test, use it!
+    if (s.sampleHex && s.sampleHex.length > 0) return s.sampleHex;
+
+    // 2. If scheme matches a prefix, find real packet from history that matches
+    if (s.matchType === 'prefix' && s.matchValue && window.g_recentPackets) {
         var pfx = String(s.matchValue).trim().toLowerCase();
-        if (pfx === 'aa' || pfx === 'aa0c') return 'aa0c6418011108d002050fea';
-        if (pfx === '5678') return '56783201010101';
-        return pfx + '1100011109c402050ce4';
+        for (var i = 0; i < window.g_recentPackets.length; i++) {
+            var rHex = (window.g_recentPackets[i].hex || "").toLowerCase();
+            if (rHex.indexOf(pfx) === 0) {
+                s.sampleHex = rHex;
+                return rHex;
+            }
+        }
     }
+
+    // 3. If workbench currently has a valid hex matching this scheme, use it
+    var wbEl = document.getElementById("test-hex");
+    var wbHex = wbEl ? (wbEl.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : "";
+    if (wbHex) {
+        var bytes = LoraDecoder.hexToBytes(wbHex);
+        if (LoraDecoder.matchScheme(s, bytes, wbHex, { hex: wbHex, size: bytes.length })) {
+            s.sampleHex = wbHex;
+            return wbHex;
+        }
+    }
+
+    // 4. If recent packets exist on gateway, use the latest real packet
+    if (window.g_recentPackets && window.g_recentPackets.length > 0 && window.g_recentPackets[0].hex) {
+        return window.g_recentPackets[0].hex;
+    }
+
+    // 5. Standard defaults only if no real packets exist
     if (s.type === 'ascii') return '50494e475f4c505338';
     if (s.type === 'cayenne_lpp') return '0167011002684803020064';
-    return '12341100011109c402050ce4';
+    if (s.matchType === 'prefix' && s.matchValue) return s.matchValue;
+
+    return '';
 }
 
 function populateDrawerRecentPackets(idx) {
@@ -1077,7 +1112,11 @@ function loadDrawerRecentPacket(idx, hexVal) {
     var inp = document.getElementById("dr-test-hex-" + idx);
     if (inp) {
         inp.value = hexVal;
+        if (g_schemes[idx]) {
+            g_schemes[idx].sampleHex = hexVal.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+        }
         runDrawerDirectTest(idx);
+        scheduleAutoSave(idx);
     }
 }
 
@@ -1085,7 +1124,11 @@ function setDrawerTestHex(idx, hexVal) {
     var inp = document.getElementById("dr-test-hex-" + idx);
     if (inp) {
         inp.value = hexVal;
+        if (g_schemes[idx]) {
+            g_schemes[idx].sampleHex = hexVal.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+        }
         runDrawerDirectTest(idx);
+        scheduleAutoSave(idx);
     }
 }
 
@@ -1290,6 +1333,226 @@ function runDrawerDirectTest(idx) {
                '</details>';
 
     outCont.innerHTML = outHtml;
+}
+
+
+// -----------------------------------------------------------------------------
+// INTELLIGENT DECODER CREATION & CONTINUOUS AUTO-SAVE ENGINE
+// -----------------------------------------------------------------------------
+
+var g_autoSaveTimers = {};
+
+function onDrawerFieldChange(idx) {
+    runDrawerDirectTest(idx);
+    scheduleAutoSave(idx);
+}
+
+function onDrawerTestHexChange(idx) {
+    var hexEl = document.getElementById("dr-test-hex-" + idx);
+    if (hexEl && hexEl.value && g_schemes[idx]) {
+        g_schemes[idx].sampleHex = hexEl.value.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+    }
+    runDrawerDirectTest(idx);
+    scheduleAutoSave(idx);
+}
+
+function bindCurrentTestPayload(idx) {
+    var hexEl = document.getElementById("dr-test-hex-" + idx);
+    var hex = hexEl ? (hexEl.value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '') : "";
+    if (!hex) {
+        showToast("Enter a HEX payload before binding", "error");
+        return;
+    }
+    if (g_schemes[idx]) {
+        g_schemes[idx].sampleHex = hex;
+        performAutoSave(idx);
+        showToast("Payload permanently bound to scheme & auto-saved!", "success");
+    }
+}
+
+function scheduleAutoSave(idx) {
+    syncDrawerToScheme(idx);
+    setDrawerAutoSaveIndicator(idx, "saving");
+
+    if (g_autoSaveTimers[idx]) {
+        clearTimeout(g_autoSaveTimers[idx]);
+    }
+    g_autoSaveTimers[idx] = setTimeout(function() {
+        performAutoSave(idx);
+    }, 450);
+}
+
+function performAutoSave(idx) {
+    syncDrawerToScheme(idx);
+    LoraDecoder.saveSchemes(g_apiEndpoint, g_schemes, g_globalNodeId, function(err, resp) {
+        if (err) {
+            setDrawerAutoSaveIndicator(idx, "error", err.message);
+        } else {
+            setDrawerAutoSaveIndicator(idx, "saved");
+            updateSchemeCardSummary(idx);
+            runLiveDecode();
+        }
+    });
+}
+
+function setDrawerAutoSaveIndicator(idx, state, errDetail) {
+    var topEl = document.getElementById("dr-autosave-top-" + idx);
+    var botEl = document.getElementById("dr-autosave-bottom-" + idx);
+    var html = "";
+
+    if (state === "saving") {
+        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 2px 7px;">⏳ <%:Auto-saving to gateway...%></span>';
+    } else if (state === "saved") {
+        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 2px 7px;">✓ <%:Auto-saved to gateway%></span>';
+    } else if (state === "error") {
+        html = '<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 2px 7px;">⚠️ <%:Save Error:%> ' + escapeHtml(errDetail || "Failed") + '</span>';
+    }
+
+    if (topEl) topEl.innerHTML = html;
+    if (botEl) botEl.innerHTML = html;
+}
+
+function syncDrawerToScheme(idx) {
+    var s = g_schemes[idx];
+    if (!s) return;
+
+    var nameEl = document.getElementById("dr-name-" + idx);
+    if (nameEl) s.name = nameEl.value.trim() || s.name;
+
+    var descEl = document.getElementById("dr-desc-" + idx);
+    if (descEl) s.description = descEl.value.trim();
+
+    var mtEl = document.getElementById("dr-match-type-" + idx);
+    if (mtEl) s.matchType = mtEl.value;
+
+    var mvEl = document.getElementById("dr-match-val-" + idx);
+    if (mvEl) s.matchValue = mvEl.value.trim();
+
+    var mcEl = document.getElementById("dr-match-cond-" + idx);
+    if (mcEl) s.matchCondition = mcEl.value.trim();
+
+    var nSrcEl = document.getElementById("dr-node-src-" + idx);
+    var nFmtEl = document.getElementById("dr-node-fmt-" + idx);
+    var nPfxEl = document.getElementById("dr-node-pfx-" + idx);
+    s.nodeId = {
+        source: nSrcEl ? nSrcEl.value : "node_2b",
+        format: nFmtEl ? nFmtEl.value : "hex",
+        prefix: nPfxEl ? nPfxEl.value.trim() : ""
+    };
+
+    var radios = document.getElementsByName("dr-dectype-" + idx);
+    for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) { s.type = radios[i].value; break; }
+    }
+
+    if (s.type === "ctv") {
+        var offEl = document.getElementById("dr-ctv-offset-" + idx);
+        s.dataOffset = offEl ? (parseInt(offEl.value, 10) || 4) : 4;
+    } else if (s.type === "js") {
+        var jsEl = document.getElementById("dr-js-code-" + idx);
+        if (jsEl) s.jsCode = jsEl.value;
+    }
+
+    var testHexEl = document.getElementById("dr-test-hex-" + idx);
+    if (testHexEl && testHexEl.value) {
+        s.sampleHex = testHexEl.value.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+    }
+}
+
+function updateSchemeCardSummary(idx) {
+    var s = g_schemes[idx];
+    var card = document.getElementById("scheme-card-" + idx);
+    if (!s || !card) return;
+
+    var titleEl = card.querySelector("strong");
+    if (titleEl) titleEl.innerText = s.name || "Untitled Scheme";
+}
+
+function createSchemeFromHex(rawHex) {
+    var hex = (rawHex || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+    if (!hex) {
+        showToast("No valid HEX provided to create scheme", "error");
+        return;
+    }
+
+    var bytes = LoraDecoder.hexToBytes(hex);
+    var pfx = (hex.length >= 4) ? hex.substring(0, 4) : hex;
+    var nodeName = pfx.toUpperCase();
+
+    // Check if a scheme already matches this prefix
+    var existingIdx = -1;
+    for (var i = 0; i < g_schemes.length; i++) {
+        if (g_schemes[i].matchType === "prefix" && String(g_schemes[i].matchValue).toLowerCase() === pfx) {
+            existingIdx = i;
+            break;
+        }
+    }
+
+    if (existingIdx >= 0) {
+        g_schemes[existingIdx].sampleHex = hex;
+        renderSchemesList();
+        toggleSchemeDrawer(existingIdx);
+        setDrawerTestHex(existingIdx, hex);
+        performAutoSave(existingIdx);
+        showToast("Loaded existing scheme for prefix " + nodeName + " with real payload", "info");
+        return;
+    }
+
+    // Class & Capability inspection from byte 2
+    var devTitle = "Node " + nodeName + " Custom Scheme";
+    if (bytes.length >= 3) {
+        var devType = bytes[2];
+        var classCode = Math.floor(devType / 16);
+        var capCode = devType % 16;
+        var className = (classCode === 1) ? "Class A" : ((classCode === 2) ? "Class B" : ((classCode === 3) ? "Class C" : ""));
+        var capMap = {1: "Sensor", 2: "Actuator", 3: "Combo", 4: "Meter", 5: "Security", 6: "Dimmer"};
+        var capName = capMap[capCode] || "";
+        if (className || capName) {
+            devTitle = "Node " + nodeName + " (" + (className + " " + capName).trim() + ")";
+        }
+    }
+
+    var newScheme = {
+        id: "scheme_" + Date.now(),
+        name: devTitle,
+        description: "Created directly from packet payload " + hex.substring(0, 16) + (hex.length > 16 ? "..." : "") + " (" + bytes.length + "B)",
+        enabled: true,
+        matchType: "prefix",
+        matchValue: pfx,
+        nodeId: { source: "node_2b", format: "hex", prefix: "" },
+        type: "ctv",
+        dataOffset: 4,
+        sampleHex: hex
+    };
+
+    g_schemes.unshift(newScheme);
+    renderSchemesList();
+    toggleSchemeDrawer(0);
+    setDrawerTestHex(0, hex);
+
+    // Auto-save immediately to gateway!
+    saveAllSchemes(function() {
+        showToast("Created & auto-saved scheme for Node " + nodeName + "!", "success");
+    });
+}
+
+function createSchemeFromCurrentHex() {
+    var hex = (document.getElementById("test-hex").value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+    if (!hex && window.g_recentPackets && window.g_recentPackets.length > 0 && window.g_recentPackets[0].hex) {
+        hex = window.g_recentPackets[0].hex.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+    }
+
+    if (!hex) {
+        hex = prompt("Enter the raw HEX payload for the new scheme (e.g. AA0C6418...):", "");
+        if (hex) hex = hex.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+    }
+
+    if (!hex) {
+        showToast("Please enter or select a HEX payload to create a scheme", "info");
+        return;
+    }
+
+    createSchemeFromHex(hex);
 }
 
 //]]></script>
