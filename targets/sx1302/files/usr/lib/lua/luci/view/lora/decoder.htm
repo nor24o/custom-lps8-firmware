@@ -1472,7 +1472,7 @@ function renderActiveCandidateBanner() {
                 '</div>' +
             '</div>' +
             '<div style="display: flex; gap: 6px; align-items: center;">' +
-                '<button type="button" class="cbi-button cbi-button-action" onclick="createSchemeFromHex('' + hex + '')" title="Create scheme for this candidate"><%:✨ Create Scheme for Candidate%></button>' +
+                '<button type="button" class="cbi-button cbi-button-action" onclick="createSchemeFromHex(window.g_activeCandidate)" title="Create scheme for this candidate"><%:✨ Create Scheme for Candidate%></button>' +
                 '<button type="button" class="cbi-button" onclick="clearActiveCandidate()" title="Dismiss candidate">✕ <%:Dismiss%></button>' +
             '</div>' +
         '</div>';
