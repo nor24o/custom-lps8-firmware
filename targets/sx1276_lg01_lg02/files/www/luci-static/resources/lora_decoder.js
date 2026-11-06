@@ -1062,6 +1062,72 @@
     };
 
     // -------------------------------------------------------------------------
+    // Node Decoder Association Checker
+    // -------------------------------------------------------------------------
+
+    LoraDecoder.hasDefinedDecoder = function(packet, dec) {
+        if (!packet) return false;
+        var hex = (typeof packet === "string" ? packet : (packet.hex || packet.payload_hex || '')).trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+        if (!hex || hex.length < 2) return false;
+
+        var schemes = LoraDecoder.activeSchemes || [];
+        if (!schemes || !schemes.length) return false;
+
+        var bytes = (packet && packet.bytes) ? packet.bytes : LoraDecoder.hexToBytes(hex);
+        var packetInfo = (typeof packet === "object" && packet.size) ? packet : { hex: hex, size: bytes.length };
+
+        if (!dec && LoraDecoder.decodePacket) {
+            dec = LoraDecoder.decodePacket(packetInfo, schemes);
+        }
+
+        var nodeId = (dec && dec.nodeId && dec.nodeId !== "UNKNOWN") ? String(dec.nodeId).trim().toUpperCase() : "";
+        if (!nodeId && hex.length >= 4) {
+            nodeId = hex.substring(0, 4).toUpperCase();
+        }
+
+        var hexPfx4 = hex.length >= 4 ? hex.substring(0, 4).toLowerCase() : hex.toLowerCase();
+
+        for (var i = 0; i < schemes.length; i++) {
+            var s = schemes[i];
+            if (!s || s.enabled === false) continue;
+
+            var isBuiltinGeneric = (s.id === "scheme_2b_node_tlv" || s.id === "scheme_cayenne_lpp" || s.id === "scheme_ascii_ping");
+
+            // A. Prefix match (e.g. s.matchValue = "cafe", "1234")
+            if (s.matchType === "prefix" && s.matchValue) {
+                var pfx = String(s.matchValue).trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+                if (pfx && (hex.indexOf(pfx) === 0 || (nodeId && nodeId.toLowerCase().indexOf(pfx) === 0))) {
+                    return true;
+                }
+            }
+
+            // B. Custom scheme that specifically matches this packet / node
+            if (!isBuiltinGeneric) {
+                if (dec && dec.schemeId === s.id && dec.success) {
+                    return true;
+                }
+                if (LoraDecoder.matchScheme(s, bytes, hex, packetInfo)) {
+                    return true;
+                }
+                if (nodeId && (
+                    (s.name && s.name.toUpperCase().indexOf(nodeId) !== -1) ||
+                    (s.id && s.id.toUpperCase().indexOf(nodeId) !== -1)
+                )) {
+                    return true;
+                }
+                if (s.sampleHex) {
+                    var sClean = String(s.sampleHex).trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+                    if (sClean.indexOf(hexPfx4) === 0 || (nodeId && sClean.indexOf(nodeId.toLowerCase()) === 0)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    };
+
+    // -------------------------------------------------------------------------
     // Default Schemes Built-in
     // -------------------------------------------------------------------------
 

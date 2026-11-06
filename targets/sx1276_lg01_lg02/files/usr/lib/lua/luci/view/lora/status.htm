@@ -410,7 +410,7 @@
 
             <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px; gap: 8px; flex-wrap: wrap;">
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                    <button type="button" style="background: #f59e0b; color: #000; font-weight: 800; font-size: 12px; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;" onclick="setPacketAsDecodeCandidate(document.getElementById('pm-hex').value)" title="Set this payload as active decode candidate in Decoder Studio">🎯 <%:Set as Decode Candidate%></button>
+                    <button type="button" id="pm-candidate-btn" style="background: #f59e0b; color: #000; font-weight: 800; font-size: 12px; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;" onclick="setPacketAsDecodeCandidate(document.getElementById('pm-hex').value)" title="Set this payload as active decode candidate in Decoder Studio">🎯 <%:Set as Decode Candidate%></button>
                     <a id="pm-decoder-link" href="#" class="cbi-button" style="text-decoration: none;"><%:Open in Decoder Studio ➔%></a>
                     <a id="pm-create-scheme-link" href="#" class="cbi-button" style="text-decoration: none;"><%:✨ Create Scheme for this Packet ➔%></a>
                 </div>
@@ -781,11 +781,18 @@ function processIncomingPackets(pkts) {
             '</div>';
 
         // Actions Cell
+        var hasDecoder = (window.LoraDecoder && window.LoraDecoder.hasDefinedDecoder) ? 
+            LoraDecoder.hasDefinedDecoder(p, dec) : 
+            (dec && dec.schemeId && dec.schemeId !== 'none' && dec.schemeId !== 'fallback_ascii' && dec.schemeId !== 'scheme_2b_node_tlv' && dec.schemeId !== 'scheme_cayenne_lpp' && dec.schemeId !== 'scheme_ascii_ping');
+
+        var candidateBtnHtml = (!hasDecoder && p.hex) ? 
+            ('<button type="button" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700; font-size: 10px; padding: 3px 7px; border-radius: 3px; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.35);" onclick="event.stopPropagation(); setPacketAsDecodeCandidate(\'' + p.hex + '\')" title="Set as candidate in Decoder Studio">🎯 Candidate</button>') : '';
+
         var actionsHtml = 
             '<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">' +
                 '<div>' + statBadge + '</div>' +
                 '<div style="display: flex; gap: 4px; margin-top: 2px;">' +
-                    (p.hex ? '<button type="button" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700; font-size: 10px; padding: 3px 7px; border-radius: 3px; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.35);" onclick="event.stopPropagation(); setPacketAsDecodeCandidate(\'' + p.hex + '\')" title="Set as candidate in Decoder Studio">🎯 Candidate</button>' : '') +
+                    candidateBtnHtml +
                     (p.hex ? '<button type="button" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 700; font-size: 10px; padding: 2px 6px; border-radius: 3px; cursor: pointer;" onclick="event.stopPropagation(); copyText(\'' + p.hex + '\', \'Payload HEX copied!\')" title="Copy raw HEX">📋 Copy</button>' : '') +
                     '<button type="button" style="background: #f8fafc; color: #0f172a; border: 1px solid #cbd5e1; font-weight: 700; font-size: 10px; padding: 2px 6px; border-radius: 3px; cursor: pointer;" onclick="event.stopPropagation(); openPacketModal(' + pIdx + ')" title="Inspect">🔍</button>' +
                 '</div>' +
@@ -945,9 +952,24 @@ function openPacketModal(idx) {
         document.getElementById("pm-json").innerText = JSON.stringify({ hex: p.hex }, null, 2);
     }
 
-    document.getElementById("pm-decoder-link").href = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>?hex=' + encodeURIComponent(p.hex || '');
+    var hasDecoder = (window.LoraDecoder && window.LoraDecoder.hasDefinedDecoder) ? 
+        LoraDecoder.hasDefinedDecoder(p, dec) : 
+        (dec && dec.schemeId && dec.schemeId !== 'none' && dec.schemeId !== 'fallback_ascii' && dec.schemeId !== 'scheme_2b_node_tlv' && dec.schemeId !== 'scheme_cayenne_lpp' && dec.schemeId !== 'scheme_ascii_ping');
+
+    var candBtn = document.getElementById("pm-candidate-btn");
+    if (candBtn) {
+        candBtn.style.display = hasDecoder ? "none" : "inline-block";
+    }
+
+    var decLink = document.getElementById("pm-decoder-link");
+    if (decLink) {
+        decLink.innerText = hasDecoder ? "<%:✏️ Edit Scheme in Decoder Studio ➔%>" : "<%:Open in Decoder Studio ➔%>";
+        decLink.href = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>?hex=' + encodeURIComponent(p.hex || '');
+    }
+
     var createLink = document.getElementById("pm-create-scheme-link");
     if (createLink) {
+        createLink.style.display = hasDecoder ? "none" : "inline-block";
         createLink.href = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>?create=1&hex=' + encodeURIComponent(p.hex || '');
     }
     document.getElementById("pkt-modal").style.display = "flex";
@@ -1064,6 +1086,22 @@ function serviceAction(action) {
     xhr.send("cmd=" + encodeURIComponent(action));
 }
 
+function updateCandidateButtonsInTable() {
+    var tbody = document.getElementById("tbody-packets");
+    if (!tbody) return;
+    var rows = tbody.getElementsByClassName("packet-row");
+    for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var hex = row.getAttribute("data-hex");
+        if (!hex) continue;
+        var hasDec = (window.LoraDecoder && window.LoraDecoder.hasDefinedDecoder) ? LoraDecoder.hasDefinedDecoder(hex) : false;
+        var candBtn = row.querySelector("button[title*='Candidate'], button[title*='candidate']");
+        if (candBtn) {
+            candBtn.style.display = hasDec ? "none" : "inline-block";
+        }
+    }
+}
+
 function startPolling() {
     if (window.LoraDecoder) {
         LoraDecoder.loadSchemes('<%=luci.dispatcher.build_url("admin/lora/api_decoders")%>', function(err, schemes) {
@@ -1071,6 +1109,7 @@ function startPolling() {
             if (cntEl && schemes) {
                 cntEl.innerText = schemes.length;
             }
+            updateCandidateButtonsInTable();
         });
     }
 

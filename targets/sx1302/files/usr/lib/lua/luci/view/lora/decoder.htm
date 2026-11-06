@@ -470,6 +470,12 @@ function loadSchemes() {
             var gSel = document.getElementById("global-nodeid-source");
             if (gSel) gSel.value = normSrc;
         }
+
+        // If candidate node already has a defined decoder, dismiss candidate banner
+        if (window.g_activeCandidate && LoraDecoder.hasDefinedDecoder && LoraDecoder.hasDefinedDecoder(window.g_activeCandidate)) {
+            clearActiveCandidate();
+        }
+
         renderSchemesList();
         runLiveDecode();
 
@@ -1722,11 +1728,17 @@ function checkActiveCandidate() {
 
     var cand = hexParam || stored;
     if (cand) {
-        window.g_activeCandidate = cand.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+        var cleanCand = cand.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+        if (window.LoraDecoder && window.LoraDecoder.hasDefinedDecoder && LoraDecoder.hasDefinedDecoder(cleanCand)) {
+            window.g_activeCandidate = null;
+            try { localStorage.removeItem('lora_active_candidate'); } catch(e) {}
+        } else {
+            window.g_activeCandidate = cleanCand;
+        }
         renderActiveCandidateBanner();
         var wbInp = document.getElementById("test-hex");
         if (wbInp && (!wbInp.value || candParam === "1")) {
-            wbInp.value = window.g_activeCandidate;
+            wbInp.value = cleanCand;
             runLiveDecode();
         }
     }
