@@ -40,6 +40,46 @@ local function read_config_json()
     return jsonc.parse(content) or {}
 end
 
+local function get_recent_packets()
+    local jsonc = require "luci.jsonc"
+    local f = io.open("/tmp/lora_packets.json", "r")
+    if f then
+        local raw = f:read("*a")
+        f:close()
+        if raw and raw ~= "" then
+            local parsed = jsonc.parse(raw)
+            if parsed and type(parsed) == "table" and #parsed > 0 then
+                return parsed
+            end
+        end
+    end
+
+    local packets = {}
+    local pipe = io.popen("(cat /var/log/lora.log 2>/dev/null; logread -l 30 2>/dev/null) | grep -F '[RX]' | tail -n 25")
+    if pipe then
+        local id = 1
+        for line in pipe:lines() do
+            local time = line:match("^(%w+%s+%w+%s+%d+%s+%d+:%d+:%d+)") or ""
+            local sz, datr, freq, rssi, snr, crc = line:match("%[RX%]%s+(%d+)%s+bytes%s+|%s+([^|]+)|%s+([^|]+)|%s+RSSI%s+([^|]+)|%s+SNR%s+([^|]+)|%s+([%w_]+)")
+            if sz then
+                table.insert(packets, 1, {
+                    id = id,
+                    time = (time ~= "" and time or os.date("%H:%M:%S")),
+                    size = tonumber(sz) or 0,
+                    datr = datr:gsub("%s+", ""),
+                    freq = freq:gsub("%s*MHz%s*", ""):gsub("%s+", ""),
+                    rssi = rssi:gsub("%s*dBm%s*", ""):gsub("%s+", ""),
+                    snr = snr:gsub("%s*dB%s*", ""):gsub("%s+", ""),
+                    status = crc:gsub("%s+", "")
+                })
+                id = id + 1
+            end
+        end
+        pipe:close()
+    end
+    return packets
+end
+
 function action_status()
     local sys = require "luci.sys"
     local http = require "luci.http"
@@ -77,17 +117,7 @@ function action_status()
     local daemon_name = "Stopped"
     if is_running then
         uptime_str = string.format("Running (PID %d) — %ds", pid, uptime_s)
-        if sys.call("pidof raw_lora_app >/dev/null") == 0 then
-            daemon_name = "raw_lora_app (SX1302 Concentrator)"
-        elseif sys.call("pidof sx1276_app >/dev/null") == 0 then
-            daemon_name = "sx1276_app (SX1276)"
-        elseif sys.call("pidof lg02_pkt_fwd >/dev/null") == 0 then
-            daemon_name = "lg02_pkt_fwd (Dual SX1276)"
-        elseif sys.call("pidof lg01_pkt_fwd >/dev/null") == 0 then
-            daemon_name = "lg01_pkt_fwd (Single SX1276)"
-        else
-            daemon_name = "Daemon (PID " .. pid .. ")"
-        end
+        daemon_name = live.daemon or "raw_lora_app (SX1302 Concentrator)"
     end
 
     local rx_st_val = live.rx_status
@@ -130,7 +160,8 @@ function action_status()
         tx_status = live.tx_status or "TX_OFF",
         rx_status = rx_st_val,
         sf_mask = tonumber(live.sf_mask) or tonumber(cfg.sf_mask) or 255,
-        ch_detect = live.ch_detect or {0,0,0,0,0,0,0,0}
+        ch_detect = live.ch_detect or {0,0,0,0,0,0,0,0},
+        packets = get_recent_packets()
     }
 
     http.prepare_content("application/json")
@@ -179,44 +210,7 @@ end
 
 function action_packets()
     local http = require "luci.http"
-    local jsonc = require "luci.jsonc"
-    local packets = {}
-
-    local f = io.open("/tmp/lora_packets.json", "r")
-    if f then
-        local raw = f:read("*a")
-        f:close()
-        local parsed = raw and jsonc.parse(raw)
-        if parsed and type(parsed) == "table" and #parsed > 0 then
-            http.prepare_content("application/json")
-            http.write_json(parsed)
-            return
-        end
-    end
-
-    local pipe = io.popen("(cat /var/log/lora.log 2>/dev/null; logread 2>/dev/null) | grep -F '[RX]' | tail -n 30")
-    if pipe then
-        local id = 1
-        for line in pipe:lines() do
-            local time = line:match("^(%w+%s+%w+%s+%d+%s+%d+:%d+:%d+)") or ""
-            local sz, datr, freq, rssi, snr, crc = line:match("%[RX%]%s+(%d+)%s+bytes%s+|%s+([^|]+)|%s+([^|]+)|%s+RSSI%s+([^|]+)|%s+SNR%s+([^|]+)|%s+([%w_]+)")
-            if sz then
-                table.insert(packets, 1, {
-                    id = id,
-                    time = (time ~= "" and time or os.date("%H:%M:%S")),
-                    size = tonumber(sz) or 0,
-                    datr = datr:gsub("%s+", ""),
-                    freq = freq:gsub("%s*MHz%s*", ""):gsub("%s+", ""),
-                    rssi = rssi:gsub("%s*dBm%s*", ""):gsub("%s+", ""),
-                    snr = snr:gsub("%s*dB%s*", ""):gsub("%s+", ""),
-                    status = crc:gsub("%s+", "")
-                })
-                id = id + 1
-            end
-        end
-        pipe:close()
-    end
-
+    local packets = get_recent_packets()
     http.prepare_content("application/json")
     http.write_json(packets)
 end
@@ -360,23 +354,12 @@ end
 
 function action_log()
     local http = require "luci.http"
+    local pipe = io.popen("tail -n 60 /var/log/lora.log 2>/dev/null")
     local output = ""
-
-    local f = io.open("/var/log/lora.log", "r")
-    if f then
-        output = f:read("*a") or ""
-        f:close()
-    end
-
-    local pipe = io.popen("logread -l 50 2>/dev/null | grep -iE 'raw_lora_app|sx1302|sx1276|lora' | tail -n 30")
     if pipe then
-        local syslogs = pipe:read("*a") or ""
+        output = pipe:read("*a") or ""
         pipe:close()
-        if syslogs ~= "" then
-            output = output .. (output ~= "" and "\n" or "") .. syslogs
-        end
     end
-
     if output == "" then
         output = "[raw_lora_app] No log output yet."
     end
