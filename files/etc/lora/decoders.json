@@ -1,26 +1,73 @@
 {
   "version": 1,
-  "updated": "2026-11-01T18:00:00Z",
+  "updated": "2026-11-06T20:00:00Z",
+  "globalNodeId": {
+    "source": "node_2b",
+    "offset": 0,
+    "length": 2,
+    "format": "hex",
+    "prefix": ""
+  },
   "schemes": [
     {
-      "id": "scheme_aa0b",
-      "name": "Sensor Node AA0B (Temp / Volt / Seq)",
-      "description": "Matches incoming payloads starting with AA0B header",
+      "id": "scheme_node_cafe",
+      "name": "Node CAFE (Multi-Sensor LPP)",
+      "description": "Created directly from packet payload cafe96b840eb0102... (32B)",
       "enabled": true,
       "matchType": "prefix",
-      "matchValue": "aa0b",
-      "type": "js",
-      "jsCode": "// Decoder for AA0B packets (e.g. aa0b64370111084002050fac)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar temp_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    temperature: +(temp_raw / 10).toFixed(1) + \" °C\",\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+      "matchValue": "cafe",
+      "nodeId": {
+        "source": "node_2b",
+        "offset": 0,
+        "length": 2,
+        "format": "hex",
+        "prefix": ""
+      },
+      "type": "cayenne_lpp",
+      "dataOffset": 6,
+      "sampleHex": "cafe96b840eb010201490271fffb000c0425036700bb04880000000000000000",
+      "fields": [
+        { "name": "device_serial", "offset": 2, "length": 4, "type": "hex", "scale": 1, "unit": "" },
+        { "name": "battery", "offset": 8, "length": 2, "type": "int16_be", "scale": 0.01, "unit": "V" },
+        { "name": "accel_x", "offset": 12, "length": 2, "type": "int16_be", "scale": 0.001, "unit": "g" },
+        { "name": "accel_y", "offset": 14, "length": 2, "type": "int16_be", "scale": 0.001, "unit": "g" },
+        { "name": "accel_z", "offset": 16, "length": 2, "type": "int16_be", "scale": 0.001, "unit": "g" },
+        { "name": "temperature", "offset": 20, "length": 2, "type": "int16_be", "scale": 0.1, "unit": "°C" }
+      ]
     },
     {
-      "id": "scheme_aa0c",
-      "name": "Sensor Node AA0C (Telemetry / Battery)",
-      "description": "Matches incoming payloads starting with AA0C header",
+      "id": "scheme_2b_node_tlv",
+      "name": "Standard 2-Byte Node ID + TLV / IPSO Channels",
+      "description": "Decodes 2-Byte Node ID (0..1) + Header + dynamic TLV / Cayenne LPP sensor channels (Temp, Batt, Hum, Accel, GPS, Switch)",
       "enabled": true,
-      "matchType": "prefix",
-      "matchValue": "aa0c",
-      "type": "js",
-      "jsCode": "// Decoder for AA0C packets (e.g. aa0c6401011107c302051067)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar sensor_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    sensor_val: sensor_raw,\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+      "matchType": "condition",
+      "matchCondition": "// Match standard 4+ byte header\nreturn bytes.length >= 4;",
+      "nodeId": {
+        "source": "node_2b",
+        "offset": 0,
+        "length": 2,
+        "format": "hex",
+        "prefix": ""
+      },
+      "type": "ctv",
+      "dataOffset": 4
+    },
+    {
+      "id": "scheme_cayenne_lpp",
+      "name": "Cayenne LPP Standard Sensors",
+      "description": "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, accel, GPS)",
+      "enabled": true,
+      "matchType": "condition",
+      "matchCondition": "// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01 || bytes[1] === 0x71 || bytes[1] === 0x88);",
+      "nodeId": {
+        "source": "node_2b",
+        "offset": 0,
+        "length": 2,
+        "format": "hex",
+        "prefix": ""
+      },
+      "type": "cayenne_lpp",
+      "dataOffset": 0
     },
     {
       "id": "scheme_ascii_ping",
@@ -29,15 +76,14 @@
       "enabled": true,
       "matchType": "condition",
       "matchCondition": "// Match if all bytes are printable ASCII chars\nif (bytes.length < 2) return false;\nreturn bytes.every(function(b) {\n    return (b >= 32 && b <= 126) || b === 10 || b === 13;\n});",
+      "nodeId": {
+        "source": "node_2b",
+        "offset": 0,
+        "length": 2,
+        "format": "hex",
+        "prefix": ""
+      },
       "type": "ascii"
-    },
-    {
-      "id": "scheme_cayenne_lpp",
-      "name": "Cayenne LPP Standard Sensors",
-      "description": "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
-      "enabled": true,
-      "matchType": "default",
-      "type": "cayenne_lpp"
     }
   ]
 }

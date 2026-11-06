@@ -22,6 +22,16 @@ while true; do
 
     PID=$(pidof raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null | awk '{print $1}')
 
+    # Supervise LoRa Linking & Downlink Engine
+    if ! pgrep -f lora_linking_engine.lua >/dev/null 2>&1; then
+        [ -x /usr/bin/lora_linking_engine.lua ] && /usr/bin/lora_linking_engine.lua >> /var/log/linking_engine.log 2>&1 &
+    fi
+
+    # Supervise Home Assistant MQTT Auto-Discovery & Command Bridge
+    if ! pgrep -f lora_mqtt_bridge.lua >/dev/null 2>&1; then
+        [ -x /usr/bin/lora_mqtt_bridge.lua ] && /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &
+    fi
+
     if [ -z "$PID" ]; then
         ts=$(date '+%Y-%m-%d %H:%M:%S')
         echo "[$ts] [KEEPALIVE] LoRa daemon not running — auto-restarting..." >> "$LOGFILE"

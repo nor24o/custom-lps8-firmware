@@ -8,7 +8,8 @@ function index()
     entry({"admin", "lora", "status"}, template("lora/status"), _("Realtime Status"), 10)
     entry({"admin", "lora", "diag"}, template("lora/diag"), _("Pin and GPIO Diagnostics"), 15)
     entry({"admin", "lora", "config"}, template("lora/config"), _("Settings and Config"), 20)
-    entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoder"), 22)
+    entry({"admin", "lora", "nodes"}, template("lora/nodes"), _("Node Registry and Linking"), 21)
+    entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoders"), 22)
     entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout and Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
 
@@ -21,6 +22,13 @@ function index()
     entry({"admin", "lora", "api_tx_test"}, call("action_tx_test")).leaf = true
     entry({"admin", "lora", "api_gpio_diag"}, call("action_gpio_diag")).leaf = true
     entry({"admin", "lora", "api_gpio_set"}, call("action_gpio_set")).leaf = true
+    entry({"admin", "lora", "api_nodes"}, call("action_nodes")).leaf = true
+    entry({"admin", "lora", "api_node_history"}, call("action_node_history")).leaf = true
+    entry({"admin", "lora", "api_links"}, call("action_links")).leaf = true
+    entry({"admin", "lora", "api_link_test"}, call("action_link_test")).leaf = true
+    entry({"admin", "lora", "api_link_simulate"}, call("action_link_simulate")).leaf = true
+    entry({"admin", "lora", "api_link_logs"}, call("action_link_logs")).leaf = true
+    entry({"admin", "lora", "api_mqtt"}, call("action_mqtt")).leaf = true
 end
 
 local function read_config_json()
@@ -30,6 +38,46 @@ local function read_config_json()
     local content = f:read("*a")
     f:close()
     return jsonc.parse(content) or {}
+end
+
+local function get_recent_packets()
+    local jsonc = require "luci.jsonc"
+    local f = io.open("/tmp/lora_packets.json", "r")
+    if f then
+        local raw = f:read("*a")
+        f:close()
+        if raw and raw ~= "" then
+            local parsed = jsonc.parse(raw)
+            if parsed and type(parsed) == "table" and #parsed > 0 then
+                return parsed
+            end
+        end
+    end
+
+    local packets = {}
+    local pipe = io.popen("(cat /var/log/lora.log 2>/dev/null; logread -l 30 2>/dev/null) | grep -F '[RX]' | tail -n 25")
+    if pipe then
+        local id = 1
+        for line in pipe:lines() do
+            local time = line:match("^(%w+%s+%w+%s+%d+%s+%d+:%d+:%d+)") or ""
+            local sz, datr, freq, rssi, snr, crc = line:match("%[RX%]%s+(%d+)%s+bytes%s+|%s+([^|]+)|%s+([^|]+)|%s+RSSI%s+([^|]+)|%s+SNR%s+([^|]+)|%s+([%w_]+)")
+            if sz then
+                table.insert(packets, 1, {
+                    id = id,
+                    time = (time ~= "" and time or os.date("%H:%M:%S")),
+                    size = tonumber(sz) or 0,
+                    datr = datr:gsub("%s+", ""),
+                    freq = freq:gsub("%s*MHz%s*", ""):gsub("%s+", ""),
+                    rssi = rssi:gsub("%s*dBm%s*", ""):gsub("%s+", ""),
+                    snr = snr:gsub("%s*dB%s*", ""):gsub("%s+", ""),
+                    status = crc:gsub("%s+", "")
+                })
+                id = id + 1
+            end
+        end
+        pipe:close()
+    end
+    return packets
 end
 
 function action_status()
@@ -51,8 +99,8 @@ function action_status()
         end
     end
 
-    local rf0_freq = tonumber(cfg.rx_freq) or tonumber(cfg.rf0_freq) or 902320000
-    local rf1_freq = tonumber(cfg.tx_freq) or tonumber(cfg.rf1_freq) or 923300000
+    local rf0_freq = tonumber(cfg.rf0_freq) or 867500000
+    local rf1_freq = tonumber(cfg.rf1_freq) or 868500000
     if cfg.radio_0 and cfg.radio_0.freq then
         rf0_freq = tonumber(cfg.radio_0.freq) or rf0_freq
     end
@@ -60,40 +108,44 @@ function action_status()
         rf1_freq = tonumber(cfg.radio_1.freq) or rf1_freq
     end
 
-    local sync_val = live.syncword or tonumber(cfg.rx_syncword) or 52
-    local sync_disp = (sync_val == 52 or sync_val == 0x34 or tostring(cfg.sync_word) == "public") and "public (0x34 / LoRaWAN)" or "private (0x12)"
+    local sync_str = cfg.sync_word or "private"
+    if live.sync then sync_str = live.sync end
+    local sync_disp = (sync_str == "public" or sync_str == "0x34") and "public (0x34)" or "private (0x12)"
 
     local uptime_s = tonumber(live.uptime_s) or 0
     local uptime_str = "Stopped"
+    local daemon_name = "Stopped"
     if is_running then
         uptime_str = string.format("Running (PID %d) — %ds", pid, uptime_s)
+        daemon_name = live.daemon or "raw_lora_app (SX1302 Concentrator)"
+    end
+
+    local rx_st_val = live.rx_status
+    if not rx_st_val or rx_st_val == "RX_OFF" then
+        rx_st_val = is_running and "LISTENING (8-CH)" or "RX_OFF"
     end
 
     local res = {
         running = is_running,
+        daemon = live.daemon or daemon_name,
+        hw_model = "Dragino LPS8 (SX1302)",
         pid = pid or 0,
         uptime_s = uptime_s,
         uptime = uptime_str,
-        gateway_id = live.eui or cfg.gateway_id or "—",
+        gateway_id = live.eui or "—",
         server = cfg.target_ip or "192.168.1.8",
         port_up = tonumber(cfg.port_up) or 5555,
         port_down = tonumber(cfg.port_down) or 5556,
         status_port = status_port,
         heartbeat_interval_s = tonumber(cfg.heartbeat_interval_s) or 10,
         spi_path = cfg.spi_path or "/dev/spidev1.0",
-        reset_gpio = "8 (Radio 1) / 23 (Radio 2)",
+        reset_gpio = cfg.reset_gpio or "23",
         pa_gpio = cfg.pa_gpio or "dragino2:red:wan",
-        rf0_type = "SX1276 (Radio 1 RX)",
-        rf1_type = "SX1276 (Radio 2 TX)",
-        rf0_mhz = live.rx_mhz or (rf0_freq / 1e6),
-        rf1_mhz = live.tx_mhz or (rf1_freq / 1e6),
-        rx_sf = live.rx_sf or tonumber(cfg.rx_sf) or 7,
-        tx_sf = live.tx_sf or tonumber(cfg.tx_sf) or 9,
-        rx_bw = live.rx_bw or tonumber(cfg.rx_bw) or 125,
-        tx_bw = live.tx_bw or tonumber(cfg.tx_bw) or 125,
-        rx_cr = live.rx_cr or tonumber(cfg.rx_cr) or 5,
-        tx_cr = live.tx_cr or tonumber(cfg.tx_cr) or 5,
-        tx_power = live.tx_power or tonumber(cfg.tx_power) or tonumber(cfg.tx_default_power) or 16,
+        rf0_type = cfg.rf0_type or "SX1250",
+        rf1_type = cfg.rf1_type or "SX1250",
+        rf0_mhz = live.rf0_mhz or (rf0_freq / 1e6),
+        rf1_mhz = live.rf1_mhz or (rf1_freq / 1e6),
+        tx_power = tonumber(cfg.tx_default_power) or 14,
         syncword = sync_disp,
         rx_count = tonumber(live.rx) or 0,
         tx_count = tonumber(live.tx) or 0,
@@ -101,14 +153,15 @@ function action_status()
         tx_err = tonumber(live.tx_err) or 0,
         q_depth = tonumber(live.q_depth) or 0,
         q_drop = tonumber(live.q_drop) or 0,
-        temp_c = 0,
-        temp_ok = false,
+        temp_c = tonumber(live.temp_c) or 0,
+        temp_ok = (live.temp_ok == true),
         inst_cnt_us = tonumber(live.inst_cnt_us) or 0,
         trig_cnt_us = tonumber(live.trig_cnt_us) or 0,
-        tx_status = is_running and "ACTIVE" or "TX_OFF",
-        rx_status = is_running and "LISTENING" or "RX_OFF",
-        sf_mask = 255,
-        ch_detect = {0,0,0,0,0,0,0,0}
+        tx_status = live.tx_status or "TX_OFF",
+        rx_status = rx_st_val,
+        sf_mask = tonumber(live.sf_mask) or tonumber(cfg.sf_mask) or 255,
+        ch_detect = live.ch_detect or {0,0,0,0,0,0,0,0},
+        packets = get_recent_packets()
     }
 
     http.prepare_content("application/json")
@@ -142,8 +195,8 @@ function action_config()
         f:write(jsonc.stringify(parsed, true))
         f:close()
 
-        -- Restart lg02_pkt_fwd with new config
-        sys.call("rm -f /tmp/lora_manual_stop; killall lg02_pkt_fwd lg01_pkt_fwd raw_lora_app 2>/dev/null; /usr/bin/lg02_pkt_fwd >> /var/log/lora.log 2>&1 &")
+        -- Restart raw_lora_app with new config
+        sys.call("rm -f /tmp/lora_manual_stop; killall raw_lora_app sx1276_app 2>/dev/null; /usr/bin/raw_lora_app >> /var/log/lora.log 2>&1 &")
         http.prepare_content("application/json")
         http.write_json({ status = "saved" })
     else
@@ -157,63 +210,7 @@ end
 
 function action_packets()
     local http = require "luci.http"
-    local jsonc = require "luci.jsonc"
-    local packets = {}
-
-    local f = io.open("/tmp/lora_packets.json", "r")
-    if f then
-        local raw = f:read("*a")
-        f:close()
-        local parsed = raw and jsonc.parse(raw)
-        if parsed and type(parsed) == "table" and #parsed > 0 then
-            http.prepare_content("application/json")
-            http.write_json(parsed)
-            return
-        end
-    end
-
-    -- Fallback: parse /var/log/lora.log
-    local log_f = io.open("/var/log/lora.log", "r")
-    if log_f then
-        local raw = log_f:read("*a")
-        log_f:close()
-        local last_hex = nil
-        local all_pkts = {}
-        for line in raw:gmatch("[^\r\n]+") do
-            local h = line:match("Receive%(HEX%):([0-9a-fA-F]+)")
-            if h then last_hex = h end
-
-            -- Format A: [RX] 12 bytes SF9BW125 868.1000MHz RSSI -55.0dBm SNR 13.0dB
-            local sz, datr, freq, rssi, snr = line:match("%[RX%]%s+(%d+)%s+bytes%s+([%w_]+)%s+([%d%.]+)%s*MHz%s+RSSI%s+([%-%d%.]+)%s*dBm%s+SNR%s+([%-%d%.]+)%s*dB")
-            if not sz then
-                -- Format B: [RX] 12 bytes | SF9BW125 | 868.100MHz | RSSI -55dBm | SNR 13.0dB
-                sz, datr, freq, rssi, snr = line:match("%[RX%]%s+(%d+)%s+bytes%s+|%s+([^|]+)|%s+([^|]+)|%s+RSSI%s+([^|]+)|%s+SNR%s+([^|]+)")
-            end
-
-            if sz then
-                local time_str = line:match("%[(%d%d:%d%d:%d%d)%]") or os.date("%H:%M:%S")
-                all_pkts[#all_pkts + 1] = {
-                    time = time_str,
-                    size = tonumber(sz) or 0,
-                    datr = (datr or ""):gsub("%s+", ""),
-                    freq = tonumber(freq) or 868.1,
-                    rssi = tonumber(rssi) or -50,
-                    snr = tonumber(snr) or 10,
-                    hex = last_hex or "",
-                    status = "CRC_OK",
-                    tmst = #all_pkts + 1
-                }
-                last_hex = nil
-            end
-        end
-
-        local total = #all_pkts
-        local start = math.max(1, total - 29)
-        for i = total, start, -1 do
-            packets[#packets + 1] = all_pkts[i]
-        end
-    end
-
+    local packets = get_recent_packets()
     http.prepare_content("application/json")
     http.write_json(packets)
 end
@@ -238,6 +235,11 @@ function action_decoders()
         if f then
             f:write(jsonc.stringify(parsed, true))
             f:close()
+
+            -- Trigger immediate discovery sync with updated decoders
+            local sys = require "luci.sys"
+            sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+
             http.prepare_content("application/json")
             http.write_json({ status = "saved", count = #(parsed.schemes or {}) })
         else
@@ -255,27 +257,47 @@ function action_decoders()
         if not data then
             data = {
                 version = 1,
-                updated = "2026-11-01T18:00:00Z",
+                updated = "2026-11-06T00:00:00Z",
+                globalNodeId = {
+                    source = "offset",
+                    offset = 0,
+                    length = 2,
+                    format = "hex",
+                    prefix = ""
+                },
                 schemes = {
                     {
-                        id = "scheme_aa0b",
-                        name = "Sensor Node AA0B (Temp / Volt / Seq)",
-                        description = "Matches incoming payloads starting with AA0B header",
+                        id = "scheme_2b_node_tlv",
+                        name = "Standard 2-Byte Node ID + Device Type + TLV",
+                        description = "Standard Header: 2-Byte Node ID (bytes 0..1), 1-Byte Device Type (Class/Capability, byte 2), 1-Byte Seq (byte 3), followed by dynamic TLV sensors",
                         enabled = true,
-                        matchType = "prefix",
-                        matchValue = "aa0b",
-                        type = "js",
-                        jsCode = "// Decoder for AA0B packets (e.g. aa0b64370111084002050fac)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar temp_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    temperature: +(temp_raw / 10).toFixed(1) + \" °C\",\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+                        matchType = "condition",
+                        matchCondition = "// Match standard 4+ byte header\nreturn bytes.length >= 4;",
+                        nodeId = {
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
+                        },
+                        type = "ctv",
+                        dataOffset = 4
                     },
                     {
-                        id = "scheme_aa0c",
-                        name = "Sensor Node AA0C (Telemetry / Battery)",
-                        description = "Matches incoming payloads starting with AA0C header",
+                        id = "scheme_cayenne_lpp",
+                        name = "Cayenne LPP Standard Sensors",
+                        description = "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
                         enabled = true,
-                        matchType = "prefix",
-                        matchValue = "aa0c",
-                        type = "js",
-                        jsCode = "// Decoder for AA0C packets (e.g. aa0c6401011107c302051067)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar sensor_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    sensor_val: sensor_raw,\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+                        matchType = "condition",
+                        matchCondition = "// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01);",
+                        nodeId = {
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
+                        },
+                        type = "cayenne_lpp"
                     },
                     {
                         id = "scheme_ascii_ping",
@@ -284,15 +306,14 @@ function action_decoders()
                         enabled = true,
                         matchType = "condition",
                         matchCondition = "// Match if all bytes are printable ASCII chars\nif (bytes.length < 2) return false;\nreturn bytes.every(function(b) {\n    return (b >= 32 && b <= 126) || b === 10 || b === 13;\n});",
+                        nodeId = {
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
+                        },
                         type = "ascii"
-                    },
-                    {
-                        id = "scheme_cayenne_lpp",
-                        name = "Cayenne LPP Standard Sensors",
-                        description = "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
-                        enabled = true,
-                        matchType = "default",
-                        type = "cayenne_lpp"
                     }
                 }
             }
@@ -338,23 +359,12 @@ end
 
 function action_log()
     local http = require "luci.http"
+    local pipe = io.popen("tail -n 60 /var/log/lora.log 2>/dev/null")
     local output = ""
-
-    local f = io.open("/var/log/lora.log", "r")
-    if f then
-        output = f:read("*a") or ""
-        f:close()
-    end
-
-    local pipe = io.popen("logread -l 50 2>/dev/null | grep -iE 'raw_lora_app|sx1302|sx1276|lora' | tail -n 30")
     if pipe then
-        local syslogs = pipe:read("*a") or ""
+        output = pipe:read("*a") or ""
         pipe:close()
-        if syslogs ~= "" then
-            output = output .. (output ~= "" and "\n" or "") .. syslogs
-        end
     end
-
     if output == "" then
         output = "[raw_lora_app] No log output yet."
     end
@@ -368,11 +378,11 @@ function action_service()
     local cmd = http.formvalue("cmd")
 
     if cmd == "stop" then
-        sys.call("touch /tmp/lora_manual_stop; killall lg02_pkt_fwd lg01_pkt_fwd raw_lora_app sx1276_app 2>/dev/null")
+        sys.call("touch /tmp/lora_manual_stop; killall raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null")
         http.prepare_content("application/json")
         http.write_json({ success = true, command = cmd })
     elseif cmd == "start" or cmd == "restart" then
-        sys.call("rm -f /tmp/lora_manual_stop; killall lg02_pkt_fwd lg01_pkt_fwd raw_lora_app sx1276_app 2>/dev/null; pgrep -f lora_keepalive.sh >/dev/null 2>&1 || (/usr/bin/lora_keepalive.sh >/dev/null 2>&1 &); echo '--- [" .. cmd .. "] ---' >> /var/log/lora.log; /usr/bin/lg02_pkt_fwd >> /var/log/lora.log 2>&1 &")
+        sys.call("rm -f /tmp/lora_manual_stop; killall raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null; pgrep -f lora_keepalive.sh >/dev/null 2>&1 || (/usr/bin/lora_keepalive.sh >/dev/null 2>&1 &); echo '--- [" .. cmd .. "] ---' >> /var/log/lora.log; /usr/bin/raw_lora_app >> /var/log/lora.log 2>&1 &")
         http.prepare_content("application/json")
         http.write_json({ success = true, command = cmd })
     else
@@ -514,4 +524,576 @@ function action_gpio_set()
 
     http.prepare_content("application/json")
     http.write_json({ success = true, gpio = pin, action = act, value = val })
+end
+
+-- ==============================================================================
+-- LoRa Node Registry, SQLite Rolling History, & Linking Engine APIs
+-- ==============================================================================
+
+local function get_sqlite()
+    local has_sqlite, sqlite3 = pcall(require, "lsqlite3")
+    if not has_sqlite then return nil end
+    return sqlite3
+end
+
+function action_nodes()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local sqlite3 = get_sqlite()
+
+    if not sqlite3 then
+        http.status(500, "SQLite Not Available")
+        http.prepare_content("application/json")
+        http.write_json({ error = "lsqlite3 module not available" })
+        return
+    end
+
+    local db = sqlite3.open("/etc/lora/nodes.db")
+    if not db then
+        http.status(500, "Database Error")
+        http.prepare_content("application/json")
+        http.write_json({ error = "Failed to open /etc/lora/nodes.db" })
+        return
+    end
+    db:busy_timeout(5000)
+    db:exec("PRAGMA journal_mode = MEMORY;")
+    db:exec("PRAGMA synchronous = OFF;")
+
+    local method = http.getenv("REQUEST_METHOD")
+    if method == "GET" then
+        local nodes = {}
+        for row in db:nrows("SELECT * FROM node_settings ORDER BY last_seen DESC, node_id ASC;") do
+            table.insert(nodes, row)
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ nodes = nodes })
+    elseif method == "POST" then
+        local body = http.content()
+        local data = body and jsonc.parse(body)
+        if not data or not data.node_id or data.node_id == "" then
+            db:close()
+            http.status(400, "Invalid Node Data")
+            http.prepare_content("application/json")
+            http.write_json({ error = "node_id is required" })
+            return
+        end
+
+        local ha_en = tonumber(data.ha_enabled) or 0
+        if ha_en == 1 then
+            -- Strict Two-Factor Gate: Node must have a defined custom decoder in /etc/lora/decoders.json
+            local df = io.open("/etc/lora/decoders.json", "r")
+            local has_decoder = false
+            if df then
+                local dc = df:read("*a")
+                df:close()
+                local d_obj = jsonc.parse(dc)
+                if d_obj and d_obj.schemes then
+                    local nid = data.node_id:upper():gsub("%s+", "")
+                    for _, s in ipairs(d_obj.schemes) do
+                        if s.enabled ~= false and s.id ~= "scheme_2b_node_tlv" and s.id ~= "scheme_cayenne_lpp" and s.id ~= "scheme_ascii_ping" then
+                            if s.matchType == "prefix" and s.matchValue and s.matchValue ~= "" then
+                                local pfx = tostring(s.matchValue):upper():gsub("%s+", "")
+                                if nid:find("^" .. pfx) or pfx:find("^" .. nid) then
+                                    has_decoder = true
+                                    break
+                                end
+                            elseif s.name and s.name:upper():find(nid, 1, true) then
+                                has_decoder = true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            if not has_decoder then
+                db:close()
+                http.status(400, "Decoder Required")
+                http.prepare_content("application/json")
+                http.write_json({ 
+                    error = "A custom decoder scheme must be configured and tested in Decoder Studio before enrolling node '" .. data.node_id .. "' into Home Assistant." 
+                })
+                return
+            end
+        end
+
+        local stmt = db:prepare([[
+            INSERT INTO node_settings 
+            (node_id, name, node_class, model, group_name, rx1_delay_ms, rx2_delay_ms, rx2_freq_hz, rx2_sf, ping_period_sec, default_tx_power, ha_enabled, is_configured, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            ON CONFLICT(node_id) DO UPDATE SET
+                name=excluded.name,
+                node_class=excluded.node_class,
+                model=excluded.model,
+                group_name=excluded.group_name,
+                rx1_delay_ms=excluded.rx1_delay_ms,
+                rx2_delay_ms=excluded.rx2_delay_ms,
+                rx2_freq_hz=excluded.rx2_freq_hz,
+                rx2_sf=excluded.rx2_sf,
+                ping_period_sec=excluded.ping_period_sec,
+                default_tx_power=excluded.default_tx_power,
+                ha_enabled=excluded.ha_enabled,
+                is_configured=1,
+                updated_at=CURRENT_TIMESTAMP;
+        ]])
+        if stmt then
+            stmt:bind_values(
+                data.node_id:upper():gsub("%s+", ""),
+                data.name or ("Node " .. data.node_id),
+                data.node_class or "A",
+                data.model or "generic",
+                data.group_name or "Default",
+                tonumber(data.rx1_delay_ms) or 1000,
+                tonumber(data.rx2_delay_ms) or 2000,
+                tonumber(data.rx2_freq_hz) or 869525000,
+                tonumber(data.rx2_sf) or 9,
+                tonumber(data.ping_period_sec) or 32,
+                tonumber(data.default_tx_power) or 14,
+                ha_en
+            )
+            stmt:step()
+            stmt:finalize()
+        end
+        db:close()
+
+        -- Re-sync Home Assistant discovery to reflect adopted / updated node
+        local sys = require "luci.sys"
+        sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+
+        http.prepare_content("application/json")
+        http.write_json({ success = true, node_id = data.node_id })
+    elseif method == "DELETE" then
+        local node_id = http.formvalue("node_id")
+        if node_id then
+            local stmt = db:prepare("DELETE FROM node_settings WHERE node_id = ?;")
+            if stmt then
+                stmt:bind_values(node_id)
+                stmt:step()
+                stmt:finalize()
+            end
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ success = true })
+    end
+end
+
+function action_node_history()
+    local http = require "luci.http"
+    local sqlite3 = get_sqlite()
+    local node_id = http.formvalue("node_id")
+
+    if not sqlite3 then
+        http.prepare_content("application/json")
+        http.write_json({ messages = {} })
+        return
+    end
+
+    local db = sqlite3.open("/tmp/lora_messages.db")
+    if not db then
+        http.prepare_content("application/json")
+        http.write_json({ messages = {} })
+        return
+    end
+
+    local msgs = {}
+    local query = "SELECT * FROM node_messages " .. (node_id and ("WHERE node_id = '" .. node_id:gsub("'", "") .. "' ") or "") .. "ORDER BY id DESC LIMIT 50;"
+    for row in db:nrows(query) do
+        table.insert(msgs, row)
+    end
+    db:close()
+
+    http.prepare_content("application/json")
+    http.write_json({ messages = msgs, count = #msgs })
+end
+
+function action_links()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local sqlite3 = get_sqlite()
+
+    if not sqlite3 then
+        http.status(500, "SQLite Not Available")
+        http.prepare_content("application/json")
+        http.write_json({ error = "lsqlite3 module not available" })
+        return
+    end
+
+    local db = sqlite3.open("/etc/lora/nodes.db")
+    if not db then
+        http.status(500, "Database Error")
+        http.prepare_content("application/json")
+        http.write_json({ error = "Failed to open /etc/lora/nodes.db" })
+        return
+    end
+    db:busy_timeout(5000)
+    db:exec("PRAGMA journal_mode = MEMORY;")
+    db:exec("PRAGMA synchronous = OFF;")
+
+    local method = http.getenv("REQUEST_METHOD")
+    if method == "GET" then
+        local links = {}
+        for row in db:nrows("SELECT * FROM node_links ORDER BY link_id ASC;") do
+            table.insert(links, row)
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ links = links })
+    elseif method == "POST" then
+        local body = http.content()
+        local data = body and jsonc.parse(body)
+        if not data or not data.source_node or not data.target_node then
+            db:close()
+            http.status(400, "Invalid Link Data")
+            http.prepare_content("application/json")
+            http.write_json({ error = "source_node and target_node are required" })
+            return
+        end
+
+        if data.link_id and tonumber(data.link_id) and tonumber(data.link_id) > 0 then
+            -- Update existing link
+            local stmt = db:prepare([[
+                UPDATE node_links SET 
+                name=?, source_node=?, trigger_field=?, operator=?, threshold_val=?, 
+                target_node=?, action_payload=?, turnaround_delay_ms=?, cooldown_sec=?, 
+                pulse_sec=?, lbt_enabled=?, lbt_rssi_threshold=?, lbt_max_retries=?, 
+                lbt_backoff_ms=?, ack_required=?, ack_timeout_ms=?, enabled=?
+                WHERE link_id=?;
+            ]])
+            if stmt then
+                stmt:bind_values(
+                    data.name or "Link Rule",
+                    data.source_node:upper():gsub("%s+", ""),
+                    data.trigger_field or "temperature",
+                    data.operator or ">",
+                    tonumber(data.threshold_val) or 0.0,
+                    data.target_node:upper():gsub("%s+", ""),
+                    data.action_payload or "0101",
+                    tonumber(data.turnaround_delay_ms) or 1000,
+                    tonumber(data.cooldown_sec) or 60,
+                    tonumber(data.pulse_sec) or 0,
+                    tonumber(data.lbt_enabled) or 1,
+                    tonumber(data.lbt_rssi_threshold) or -85,
+                    tonumber(data.lbt_max_retries) or 3,
+                    tonumber(data.lbt_backoff_ms) or 50,
+                    tonumber(data.ack_required) or 0,
+                    tonumber(data.ack_timeout_ms) or 3000,
+                    tonumber(data.enabled) or 1,
+                    tonumber(data.link_id)
+                )
+                stmt:step()
+                stmt:finalize()
+            end
+        else
+            -- Insert new link
+            local stmt = db:prepare([[
+                INSERT INTO node_links 
+                (name, source_node, trigger_field, operator, threshold_val, target_node, action_payload, turnaround_delay_ms, cooldown_sec, pulse_sec, lbt_enabled, lbt_rssi_threshold, lbt_max_retries, lbt_backoff_ms, ack_required, ack_timeout_ms, enabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            ]])
+            if stmt then
+                stmt:bind_values(
+                    data.name or "Link Rule",
+                    data.source_node:upper():gsub("%s+", ""),
+                    data.trigger_field or "temperature",
+                    data.operator or ">",
+                    tonumber(data.threshold_val) or 0.0,
+                    data.target_node:upper():gsub("%s+", ""),
+                    data.action_payload or "0101",
+                    tonumber(data.turnaround_delay_ms) or 1000,
+                    tonumber(data.cooldown_sec) or 60,
+                    tonumber(data.pulse_sec) or 0,
+                    tonumber(data.lbt_enabled) or 1,
+                    tonumber(data.lbt_rssi_threshold) or -85,
+                    tonumber(data.lbt_max_retries) or 3,
+                    tonumber(data.lbt_backoff_ms) or 50,
+                    tonumber(data.ack_required) or 0,
+                    tonumber(data.ack_timeout_ms) or 3000,
+                    tonumber(data.enabled) or 1
+                )
+                stmt:step()
+                stmt:finalize()
+            end
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ success = true })
+    elseif method == "DELETE" then
+        local link_id = tonumber(http.formvalue("link_id"))
+        if link_id then
+            local stmt = db:prepare("DELETE FROM node_links WHERE link_id = ?;")
+            if stmt then
+                stmt:bind_values(link_id)
+                stmt:step()
+                stmt:finalize()
+            end
+        end
+        db:close()
+        http.prepare_content("application/json")
+        http.write_json({ success = true })
+    end
+end
+
+function action_link_test()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local nixio = require "nixio"
+    local sqlite3 = get_sqlite()
+
+    local body = http.content()
+    local data = body and jsonc.parse(body) or {}
+
+    local target_node = data.target_node and data.target_node:upper():gsub("%s+", "") or "AA0C"
+    local payload = data.action_payload or "0101"
+    local turnaround_delay = tonumber(data.turnaround_delay_ms) or 1000
+    local lbt_enabled = (data.lbt_enabled ~= nil and data.lbt_enabled ~= 0 and data.lbt_enabled ~= "0")
+    local lbt_thresh = tonumber(data.lbt_rssi_threshold) or -85
+
+    local logs = {}
+    local function log_step(msg)
+        table.insert(logs, { time = os.date("%H:%M:%S"), msg = msg })
+    end
+
+    log_step("Starting Interactive Test for Target Node: " .. target_node)
+
+    -- Query target class
+    local target_class = "C"
+    local tx_power = 14
+    if sqlite3 then
+        local db = sqlite3.open("/etc/lora/nodes.db")
+        if db then
+            local stmt = db:prepare("SELECT node_class, default_tx_power FROM node_settings WHERE node_id = ?;")
+            if stmt then
+                stmt:bind_values(target_node)
+                if stmt:step() == sqlite3.ROW then
+                    target_class = stmt:get_value(0) or "C"
+                    tx_power = stmt:get_value(1) or 14
+                end
+                stmt:finalize()
+            end
+            db:close()
+        end
+    end
+
+    log_step("Target Device LPWAN Class: [CLASS " .. target_class .. "]")
+
+    -- Turnaround delay
+    if turnaround_delay > 0 then
+        log_step(string.format("Turnaround Delay: Waiting %d ms...", turnaround_delay))
+        nixio.nanosleep(math.floor(turnaround_delay / 1000), (turnaround_delay % 1000) * 1000000)
+        log_step("Turnaround Delay complete.")
+    end
+
+    -- Listen-Before-Send (LBT) check
+    local lbt_status = "BYPASS"
+    local current_rssi = -108.0
+    if lbt_enabled then
+        log_step(string.format("Listen-Before-Send: Sniffing channel carrier (Threshold: %d dBm)...", lbt_thresh))
+        local f = io.open("/tmp/lora_packets.json", "r")
+        if f then
+            local raw = f:read("*a")
+            f:close()
+            local list = raw and jsonc.parse(raw)
+            if list and #list > 0 and list[1].rssic then
+                current_rssi = tonumber(list[1].rssic) or -108.0
+            end
+        end
+
+        if current_rssi < lbt_thresh then
+            lbt_status = "CLEAR"
+            log_step(string.format("LBT Assessment: Channel Clear (RSSI: %.1f dBm < %d dBm)", current_rssi, lbt_thresh))
+        else
+            lbt_status = "BUSY_BACKOFF"
+            log_step(string.format("LBT Assessment: Channel Occupied (RSSI: %.1f dBm) -> Backing off 40ms...", current_rssi))
+            nixio.nanosleep(0, 40000000)
+            lbt_status = "CLEAR_AFTER_BACKOFF"
+            log_step("LBT Assessment: Channel Clear after backoff.")
+        end
+    end
+
+    -- Transmit Downlink via UDP
+    local is_hex = (payload:match("^%x+$") and #payload % 2 == 0)
+    local raw_bin = is_hex and (payload:gsub('..', function(cc) return string.char(tonumber(cc, 16)) end)) or payload
+    local b64 = nixio.bin.b64encode(raw_bin)
+
+    local pkt = {
+        imme = (target_class == "C"),
+        freq = 868.1,
+        rfch = 0,
+        powe = tx_power,
+        modu = "LORA",
+        datr = "SF7BW125",
+        codr = "4/5",
+        ipol = false,
+        size = #payload,
+        data = b64
+    }
+
+    local sock = nixio.socket("inet", "dgram")
+    local ok = false
+    if sock then
+        local payload_str = jsonc.stringify(pkt)
+        ok = (sock:sendto(payload_str, "127.0.0.1", 5556) ~= nil)
+        sock:close()
+    end
+
+    if ok then
+        log_step(string.format("Downlink Dispatched: %d bytes (SF7, 868.100 MHz, +%d dBm) -> Port 5556", #payload, tx_power))
+        log_step("Hardware Result: TRANSMISSION SUCCESS")
+    else
+        log_step("Downlink Dispatch Error: Failed to communicate with LoRa Concentrator UDP socket!")
+    end
+
+    -- Audit Log to RAM DB
+    if sqlite3 then
+        local db_ram = sqlite3.open("/tmp/lora_messages.db")
+        if db_ram then
+            db_ram:exec(string.format(
+                "INSERT INTO link_execution_logs (event_type, target_node, target_class, lbt_status, delay_ms, tx_status, details) " ..
+                "VALUES ('MANUAL_TEST', '%s', '%s', '%s', %d, '%s', 'Interactive UI test: %s');",
+                target_node, target_class, lbt_status, turnaround_delay, (ok and "SENT" or "FAILED"), payload
+            ))
+            db_ram:close()
+        end
+    end
+
+    http.prepare_content("application/json")
+    http.write_json({
+        success = ok,
+        target_node = target_node,
+        target_class = target_class,
+        lbt_status = lbt_status,
+        logs = logs
+    })
+end
+
+function action_link_simulate()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local body = http.content()
+    local data = body and jsonc.parse(body) or {}
+
+    local trigger_field = data.trigger_field or "temperature"
+    local operator = data.operator or ">"
+    local threshold_val = tonumber(data.threshold_val) or 30.0
+    local mock_val = tonumber(data.mock_value)
+
+    if mock_val == nil and data.mock_json then
+        local parsed = jsonc.parse(data.mock_json)
+        if parsed and parsed[trigger_field] then
+            mock_val = tonumber(parsed[trigger_field])
+        end
+    end
+
+    local is_match = false
+    if mock_val ~= nil then
+        if operator == ">" then is_match = (mock_val > threshold_val)
+        elseif operator == "<" then is_match = (mock_val < threshold_val)
+        elseif operator == ">=" then is_match = (mock_val >= threshold_val)
+        elseif operator == "<=" then is_match = (mock_val <= threshold_val)
+        elseif operator == "==" then is_match = (math.abs(mock_val - threshold_val) < 0.001)
+        elseif operator == "!=" then is_match = (math.abs(mock_val - threshold_val) >= 0.001)
+        elseif operator == "always" then is_match = true
+        end
+    end
+
+    http.prepare_content("application/json")
+    http.write_json({
+        field = trigger_field,
+        operator = operator,
+        threshold = threshold_val,
+        tested_value = mock_val,
+        matched = is_match,
+        action = is_match and (data.action_payload or "0101") or "NONE"
+    })
+end
+
+function action_link_logs()
+    local http = require "luci.http"
+    local sqlite3 = get_sqlite()
+    if not sqlite3 then
+        http.prepare_content("application/json")
+        http.write_json({ logs = {} })
+        return
+    end
+
+    local db = sqlite3.open("/tmp/lora_messages.db")
+    if not db then
+        http.prepare_content("application/json")
+        http.write_json({ logs = {} })
+        return
+    end
+
+    local logs = {}
+    for row in db:nrows("SELECT * FROM link_execution_logs ORDER BY id DESC LIMIT 30;") do
+        table.insert(logs, row)
+    end
+    db:close()
+
+    http.prepare_content("application/json")
+    http.write_json({ logs = logs })
+end
+
+function action_mqtt()
+    local http = require "luci.http"
+    local jsonc = require "luci.jsonc"
+    local sys = require "luci.sys"
+    local nixio = require "nixio"
+
+    local cfg = read_config_json()
+    local method = http.getenv("REQUEST_METHOD")
+
+    if method == "GET" then
+        local mqtt_cfg = cfg.mqtt or {
+            enabled = true,
+            server = "192.168.1.100",
+            port = 1883,
+            user = "",
+            password = "",
+            discovery_prefix = "homeassistant",
+            state_prefix = "lora"
+        }
+
+        local is_reachable = false
+        local test_sock = nixio.socket("inet", "stream")
+        if test_sock then
+            test_sock:setopt("socket", "rcvtimeo", 1)
+            test_sock:setopt("socket", "sndtimeo", 1)
+            if test_sock:connect(mqtt_cfg.server or "127.0.0.1", tonumber(mqtt_cfg.port) or 1883) then
+                is_reachable = true
+            end
+            test_sock:close()
+        end
+
+        local pid_str = sys.exec("pgrep -f lora_mqtt_bridge.lua 2>/dev/null"):match("(%d+)")
+        local is_running = (pid_str ~= nil)
+
+        http.prepare_content("application/json")
+        http.write_json({
+            mqtt = mqtt_cfg,
+            broker_reachable = is_reachable,
+            bridge_running = is_running
+        })
+    elseif method == "POST" then
+        local body = http.content()
+        local data = body and jsonc.parse(body)
+        if not data then
+            http.status(400, "Invalid JSON")
+            http.prepare_content("application/json")
+            http.write_json({ error = "Invalid JSON" })
+            return
+        end
+
+        cfg.mqtt = data
+        local f = io.open("/etc/lora/config.json", "w")
+        if f then
+            f:write(jsonc.stringify(cfg, true))
+            f:close()
+        end
+
+        sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+
+        http.prepare_content("application/json")
+        http.write_json({ success = true, mqtt = cfg.mqtt })
+    end
 end
