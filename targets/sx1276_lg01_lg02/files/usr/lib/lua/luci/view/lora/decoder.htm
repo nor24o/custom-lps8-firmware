@@ -226,6 +226,9 @@
         </div>
     </div>
 
+    <!-- ACTIVE DECODE CANDIDATE NOTIFICATION BANNER -->
+    <div id="active-candidate-container"></div>
+
     <!-- 1. LIVE WORKBENCH & VISUAL BYTE INSPECTOR -->
     <div class="studio-card" style="border-top: 4px solid #2563eb;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
@@ -334,6 +337,7 @@ var g_packetsApi = '<%=luci.dispatcher.build_url("admin/lora/api_packets")%>';
 var g_expandedIndex = -1;
 
 window.onload = function() {
+    checkActiveCandidate();
     loadSchemes();
     loadRecentPackets();
 
@@ -748,159 +752,114 @@ function buildSchemeDrawerHtml(idx, container) {
     var nRule = s.nodeId || {};
     var decType = s.type || "ctv";
     var sampleHex = getDefaultSampleHex(s);
+    var candidateHex = window.g_activeCandidate || "";
 
     container.innerHTML = 
-        '<div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px;">' +
-            '<div style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; align-items: flex-end;">' +
-                '<div style="flex: 2; min-width: 220px;">' +
-                    '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Scheme Name%></label>' +
-                    '<input type="text" id="dr-name-' + idx + '" value="' + escapeHtml(s.name || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+        '<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 12px; font-size: 12px;">' +
+            '<!-- ROW 1: CORE SCHEME METADATA & ENGINE (TIGHT INLINE GRID) -->' +
+            '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px;">' +
+                '<div style="flex: 2; min-width: 170px;">' +
+                    '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:SCHEME NAME%></label>' +
+                    '<input type="text" id="dr-name-' + idx + '" value="' + escapeHtml(s.name || "") + '" style="width: 100%; padding: 5px 8px; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
                 '</div>' +
-                '<div style="flex: 3; min-width: 280px;">' +
-                    '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Description / Notes%></label>' +
-                    '<input type="text" id="dr-desc-' + idx + '" value="' + escapeHtml(s.description || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                '<div style="flex: 1; min-width: 130px;">' +
+                    '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:MATCH STRATEGY%></label>' +
+                    '<select id="dr-match-type-' + idx + '" style="width: 100%; padding: 5px 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerMatchFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
+                        '<option value="prefix" ' + (s.matchType === "prefix" ? "selected" : "") + '><%:Hex Prefix%></option>' +
+                        '<option value="size" ' + (s.matchType === "size" ? "selected" : "") + '><%:Exact Size (Bytes)%></option>' +
+                        '<option value="condition" ' + (s.matchType === "condition" ? "selected" : "") + '><%:Custom Code%></option>' +
+                        '<option value="regex" ' + (s.matchType === "regex" ? "selected" : "") + '><%:Hex Regex%></option>' +
+                        '<option value="default" ' + (s.matchType === "default" ? "selected" : "") + '><%:Catch-All%></option>' +
+                    '</select>' +
                 '</div>' +
-                '<div id="dr-autosave-top-' + idx + '" style="padding-bottom: 6px;">' +
+                '<div style="flex: 1; min-width: 110px;" id="box-dr-matchval-' + idx + '" style="display: ' + (s.matchType === "condition" || s.matchType === "default" ? "none" : "block") + ';">' +
+                    '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:MATCH VALUE%></label>' +
+                    '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" style="width: 100%; padding: 5px 8px; font-size: 12px; font-family: monospace; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                '</div>' +
+                '<div style="flex: 1; min-width: 140px;">' +
+                    '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:DECODER ENGINE%></label>' +
+                    '<select id="dr-dectype-' + idx + '" style="width: 100%; padding: 5px 6px; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
+                        '<option value="ctv" ' + (decType === "ctv" || decType === "tlv" ? "selected" : "") + '><%:TLV / Channel-Value%></option>' +
+                        '<option value="js" ' + (decType === "js" ? "selected" : "") + '><%:JavaScript Function%></option>' +
+                        '<option value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? "selected" : "") + '><%:Cayenne LPP%></option>' +
+                        '<option value="ascii" ' + (decType === "ascii" ? "selected" : "") + '><%:Plain ASCII%></option>' +
+                        '<option value="fields" ' + (decType === "fields" ? "selected" : "") + '><%:Field Slicer%></option>' +
+                    '</select>' +
+                '</div>' +
+                '<div id="dr-autosave-top-' + idx + '" style="margin-left: auto; align-self: flex-end; padding-bottom: 4px;">' +
                     '<span style="font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 7px;">✓ <%:Auto-saved%></span>' +
                 '</div>' +
             '</div>' +
 
-            '<div class="studio-tabs">' +
-                '<button type="button" class="studio-tab-btn active" id="tab-btn-match-' + idx + '" onclick="switchDrawerTab(' + idx + ', \'match\')">1. 🎯 Match Rules</button>' +
-                '<button type="button" class="studio-tab-btn" id="tab-btn-node-' + idx + '" onclick="switchDrawerTab(' + idx + ', \'node\')">2. 🆔 Node ID Routing</button>' +
-                '<button type="button" class="studio-tab-btn" id="tab-btn-dec-' + idx + '" onclick="switchDrawerTab(' + idx + ', \'dec\')">3. ⚙️ Payload Decoder Engine</button>' +
-            '</div>' +
-
-            '<!-- TAB 1: MATCH RULES -->' +
-            '<div id="tab-content-match-' + idx + '">' +
-                '<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">' +
-                    '<div style="flex: 1; min-width: 180px;">' +
-                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Match Strategy%></label>' +
-                        '<select id="dr-match-type-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerMatchFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
-                            '<option value="prefix" ' + (s.matchType === "prefix" ? "selected" : "") + '><%:Hex Prefix / Header (e.g. 1234 or aa)%></option>' +
-                            '<option value="size" ' + (s.matchType === "size" ? "selected" : "") + '><%:Exact Payload Size in Bytes%></option>' +
-                            '<option value="condition" ' + (s.matchType === "condition" ? "selected" : "") + '><%:Custom Condition Function%></option>' +
-                            '<option value="regex" ' + (s.matchType === "regex" ? "selected" : "") + '><%:Hex Regex Pattern%></option>' +
-                            '<option value="default" ' + (s.matchType === "default" ? "selected" : "") + '><%:Catch-All / Default Fallback%></option>' +
-                        '</select>' +
-                    '</div>' +
-                    '<div style="flex: 2; min-width: 220px;" id="box-dr-matchval-' + idx + '">' +
-                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Match Value (Hex Prefix or Size)%></label>' +
-                        '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: monospace;" oninput="onDrawerFieldChange(' + idx + ')" />' +
-                    '</div>' +
+            '<!-- ROW 2: NODE ID ROUTING & ENGINE CONFIG (TIGHT COMBINED STRIP) -->' +
+            '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px;">' +
+                '<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">' +
+                    '<span style="font-size: 10px; font-weight: 700; color: #475569;"><%:NODE ID ROUTING:%></span>' +
+                    '<select id="dr-node-src-' + idx + '" style="padding: 3px 6px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="onDrawerFieldChange(' + idx + ')">' +
+                        '<option value="node_2b" ' + (nRule.source === "node_2b" || !nRule.source || nRule.source === "auto" ? "selected" : "") + '><%:2-Byte Hex (Offset 0..1)%></option>' +
+                        '<option value="offset" ' + (nRule.source === "offset" ? "selected" : "") + '><%:Custom Offset%></option>' +
+                        '<option value="field" ' + (nRule.source === "field" ? "selected" : "") + '><%:From Decoded Property%></option>' +
+                        '<option value="single" ' + (nRule.source === "single" ? "selected" : "") + '><%:Single Byte (Byte 0)%></option>' +
+                    '</select>' +
+                    '<select id="dr-node-fmt-' + idx + '" style="padding: 3px 6px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="onDrawerFieldChange(' + idx + ')">' +
+                        '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '><%:Hex (e.g. AA0C)%></option>' +
+                        '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '><%:Decimal%></option>' +
+                    '</select>' +
+                    '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" placeholder="<%:Optional Prefix (e.g. NODE_)%>" style="width: 90px; padding: 3px 6px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
                 '</div>' +
-                '<div id="box-dr-matchcond-' + idx + '" style="display: ' + (s.matchType === "condition" ? "block" : "none") + '; margin-top: 10px;">' +
-                    '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Condition Function (returns true / false):%></label>' +
-                    '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 60px;" placeholder="// return bytes.length >= 4;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.matchCondition || "") + '</textarea>' +
+                '<!-- Inline TLV Offset -->' +
+                '<div id="box-dr-dec-ctv-' + idx + '" style="display: ' + (decType === "ctv" || decType === "tlv" ? "flex" : "none") + '; align-items: center; gap: 6px; margin-left: auto;">' +
+                    '<span style="font-size: 10px; font-weight: 700; color: #047857;"><%:TLV Records Start Byte Index:%></span>' +
+                    '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 50px; padding: 2px 5px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
                 '</div>' +
             '</div>' +
 
-            '<!-- TAB 2: NODE ID ROUTING -->' +
-            '<div id="tab-content-node-' + idx + '" style="display: none;">' +
-                '<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">' +
-                    '<div style="flex: 2; min-width: 240px;">' +
-                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Node ID Source%></label>' +
-                        '<select id="dr-node-src-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="onDrawerFieldChange(' + idx + ')">' +
-                            '<option value="node_2b" ' + (nRule.source === "node_2b" || !nRule.source || nRule.source === "auto" ? "selected" : "") + '><%:✨ 2-Byte Node ID (Offset 0..1 in Hex -> 1234, AA0C)%></option>' +
-                            '<option value="offset" ' + (nRule.source === "offset" ? "selected" : "") + '><%:Custom Byte Offset & Length%></option>' +
-                            '<option value="field" ' + (nRule.source === "field" ? "selected" : "") + '><%:From Decoded Property Name%></option>' +
-                            '<option value="single" ' + (nRule.source === "single" ? "selected" : "") + '><%:Single Byte (Byte 0)%></option>' +
-                        '</select>' +
-                    '</div>' +
-                    '<div style="flex: 1; min-width: 140px;">' +
-                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Output Format%></label>' +
-                        '<select id="dr-node-fmt-' + idx + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="onDrawerFieldChange(' + idx + ')">' +
-                            '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '><%:Hex (e.g. 1234, AA0C)%></option>' +
-                            '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '><%:Decimal Number%></option>' +
-                        '</select>' +
-                    '</div>' +
-                    '<div style="flex: 1; min-width: 120px;">' +
-                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Optional Prefix%></label>' +
-                        '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;" placeholder="e.g. NODE_" oninput="onDrawerFieldChange(' + idx + ')" />' +
+            '<!-- OPTIONAL EXPANDABLE CODE EDITORS -->' +
+            '<div id="box-dr-matchcond-' + idx + '" style="display: ' + (s.matchType === "condition" ? "block" : "none") + '; margin-bottom: 8px;">' +
+                '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:Condition Function (returns true / false):%></label>' +
+                '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 50px; font-size: 11px; padding: 6px;" placeholder="// return bytes.length >= 4;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.matchCondition || "") + '</textarea>' +
+            '</div>' +
+            '<div id="box-dr-dec-js-' + idx + '" style="display: ' + (decType === "js" ? "block" : "none") + '; margin-bottom: 8px;">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">' +
+                    '<label style="font-size: 10px; font-weight: 700; color: #475569;"><code>function decode(bytes, hex, pkt) { ... }</code></label>' +
+                    '<div style="font-size: 10px;">' +
+                        '<%:Snippets:%> ' +
+                        '<button type="button" class="cbi-button" style="padding: 1px 5px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'temp\')">Temp</button> ' +
+                        '<button type="button" class="cbi-button" style="padding: 1px 5px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'batt\')">Battery</button> ' +
+                        '<button type="button" class="cbi-button" style="padding: 1px 5px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'uint16\')">uint16</button>' +
                     '</div>' +
                 '</div>' +
+                '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 100px; font-size: 11px; padding: 6px;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
             '</div>' +
 
-            '<!-- TAB 3: PAYLOAD DECODER ENGINE -->' +
-            '<div id="tab-content-dec-' + idx + '" style="display: none;">' +
-                '<div style="margin-bottom: 12px; display: flex; gap: 14px; flex-wrap: wrap;">' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ctv" ' + (decType === "ctv" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:TLV / Channel-Type-Value%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="js" ' + (decType === "js" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:JavaScript Function%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="fields" ' + (decType === "fields" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:Field Slicer%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:Cayenne LPP%></strong></label>' +
-                    '<label style="cursor: pointer;"><input type="radio" name="dr-dectype-' + idx + '" value="ascii" ' + (decType === "ascii" ? 'checked="checked"' : '') + ' onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');" /> <strong><%:Plain ASCII%></strong></label>' +
+            '<!-- UNIFIED IN-PLACE DIRECT TEST CONSOLE (TIGHT & DENSE) -->' +
+            '<div id="dr-test-box-' + idx + '" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; margin-top: 4px;">' +
+                '<div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">' +
+                    '<strong style="font-size: 11px; color: #0f172a; white-space: nowrap;"><%:🧪 Test Payload (HEX):%></strong>' +
+                    '<input type="text" id="dr-test-hex-' + idx + '" value="' + escapeHtml(sampleHex) + '" ' +
+                           'style="flex: 2; min-width: 180px; padding: 4px 8px; font-family: monospace; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff;" ' +
+                           'placeholder="<%:Paste or select payload HEX...%>" ' +
+                           'oninput="onDrawerTestHexChange(' + idx + ')" />' +
+                    (candidateHex ? '<button type="button" class="cbi-button cbi-button-action" style="padding: 3px 7px; font-size: 11px; font-weight: 700;" onclick="applyCandidateToDrawer(' + idx + ')" title="Load candidate (' + candidateHex.substring(0, 8) + '...) into this test">🎯 Use Candidate</button>' : '') +
+                    '<select id="dr-recent-pkts-' + idx + '" style="padding: 3px 6px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; max-width: 140px; background: #ffffff;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
+                        '<option value=""><%:History...%></option>' +
+                    '</select>' +
+                    '<button type="button" class="cbi-button" style="padding: 3px 6px; font-size: 11px;" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to scheme">📌 Bind</button>' +
+                    '<button type="button" class="cbi-button cbi-button-action" style="padding: 3px 8px; font-size: 11px; font-weight: 700;" onclick="runDrawerDirectTest(' + idx + ')">▶ Run</button>' +
+                    '<span id="dr-test-status-badge-' + idx + '" class="studio-badge badge-slate" style="margin-left: auto;">Ready</span>' +
                 '</div>' +
 
-                '<!-- CTV Offset -->' +
-                '<div id="box-dr-dec-ctv-' + idx + '" style="display: ' + (decType === "ctv" ? "block" : "none") + '; padding: 10px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; font-size: 12px;">' +
-                    '<strong><%:Dynamic TLV Parser Active:%></strong> Channel records start at Byte Index: ' +
-                    '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 60px; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
-                '</div>' +
-
-                '<!-- JS Code Editor -->' +
-                '<div id="box-dr-dec-js-' + idx + '" style="display: ' + (decType === "js" ? "block" : "none") + ';">' +
-                    '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">' +
-                        '<span style="font-size: 11px; color: #64748b;"><code>function decode(bytes, hex, pkt) { return { ... }; }</code></span>' +
-                        '<div style="font-size: 11px;">' +
-                            '<%:Snippets:%> ' +
-                            '<button type="button" class="cbi-button" style="padding: 1px 6px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'temp\')">Temp 0.01°C</button> ' +
-                            '<button type="button" class="cbi-button" style="padding: 1px 6px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'batt\')">Battery mV</button> ' +
-                            '<button type="button" class="cbi-button" style="padding: 1px 6px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'uint16\')">uint16_be</button>' +
-                        '</div>' +
-                    '</div>' +
-                    '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 160px;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
-                '</div>' +
-            '</div>' +
-
-            '<!-- DIRECT IN-DRAWER TEST CONSOLE -->' +
-            '<div id="dr-test-box-' + idx + '" style="margin-top: 16px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 14px;">' +
-                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">' +
-                    '<div style="display: flex; align-items: center; gap: 8px;">' +
-                        '<strong style="font-size: 13px; color: #0f172a;"><%:🧪 Direct Scheme Test & Verification Console%></strong>' +
-                        '<span id="dr-test-status-badge-' + idx + '" class="studio-badge badge-slate"><%:Ready%></span>' +
-                    '</div>' +
-                    '<div style="display: flex; gap: 6px;">' +
-                        '<button type="button" class="cbi-button" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to this scheme and auto-save"><%:📌 Bind Payload%></button>' +
-                        '<button type="button" class="cbi-button cbi-button-action" onclick="runDrawerDirectTest(' + idx + ')" style="padding: 4px 12px; font-weight: 700; font-size: 12px;"><%:▶ Run Test Now%></button>' +
-                    '</div>' +
-                '</div>' +
-                '<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px;">' +
-                    '<div style="flex: 2; min-width: 280px;">' +
-                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Test Payload (HEX String):%></label>' +
-                        '<div style="display: flex; gap: 6px;">' +
-                            '<input type="text" id="dr-test-hex-' + idx + '" value="' + escapeHtml(sampleHex) + '" ' +
-                                   'style="flex: 1; padding: 7px 10px; font-family: monospace; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff;" ' +
-                                   'placeholder="<%:Enter raw HEX bytes (e.g. AA0C6418...)%>" ' +
-                                   'oninput="onDrawerTestHexChange(' + idx + ')" />' +
-                            '<button type="button" class="cbi-button" onclick="document.getElementById(\'dr-test-hex-' + idx + '\').value=\'\'; runDrawerDirectTest(' + idx + ');" title="Clear">✕</button>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div style="flex: 1; min-width: 200px;">' +
-                        '<label style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px;"><%:Load from Gateway History:%></label>' +
-                        '<select id="dr-recent-pkts-' + idx + '" style="width: 100%; padding: 7px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; background: #ffffff;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
-                            '<option value=""><%:-- Load recent packet --%></option>' +
-                        '</select>' +
-                    '</div>' +
-                '</div>' +
-                '<div style="margin-bottom: 10px; font-size: 11px; display: flex; gap: 5px; flex-wrap: wrap; align-items: center;">' +
-                    '<span style="color: #64748b; font-weight: 600;"><%:Quick Presets:%></span>' +
-                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'12341100011109c402050ce4\')">⚡ Class A Sensor</button>' +
-                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'56783201010101\')">⚡ Class C Actuator</button>' +
-                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'aa0c6418011108d002050fea\')">⚡ Node AA0C</button>' +
-                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'0167011002684803020064\')">⚡ Cayenne LPP</button>' +
-                    '<button type="button" class="cbi-button" style="padding: 2px 7px; font-size: 11px;" onclick="setDrawerTestHex(' + idx + ', \'50494e475f4c505338\')">⚡ ASCII Ping</button>' +
-                '</div>' +
+                '<!-- Dynamic Live Output Area -->' +
                 '<div id="dr-test-out-' + idx + '"></div>' +
             '</div>' +
 
-            '<!-- DRAWER ACTIONS (AUTO-SAVED) -->' +
-            '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px; flex-wrap: wrap; gap: 8px;">' +
-                '<div id="dr-autosave-bottom-' + idx + '" style="font-size: 12px; color: #059669; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">' +
-                    '<span style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 8px;">✓ <%:All changes auto-saved to gateway%></span>' +
+            '<!-- TIGHT FOOTER (AUTO-SAVED) -->' +
+            '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 6px; border-top: 1px solid #e2e8f0;">' +
+                '<div id="dr-autosave-bottom-' + idx + '" style="font-size: 11px; color: #059669; font-weight: 600;">' +
+                    '<span style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 2px 7px;">✓ <%:All changes auto-saved to gateway%></span>' +
                 '</div>' +
-                '<div style="display: flex; gap: 8px;">' +
-                    '<button type="button" class="cbi-button" onclick="toggleSchemeDrawer(' + idx + ')"><%:Close%></button>' +
-                    '<button type="button" class="cbi-button cbi-button-apply" onclick="performAutoSave(' + idx + ')"><%:💾 Save Now%></button>' +
+                '<div>' +
+                    '<button type="button" class="cbi-button" style="padding: 3px 12px; font-size: 11px;" onclick="toggleSchemeDrawer(' + idx + ')"><%:Done / Close%></button>' +
                 '</div>' +
             '</div>' +
         '</div>';
@@ -922,11 +881,12 @@ function updateDrawerMatchFields(idx) {
 }
 
 function updateDrawerDecTypeFields(idx) {
-    var radios = document.getElementsByName("dr-dectype-" + idx);
-    var val = "ctv";
-    for (var i = 0; i < radios.length; i++) { if (radios[i].checked) { val = radios[i].value; break; } }
-    document.getElementById("box-dr-dec-ctv-" + idx).style.display = (val === "ctv") ? "block" : "none";
-    document.getElementById("box-dr-dec-js-" + idx).style.display = (val === "js") ? "block" : "none";
+    var sel = document.getElementById("dr-dectype-" + idx);
+    var val = sel ? sel.value : "ctv";
+    var ctvBox = document.getElementById("box-dr-dec-ctv-" + idx);
+    var jsBox = document.getElementById("box-dr-dec-js-" + idx);
+    if (ctvBox) ctvBox.style.display = (val === "ctv" || val === "tlv") ? "flex" : "none";
+    if (jsBox) jsBox.style.display = (val === "js") ? "block" : "none";
 }
 
 function insertJsCode(idx, type) {
@@ -1440,10 +1400,8 @@ function syncDrawerToScheme(idx) {
         prefix: nPfxEl ? nPfxEl.value.trim() : ""
     };
 
-    var radios = document.getElementsByName("dr-dectype-" + idx);
-    for (var i = 0; i < radios.length; i++) {
-        if (radios[i].checked) { s.type = radios[i].value; break; }
-    }
+    var dtEl = document.getElementById("dr-dectype-" + idx);
+    if (dtEl) s.type = dtEl.value;
 
     if (s.type === "ctv") {
         var offEl = document.getElementById("dr-ctv-offset-" + idx);
@@ -1466,6 +1424,75 @@ function updateSchemeCardSummary(idx) {
 
     var titleEl = card.querySelector("strong");
     if (titleEl) titleEl.innerText = s.name || "Untitled Scheme";
+}
+
+
+// -----------------------------------------------------------------------------
+// DECODE CANDIDATE PAYLOAD MANAGEMENT
+// -----------------------------------------------------------------------------
+
+function checkActiveCandidate() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var hexParam = urlParams.get('hex');
+    var candParam = urlParams.get('candidate');
+    var stored = "";
+    try { stored = localStorage.getItem('lora_active_candidate') || ""; } catch(e) {}
+
+    var cand = hexParam || stored;
+    if (cand) {
+        window.g_activeCandidate = cand.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+        renderActiveCandidateBanner();
+        var wbInp = document.getElementById("test-hex");
+        if (wbInp && (!wbInp.value || candParam === "1")) {
+            wbInp.value = window.g_activeCandidate;
+            runLiveDecode();
+        }
+    }
+}
+
+function renderActiveCandidateBanner() {
+    var cont = document.getElementById("active-candidate-container");
+    if (!cont) return;
+    if (!window.g_activeCandidate) {
+        cont.innerHTML = "";
+        return;
+    }
+    var hex = window.g_activeCandidate;
+    var bytes = LoraDecoder.hexToBytes(hex);
+    var pfx = (hex.length >= 4) ? hex.substring(0, 4).toUpperCase() : hex.toUpperCase();
+
+    cont.innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: space-between; background: #eff6ff; border: 1.5px solid #3b82f6; border-radius: 6px; padding: 7px 14px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">' +
+            '<div style="display: flex; align-items: center; gap: 10px;">' +
+                '<span style="font-size: 18px;">🎯</span>' +
+                '<div>' +
+                    '<strong style="color: #1d4ed8; font-size: 13px;"><%:Active Decode Candidate Payload:%></strong> ' +
+                    '<code style="font-family: monospace; font-size: 13px; font-weight: 700; color: #1e3a8a; background: #dbeafe; padding: 2px 6px; border-radius: 3px;">' + hex + '</code>' +
+                    '<span style="font-size: 11px; color: #64748b; margin-left: 6px;">(' + bytes.length + ' Bytes, Node Prefix: ' + pfx + ')</span>' +
+                '</div>' +
+            '</div>' +
+            '<div style="display: flex; gap: 6px; align-items: center;">' +
+                '<button type="button" class="cbi-button cbi-button-action" onclick="createSchemeFromHex('' + hex + '')" title="Create scheme for this candidate"><%:✨ Create Scheme for Candidate%></button>' +
+                '<button type="button" class="cbi-button" onclick="clearActiveCandidate()" title="Dismiss candidate">✕ <%:Dismiss%></button>' +
+            '</div>' +
+        '</div>';
+}
+
+function applyCandidateToDrawer(idx) {
+    if (!window.g_activeCandidate) {
+        showToast("No active candidate set. Select one from Live Stream or Workbench.", "info");
+        return;
+    }
+    var hex = window.g_activeCandidate;
+    setDrawerTestHex(idx, hex);
+    showToast("Candidate payload loaded into scheme test!", "success");
+}
+
+function clearActiveCandidate() {
+    window.g_activeCandidate = null;
+    try { localStorage.removeItem('lora_active_candidate'); } catch(e) {}
+    renderActiveCandidateBanner();
+    showToast("Candidate payload dismissed", "info");
 }
 
 function createSchemeFromHex(rawHex) {

@@ -326,9 +326,10 @@
             </details>
 
             <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 12px; gap: 8px; flex-wrap: wrap;">
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                    <button type="button" class="cbi-button cbi-button-action" onclick="setPacketAsDecodeCandidate(document.getElementById('pm-hex').value)" title="Set this payload as active decode candidate in Decoder Studio">🎯 Set as Decode Candidate</button>
                     <a id="pm-decoder-link" href="#" class="cbi-button" style="text-decoration: none;"><%:Open in Decoder Studio ➔%></a>
-                    <a id="pm-create-scheme-link" href="#" class="cbi-button cbi-button-action" style="text-decoration: none;"><%:✨ Create Scheme for this Packet ➔%></a>
+                    <a id="pm-create-scheme-link" href="#" class="cbi-button" style="text-decoration: none;"><%:✨ Create Scheme for this Packet ➔%></a>
                 </div>
                 <button type="button" class="cbi-button" onclick="closePacketModal()"><%:Close%></button>
             </div>
@@ -517,8 +518,12 @@ function updatePackets() {
                     var pIdx = g_storedPackets.length;
                     g_storedPackets.push(p);
 
+                    var candidateBtn = p.hex ? 
+                        '<button type="button" class="cbi-button cbi-button-action" style="padding: 1px 6px; font-size: 10px; font-weight: 700; white-space: nowrap; margin-left: 6px; float: right;" onclick="event.stopPropagation(); setPacketAsDecodeCandidate(\'' + p.hex + '\')" title="Set this payload as active decode candidate in Decoder Studio">🎯 Candidate</button>' : '';
+
                     var hexPreview = p.hex ? 
-                        '<div style="cursor: pointer;" onclick="openPacketModal(' + pIdx + ')" title="Click to Inspect">' +
+                        '<div style="cursor: pointer; min-height: 22px;" onclick="openPacketModal(' + pIdx + ')" title="Click to Inspect">' +
+                            candidateBtn +
                             '<span style="color:#0366d6;font-family:monospace;font-size:11px;font-weight:600;word-break:break-all;">' + p.hex + '</span>' +
                             decHtml +
                         '</div>' : '—';
@@ -696,6 +701,17 @@ function openPacketModal(idx) {
 
 function closePacketModal() {
     document.getElementById("pkt-modal").style.display = "none";
+}
+
+
+function setPacketAsDecodeCandidate(hex) {
+    if (!hex) return;
+    var cleanHex = hex.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+    try {
+        localStorage.setItem('lora_active_candidate', cleanHex);
+    } catch(e) {}
+    var targetUrl = '<%=luci.dispatcher.build_url("admin/lora/decoder")%>?hex=' + encodeURIComponent(cleanHex) + '&candidate=1';
+    window.location.href = targetUrl;
 }
 
 function copyModalHex() {
