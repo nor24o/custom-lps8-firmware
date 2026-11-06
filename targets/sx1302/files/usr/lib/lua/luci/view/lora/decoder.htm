@@ -257,15 +257,14 @@
             </div>
         </div>
 
-        <!-- Quick 1-Click Preset Payloads -->
+        <!-- Color-Coded 1-Click Test Presets -->
         <div style="margin-bottom: 12px; font-size: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
-            <span style="color: #64748b; font-weight: 600; margin-right: 4px;"><%:1-Click Test Presets:%></span>
-            <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('12341100011109c402050ce4')"><%:⚡ Class A Sensor (1234)%></button>
-            <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('56783201010101')"><%:⚡ Class C Actuator (5678)%></button>
-            <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('99883305010101021109c403050ce4')"><%:⚡ Smart Plug Combo (9988)%></button>
-            <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('0167011002684803020064')"><%:⚡ Cayenne LPP (IPSO)%></button>
-            <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('aa0c6418011108d002050fea')"><%:⚡ Node AA0C (Weather)%></button>
-            <button type="button" class="cbi-button" style="padding: 3px 9px; font-size: 11px;" onclick="setWorkbenchHex('50494e475f4c505338')"><%:⚡ ASCII Ping Text%></button>
+            <span style="color: #475569; font-weight: 700; margin-right: 4px;"><%:1-Click Test Presets:%></span>
+            <button type="button" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('12341100011109c402050ce4')">🌡️ <%:Class A Sensor (1234)%></button>
+            <button type="button" style="background: #faf5ff; border: 1px solid #e9d5ff; color: #7c3aed; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('56783201010101')">🔌 <%:Class C Actuator (5678)%></button>
+            <button type="button" style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('aa0c6418011108d002050fea')">🌤️ <%:Node AA0C (Weather)%></button>
+            <button type="button" style="background: #fffbeb; border: 1px solid #fde68a; color: #b45309; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('0167011002684803020064')">📡 <%:Cayenne LPP (IPSO)%></button>
+            <button type="button" style="background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="setWorkbenchHex('50494e475f4c505338')">💬 <%:ASCII Ping Text%></button>
         </div>
 
         <!-- VISUAL COLOR-CODED BYTE STRIP -->
@@ -612,23 +611,45 @@ function renderSchemesList() {
 
         var descHtml = s.description ? ('<div style="font-size: 12px; color: #64748b; margin-top: 4px;">' + s.description + '</div>') : '';
 
+        // Distinct colorful left accent border based on engine type
+        var borderAccent = "#2563eb"; // Royal Blue (JS/Default)
+        var numBg = "#eff6ff"; var numColor = "#1d4ed8"; var numBorder = "#bfdbfe";
+        if (s.type === "ctv" || s.type === "tlv") {
+            borderAccent = "#10b981"; // Emerald
+            numBg = "#ecfdf5"; numColor = "#047857"; numBorder = "#a7f3d0";
+        } else if (s.type === "cayenne_lpp") {
+            borderAccent = "#8b5cf6"; // Purple
+            numBg = "#faf5ff"; numColor = "#6b21a8"; numBorder = "#e9d5ff";
+        } else if (s.type === "ascii") {
+            borderAccent = "#f59e0b"; // Amber
+            numBg = "#fffbeb"; numColor = "#b45309"; numBorder = "#fde68a";
+        }
+
+        card.style.borderLeft = "6px solid " + borderAccent;
+        card.style.borderRadius = "6px";
+        card.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
+
         card.innerHTML = 
             '<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">' +
-                '<div style="display: flex; align-items: center; gap: 10px;">' +
-                    '<input type="checkbox" ' + (s.enabled ? 'checked="checked"' : '') + ' onchange="toggleSchemeActive(' + i + ', this.checked)" title="Enable / Disable Scheme" style="cursor: pointer; transform: scale(1.2);" />' +
-                    '<span style="font-size: 12px; font-weight: 700; color: #94a3b8;">#' + (i + 1) + '</span>' +
+                '<div style="display: flex; align-items: center; gap: 12px;">' +
+                    '<input type="checkbox" ' + (s.enabled ? 'checked="checked"' : '') + ' onchange="toggleSchemeActive(' + i + ', this.checked)" title="Enable / Disable Scheme" style="cursor: pointer; transform: scale(1.25); accent-color: ' + borderAccent + ';" />' +
+                    '<span style="background: ' + numBg + '; color: ' + numColor + '; border: 1px solid ' + numBorder + '; border-radius: 4px; padding: 2px 7px; font-weight: 800; font-size: 11px;">#' + (i + 1) + '</span>' +
                     '<div>' +
-                        '<strong style="font-size: 14px; color: #0f172a;">' + (s.name || "Untitled Scheme") + '</strong>' +
-                        '<div style="display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;">' +
+                        '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">' +
+                            '<strong style="font-size: 14px; font-weight: 700; color: #0f172a;">' + (s.name || "Untitled Scheme") + '</strong>' +
+                            '<span style="font-size: 11px; font-weight: 700; color: ' + (s.enabled ? '#059669' : '#94a3b8') + ';">' + (s.enabled ? '● Active' : '○ Disabled') + '</span>' +
+                        '</div>' +
+                        '<div style="display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap;">' +
                             '<span class="studio-badge ' + matchBadge + '">' + matchText + '</span>' +
                             '<span class="studio-badge ' + typeBadge + '">' + typeText + '</span>' +
                             '<span class="studio-badge badge-slate">' + nodeText + '</span>' +
+                            (s.sampleHex ? '<span class="studio-badge badge-slate" style="font-family: monospace;" title="Bound Test Payload">🎯 ' + s.sampleHex.substring(0, 8) + '...</span>' : '') +
                         '</div>' +
                         descHtml +
                     '</div>' +
                 '</div>' +
                 '<div style="display: flex; gap: 6px; align-items: center;">' +
-                    '<button type="button" class="cbi-button" onclick="testSchemeInDrawer(' + i + ')" title="Directly test inside this scheme folder">⚡ Test</button>' +
+                    '<button type="button" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700; font-size: 12px; padding: 5px 12px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.35);" onclick="testSchemeInDrawer(' + i + ')" title="Directly test inside this scheme folder">⚡ Test</button>' +
                     '<button type="button" class="cbi-button" onclick="toggleSchemeDrawer(' + i + ')">✏️ Edit</button>' +
                     '<button type="button" class="cbi-button" onclick="moveScheme(' + i + ', -1)" ' + (i === 0 ? 'disabled' : '') + '>▲</button>' +
                     '<button type="button" class="cbi-button" onclick="moveScheme(' + i + ', 1)" ' + (i === g_schemes.length - 1 ? 'disabled' : '') + '>▼</button>' +
@@ -755,97 +776,113 @@ function buildSchemeDrawerHtml(idx, container) {
     var candidateHex = window.g_activeCandidate || "";
 
     container.innerHTML = 
-        '<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 12px; font-size: 12px;">' +
-            '<!-- ROW 1: CORE SCHEME METADATA & ENGINE (TIGHT INLINE GRID) -->' +
-            '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px;">' +
-                '<div style="flex: 2; min-width: 170px;">' +
-                    '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:SCHEME NAME%></label>' +
-                    '<input type="text" id="dr-name-' + idx + '" value="' + escapeHtml(s.name || "") + '" style="width: 100%; padding: 5px 8px; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+        '<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.04); font-size: 12px;">' +
+            '<!-- TOP BAR: SCHEME NAME & CONTINUOUS AUTO-SAVE INDICATOR -->' +
+            '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1.5px solid #e2e8f0; flex-wrap: wrap; gap: 8px;">' +
+                '<div style="display: flex; align-items: center; gap: 8px; flex: 2; min-width: 220px;">' +
+                    '<span style="font-size: 16px;">✏️</span>' +
+                    '<input type="text" id="dr-name-' + idx + '" value="' + escapeHtml(s.name || "") + '" ' +
+                           'style="font-size: 14px; font-weight: 700; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px 10px; width: 100%; max-width: 340px;" ' +
+                           'placeholder="Scheme Name (e.g. Node AA0C Sensor)" oninput="onDrawerFieldChange(' + idx + ')" />' +
                 '</div>' +
-                '<div style="flex: 1; min-width: 130px;">' +
-                    '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:MATCH STRATEGY%></label>' +
-                    '<select id="dr-match-type-' + idx + '" style="width: 100%; padding: 5px 6px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerMatchFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
-                        '<option value="prefix" ' + (s.matchType === "prefix" ? "selected" : "") + '><%:Hex Prefix%></option>' +
-                        '<option value="size" ' + (s.matchType === "size" ? "selected" : "") + '><%:Exact Size (Bytes)%></option>' +
-                        '<option value="condition" ' + (s.matchType === "condition" ? "selected" : "") + '><%:Custom Code%></option>' +
-                        '<option value="regex" ' + (s.matchType === "regex" ? "selected" : "") + '><%:Hex Regex%></option>' +
-                        '<option value="default" ' + (s.matchType === "default" ? "selected" : "") + '><%:Catch-All%></option>' +
-                    '</select>' +
-                '</div>' +
-                '<div style="flex: 1; min-width: 110px;" id="box-dr-matchval-' + idx + '" style="display: ' + (s.matchType === "condition" || s.matchType === "default" ? "none" : "block") + ';">' +
-                    '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:MATCH VALUE%></label>' +
-                    '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" style="width: 100%; padding: 5px 8px; font-size: 12px; font-family: monospace; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
-                '</div>' +
-                '<div style="flex: 1; min-width: 140px;">' +
-                    '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:DECODER ENGINE%></label>' +
-                    '<select id="dr-dectype-' + idx + '" style="width: 100%; padding: 5px 6px; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
-                        '<option value="ctv" ' + (decType === "ctv" || decType === "tlv" ? "selected" : "") + '><%:TLV / Channel-Value%></option>' +
-                        '<option value="js" ' + (decType === "js" ? "selected" : "") + '><%:JavaScript Function%></option>' +
-                        '<option value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? "selected" : "") + '><%:Cayenne LPP%></option>' +
-                        '<option value="ascii" ' + (decType === "ascii" ? "selected" : "") + '><%:Plain ASCII%></option>' +
-                        '<option value="fields" ' + (decType === "fields" ? "selected" : "") + '><%:Field Slicer%></option>' +
-                    '</select>' +
-                '</div>' +
-                '<div id="dr-autosave-top-' + idx + '" style="margin-left: auto; align-self: flex-end; padding-bottom: 4px;">' +
-                    '<span style="font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 7px;">✓ <%:Auto-saved%></span>' +
+                '<div id="dr-autosave-top-' + idx + '">' +
+                    '<span style="font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">⚡ <%:Auto-saved to Gateway%></span>' +
                 '</div>' +
             '</div>' +
 
-            '<!-- ROW 2: NODE ID ROUTING & ENGINE CONFIG (TIGHT COMBINED STRIP) -->' +
-            '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px;">' +
-                '<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">' +
-                    '<span style="font-size: 10px; font-weight: 700; color: #475569;"><%:NODE ID ROUTING:%></span>' +
-                    '<select id="dr-node-src-' + idx + '" style="padding: 3px 6px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="onDrawerFieldChange(' + idx + ')">' +
-                        '<option value="node_2b" ' + (nRule.source === "node_2b" || !nRule.source || nRule.source === "auto" ? "selected" : "") + '><%:2-Byte Hex (Offset 0..1)%></option>' +
-                        '<option value="offset" ' + (nRule.source === "offset" ? "selected" : "") + '><%:Custom Offset%></option>' +
-                        '<option value="field" ' + (nRule.source === "field" ? "selected" : "") + '><%:From Decoded Property%></option>' +
-                        '<option value="single" ' + (nRule.source === "single" ? "selected" : "") + '><%:Single Byte (Byte 0)%></option>' +
-                    '</select>' +
-                    '<select id="dr-node-fmt-' + idx + '" style="padding: 3px 6px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="onDrawerFieldChange(' + idx + ')">' +
-                        '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '><%:Hex (e.g. AA0C)%></option>' +
-                        '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '><%:Decimal%></option>' +
-                    '</select>' +
-                    '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" placeholder="<%:Optional Prefix (e.g. NODE_)%>" style="width: 90px; padding: 3px 6px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
-                '</div>' +
-                '<!-- Inline TLV Offset -->' +
-                '<div id="box-dr-dec-ctv-' + idx + '" style="display: ' + (decType === "ctv" || decType === "tlv" ? "flex" : "none") + '; align-items: center; gap: 6px; margin-left: auto;">' +
-                    '<span style="font-size: 10px; font-weight: 700; color: #047857;"><%:TLV Records Start Byte Index:%></span>' +
-                    '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 50px; padding: 2px 5px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" oninput="onDrawerFieldChange(' + idx + ')" />' +
-                '</div>' +
-            '</div>' +
-
-            '<!-- OPTIONAL EXPANDABLE CODE EDITORS -->' +
-            '<div id="box-dr-matchcond-' + idx + '" style="display: ' + (s.matchType === "condition" ? "block" : "none") + '; margin-bottom: 8px;">' +
-                '<label style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 2px;"><%:Condition Function (returns true / false):%></label>' +
-                '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 50px; font-size: 11px; padding: 6px;" placeholder="// return bytes.length >= 4;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.matchCondition || "") + '</textarea>' +
-            '</div>' +
-            '<div id="box-dr-dec-js-' + idx + '" style="display: ' + (decType === "js" ? "block" : "none") + '; margin-bottom: 8px;">' +
-                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">' +
-                    '<label style="font-size: 10px; font-weight: 700; color: #475569;"><code>function decode(bytes, hex, pkt) { ... }</code></label>' +
-                    '<div style="font-size: 10px;">' +
-                        '<%:Snippets:%> ' +
-                        '<button type="button" class="cbi-button" style="padding: 1px 5px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'temp\')">Temp</button> ' +
-                        '<button type="button" class="cbi-button" style="padding: 1px 5px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'batt\')">Battery</button> ' +
-                        '<button type="button" class="cbi-button" style="padding: 1px 5px; font-size: 10px;" onclick="insertJsCode(' + idx + ', \'uint16\')">uint16</button>' +
+            '<!-- 3 DISTINCT COLOR-CODED FUNCTIONAL ZONES -->' +
+            '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 12px;">' +
+                
+                '<!-- ZONE 1: MATCH RULE (BLUE ZONE) -->' +
+                '<div style="background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #2563eb; border-radius: 6px; padding: 10px 12px;">' +
+                    '<div style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
+                        '<span>🎯</span> <%:1. Packet Match Rule%>' +
+                    '</div>' +
+                    '<div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">' +
+                        '<select id="dr-match-type-' + idx + '" style="flex: 1; min-width: 110px; padding: 4px 6px; font-size: 11px; font-weight: 600; border: 1px solid #93c5fd; border-radius: 4px; background: #fff;" onchange="updateDrawerMatchFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
+                            '<option value="prefix" ' + (s.matchType === "prefix" ? "selected" : "") + '><%:Hex Prefix%></option>' +
+                            '<option value="size" ' + (s.matchType === "size" ? "selected" : "") + '><%:Exact Size (Bytes)%></option>' +
+                            '<option value="condition" ' + (s.matchType === "condition" ? "selected" : "") + '><%:Custom Code%></option>' +
+                            '<option value="regex" ' + (s.matchType === "regex" ? "selected" : "") + '><%:Hex Regex%></option>' +
+                            '<option value="default" ' + (s.matchType === "default" ? "selected" : "") + '><%:Catch-All%></option>' +
+                        '</select>' +
+                        '<div id="box-dr-matchval-' + idx + '" style="flex: 1; min-width: 90px; display: ' + (s.matchType === "condition" || s.matchType === "default" ? "none" : "block") + ';">' +
+                            '<input type="text" id="dr-match-val-' + idx + '" value="' + escapeHtml(s.matchValue || "") + '" placeholder="e.g. AA0C" style="width: 100%; padding: 4px 6px; font-size: 12px; font-family: monospace; font-weight: 700; border: 1px solid #93c5fd; border-radius: 4px; background: #fff;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                        '</div>' +
+                    '</div>' +
+                    '<div id="box-dr-matchcond-' + idx + '" style="display: ' + (s.matchType === "condition" ? "block" : "none") + '; margin-top: 6px;">' +
+                        '<textarea id="dr-match-cond-' + idx + '" class="code-editor" style="height: 50px; font-size: 11px; padding: 6px;" placeholder="// return bytes.length >= 4;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.matchCondition || "") + '</textarea>' +
                     '</div>' +
                 '</div>' +
-                '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 100px; font-size: 11px; padding: 6px;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
+
+                '<!-- ZONE 2: NODE ID ROUTING (PURPLE ZONE) -->' +
+                '<div style="background: #faf5ff; border: 1px solid #e9d5ff; border-left: 4px solid #7c3aed; border-radius: 6px; padding: 10px 12px;">' +
+                    '<div style="font-size: 11px; font-weight: 800; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
+                        '<span>🆔</span> <%:2. Node ID Routing%>' +
+                    '</div>' +
+                    '<div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">' +
+                        '<select id="dr-node-src-' + idx + '" style="flex: 2; min-width: 120px; padding: 4px 6px; font-size: 11px; font-weight: 600; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" onchange="onDrawerFieldChange(' + idx + ')">' +
+                            '<option value="node_2b" ' + (nRule.source === "node_2b" || !nRule.source || nRule.source === "auto" ? "selected" : "") + '><%:2-Byte Hex (Offset 0..1)%></option>' +
+                            '<option value="offset" ' + (nRule.source === "offset" ? "selected" : "") + '><%:Custom Offset%></option>' +
+                            '<option value="field" ' + (nRule.source === "field" ? "selected" : "") + '><%:From Property%></option>' +
+                            '<option value="single" ' + (nRule.source === "single" ? "selected" : "") + '><%:Single Byte (Byte 0)%></option>' +
+                        '</select>' +
+                        '<select id="dr-node-fmt-' + idx + '" style="flex: 1; min-width: 60px; padding: 4px 4px; font-size: 11px; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" onchange="onDrawerFieldChange(' + idx + ')">' +
+                            '<option value="hex" ' + (nRule.format === "hex" || !nRule.format ? "selected" : "") + '><%:Hex%></option>' +
+                            '<option value="decimal" ' + (nRule.format === "decimal" ? "selected" : "") + '><%:Dec%></option>' +
+                        '</select>' +
+                        '<input type="text" id="dr-node-pfx-' + idx + '" value="' + escapeHtml(nRule.prefix || "") + '" placeholder="<%:Prefix (NODE_)%>" style="flex: 1; min-width: 70px; padding: 4px 6px; font-size: 11px; border: 1px solid #d8b4fe; border-radius: 4px; background: #fff;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                    '</div>' +
+                '</div>' +
+
+                '<!-- ZONE 3: TELEMETRY DECODER ENGINE (EMERALD ZONE) -->' +
+                '<div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-left: 4px solid #059669; border-radius: 6px; padding: 10px 12px;">' +
+                    '<div style="font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
+                        '<span>⚙️</span> <%:3. Telemetry Decoder Engine%>' +
+                    '</div>' +
+                    '<div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">' +
+                        '<select id="dr-dectype-' + idx + '" style="flex: 2; min-width: 120px; padding: 4px 6px; font-size: 11px; font-weight: 700; border: 1px solid #6ee7b7; border-radius: 4px; background: #fff;" onchange="updateDrawerDecTypeFields(' + idx + '); onDrawerFieldChange(' + idx + ');">' +
+                            '<option value="ctv" ' + (decType === "ctv" || decType === "tlv" ? "selected" : "") + '><%:TLV / Channel-Value%></option>' +
+                            '<option value="js" ' + (decType === "js" ? "selected" : "") + '><%:JavaScript Function%></option>' +
+                            '<option value="cayenne_lpp" ' + (decType === "cayenne_lpp" ? "selected" : "") + '><%:Cayenne LPP%></option>' +
+                            '<option value="ascii" ' + (decType === "ascii" ? "selected" : "") + '><%:Plain ASCII Text%></option>' +
+                            '<option value="fields" ' + (decType === "fields" ? "selected" : "") + '><%:Field Slicer%></option>' +
+                        '</select>' +
+                        '<div id="box-dr-dec-ctv-' + idx + '" style="display: ' + (decType === "ctv" || decType === "tlv" ? "flex" : "none") + '; align-items: center; gap: 4px; flex: 1; min-width: 100px;">' +
+                            '<span style="font-size: 10px; font-weight: 700; color: #065f46; white-space: nowrap;"><%:Start:%></span>' +
+                            '<input type="number" id="dr-ctv-offset-' + idx + '" value="' + (s.dataOffset !== undefined ? s.dataOffset : 4) + '" min="0" max="16" style="width: 45px; padding: 3px 5px; font-size: 11px; font-weight: 700; border: 1px solid #6ee7b7; border-radius: 4px; background: #fff;" oninput="onDrawerFieldChange(' + idx + ')" />' +
+                        '</div>' +
+                    '</div>' +
+                    '<div id="box-dr-dec-js-' + idx + '" style="display: ' + (decType === "js" ? "block" : "none") + '; margin-top: 6px;">' +
+                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">' +
+                            '<span style="font-size: 10px; color: #065f46; font-family: monospace;">decode(bytes, hex, pkt)</span>' +
+                            '<div style="font-size: 10px;">' +
+                                '<button type="button" class="cbi-button" style="padding: 1px 4px; font-size: 9px;" onclick="insertJsCode(' + idx + ', \'temp\')">Temp</button> ' +
+                                '<button type="button" class="cbi-button" style="padding: 1px 4px; font-size: 9px;" onclick="insertJsCode(' + idx + ', \'batt\')">Battery</button>' +
+                            '</div>' +
+                        '</div>' +
+                        '<textarea id="dr-js-code-' + idx + '" class="code-editor" style="height: 80px; font-size: 11px; padding: 6px;" oninput="onDrawerFieldChange(' + idx + ')">' + escapeHtml(s.jsCode || "") + '</textarea>' +
+                    '</div>' +
+                '</div>' +
+
             '</div>' +
 
-            '<!-- UNIFIED IN-PLACE DIRECT TEST CONSOLE (TIGHT & DENSE) -->' +
-            '<div id="dr-test-box-' + idx + '" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; margin-top: 4px;">' +
-                '<div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">' +
-                    '<strong style="font-size: 11px; color: #0f172a; white-space: nowrap;"><%:🧪 Test Payload (HEX):%></strong>' +
+            '<!-- ZONE 4: LIVE INTERACTIVE TEST CONSOLE (VIBRANT BLUE GLOW BORDER) -->' +
+            '<div id="dr-test-box-' + idx + '" style="background: #ffffff; border: 2px solid #3b82f6; border-radius: 6px; padding: 12px; box-shadow: 0 4px 8px -2px rgba(59, 130, 246, 0.15);">' +
+                
+                '<!-- Test Control Bar -->' +
+                '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;">' +
+                    '<div style="display: flex; align-items: center; gap: 6px;">' +
+                        '<span style="font-size: 12px; font-weight: 800; color: #1e3a8a;"><%:🧪 TEST PAYLOAD:%></span>' +
+                    '</div>' +
                     '<input type="text" id="dr-test-hex-' + idx + '" value="' + escapeHtml(sampleHex) + '" ' +
-                           'style="flex: 2; min-width: 180px; padding: 4px 8px; font-family: monospace; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff;" ' +
-                           'placeholder="<%:Paste or select payload HEX...%>" ' +
-                           'oninput="onDrawerTestHexChange(' + idx + ')" />' +
-                    (candidateHex ? '<button type="button" class="cbi-button cbi-button-action" style="padding: 3px 7px; font-size: 11px; font-weight: 700;" onclick="applyCandidateToDrawer(' + idx + ')" title="Load candidate (' + candidateHex.substring(0, 8) + '...) into this test">🎯 Use Candidate</button>' : '') +
-                    '<select id="dr-recent-pkts-' + idx + '" style="padding: 3px 6px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; max-width: 140px; background: #ffffff;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
+                           'style="flex: 2; min-width: 180px; padding: 6px 10px; font-family: monospace; font-size: 13px; font-weight: 700; border: 1.5px solid #93c5fd; border-radius: 4px; background: #f8fafc;" ' +
+                           'placeholder="<%:Enter payload HEX...%>" oninput="onDrawerTestHexChange(' + idx + ')" />' +
+                    (candidateHex ? '<button type="button" class="cbi-button" style="background: #2563eb; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,0.4);" onclick="applyCandidateToDrawer(' + idx + ')">🎯 <%:Use Candidate%></button>' : '') +
+                    '<select id="dr-recent-pkts-' + idx + '" style="padding: 5px 8px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="loadDrawerRecentPacket(' + idx + ', this.value)">' +
                         '<option value=""><%:History...%></option>' +
                     '</select>' +
-                    '<button type="button" class="cbi-button" style="padding: 3px 6px; font-size: 11px;" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to scheme">📌 Bind</button>' +
-                    '<button type="button" class="cbi-button cbi-button-action" style="padding: 3px 8px; font-size: 11px; font-weight: 700;" onclick="runDrawerDirectTest(' + idx + ')">▶ Run</button>' +
+                    '<button type="button" class="cbi-button" style="background: #059669; color: #ffffff; font-weight: 700; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="bindCurrentTestPayload(' + idx + ')" title="Permanently bind this payload to scheme">📌 <%:Bind%></button>' +
                     '<span id="dr-test-status-badge-' + idx + '" class="studio-badge badge-slate" style="margin-left: auto;">Ready</span>' +
                 '</div>' +
 
@@ -854,12 +891,12 @@ function buildSchemeDrawerHtml(idx, container) {
             '</div>' +
 
             '<!-- TIGHT FOOTER (AUTO-SAVED) -->' +
-            '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 6px; border-top: 1px solid #e2e8f0;">' +
-                '<div id="dr-autosave-bottom-' + idx + '" style="font-size: 11px; color: #059669; font-weight: 600;">' +
-                    '<span style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 2px 7px;">✓ <%:All changes auto-saved to gateway%></span>' +
+            '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1.5px solid #e2e8f0;">' +
+                '<div id="dr-autosave-bottom-' + idx + '" style="font-size: 11px; font-weight: 700; color: #059669; display: flex; align-items: center; gap: 4px;">' +
+                    '<span>✓ <%:All changes continuously auto-saved to gateway%></span>' +
                 '</div>' +
                 '<div>' +
-                    '<button type="button" class="cbi-button" style="padding: 3px 12px; font-size: 11px;" onclick="toggleSchemeDrawer(' + idx + ')"><%:Done / Close%></button>' +
+                    '<button type="button" style="background: #0f172a; color: #ffffff; font-weight: 700; font-size: 11px; border: none; padding: 4px 14px; border-radius: 4px; cursor: pointer;" onclick="toggleSchemeDrawer(' + idx + ')"><%:Done / Close%></button>' +
                 '</div>' +
             '</div>' +
         '</div>';
@@ -1243,28 +1280,28 @@ function runDrawerDirectTest(idx) {
 
     var tileCount = 0;
     if (data.temperature !== undefined) {
-        outHtml += '<div class="metric-tile"><div class="metric-tile-title">🌡️ <%:Temperature%></div><div class="metric-tile-value">' + data.temperature + ' °C</div></div>';
+        outHtml += '<div class="metric-tile" style="border: 1.5px solid #fdba74; background: #fff7ed;"><div class="metric-tile-title" style="color: #c2410c;">🌡️ <%:Temperature%></div><div class="metric-tile-value" style="color: #9a3412;">' + data.temperature + ' °C</div></div>';
         tileCount++;
     }
     if (data.battery !== undefined) {
         var battStr = data.battery + " V" + (data.battery_mv ? (" (" + data.battery_mv + " mV)") : "");
-        outHtml += '<div class="metric-tile"><div class="metric-tile-title">🔋 <%:Battery%></div><div class="metric-tile-value">' + battStr + '</div></div>';
+        outHtml += '<div class="metric-tile" style="border: 1.5px solid #86efac; background: #f0fdf4;"><div class="metric-tile-title" style="color: #15803d;">🔋 <%:Battery%></div><div class="metric-tile-value" style="color: #166534;">' + battStr + '</div></div>';
         tileCount++;
     }
     if (data.state !== undefined) {
-        outHtml += '<div class="metric-tile"><div class="metric-tile-title">🔌 <%:Actuator State%></div><div class="metric-tile-value">' + escapeHtml(data.state) + '</div></div>';
+        outHtml += '<div class="metric-tile" style="border: 1.5px solid #7dd3fc; background: #f0f9ff;"><div class="metric-tile-title" style="color: #0369a1;">🔌 <%:Actuator State%></div><div class="metric-tile-value" style="color: #075985;">' + escapeHtml(data.state) + '</div></div>';
         tileCount++;
     }
     if (data.seq !== undefined) {
-        outHtml += '<div class="metric-tile"><div class="metric-tile-title">🔢 <%:Sequence Counter%></div><div class="metric-tile-value">#' + data.seq + '</div></div>';
+        outHtml += '<div class="metric-tile" style="border: 1.5px solid #a5b4fc; background: #eef2ff;"><div class="metric-tile-title" style="color: #4338ca;">🔢 <%:Sequence Counter%></div><div class="metric-tile-value" style="color: #3730a3;">#' + data.seq + '</div></div>';
         tileCount++;
     }
     if (data.humidity !== undefined) {
-        outHtml += '<div class="metric-tile"><div class="metric-tile-title">💧 <%:Humidity%></div><div class="metric-tile-value">' + data.humidity + ' %</div></div>';
+        outHtml += '<div class="metric-tile" style="border: 1.5px solid #67e8f9; background: #ecfeff;"><div class="metric-tile-title" style="color: #0e7490;">💧 <%:Humidity%></div><div class="metric-tile-value" style="color: #155e75;">' + data.humidity + ' %</div></div>';
         tileCount++;
     }
     if (data.pressure !== undefined) {
-        outHtml += '<div class="metric-tile"><div class="metric-tile-title">⏱️ <%:Pressure%></div><div class="metric-tile-value">' + data.pressure + ' hPa</div></div>';
+        outHtml += '<div class="metric-tile" style="border: 1.5px solid #c4b5fd; background: #f5f3ff;"><div class="metric-tile-title" style="color: #6d28d9;">⏱️ <%:Pressure%></div><div class="metric-tile-value" style="color: #5b21b6;">' + data.pressure + ' hPa</div></div>';
         tileCount++;
     }
 
@@ -1462,18 +1499,20 @@ function renderActiveCandidateBanner() {
     var pfx = (hex.length >= 4) ? hex.substring(0, 4).toUpperCase() : hex.toUpperCase();
 
     cont.innerHTML = 
-        '<div style="display: flex; align-items: center; justify-content: space-between; background: #eff6ff; border: 1.5px solid #3b82f6; border-radius: 6px; padding: 7px 14px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">' +
+        '<div style="display: flex; align-items: center; justify-content: space-between; background: linear-gradient(135deg, #1e3a8a, #2563eb); border-radius: 8px; padding: 10px 16px; margin-bottom: 14px; box-shadow: 0 4px 10px -2px rgba(37,99,235,0.35); color: #ffffff; flex-wrap: wrap; gap: 10px;">' +
             '<div style="display: flex; align-items: center; gap: 10px;">' +
-                '<span style="font-size: 18px;">🎯</span>' +
+                '<span style="font-size: 22px;">🎯</span>' +
                 '<div>' +
-                    '<strong style="color: #1d4ed8; font-size: 13px;"><%:Active Decode Candidate Payload:%></strong> ' +
-                    '<code style="font-family: monospace; font-size: 13px; font-weight: 700; color: #1e3a8a; background: #dbeafe; padding: 2px 6px; border-radius: 3px;">' + hex + '</code>' +
-                    '<span style="font-size: 11px; color: #64748b; margin-left: 6px;">(' + bytes.length + ' Bytes, Node Prefix: ' + pfx + ')</span>' +
+                    '<div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9; font-weight: 700;"><%:Active Decode Candidate Payload%></div>' +
+                    '<div style="display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-wrap: wrap;">' +
+                        '<code style="font-family: monospace; font-size: 14px; font-weight: 800; color: #fef08a; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">' + hex + '</code>' +
+                        '<span style="font-size: 11px; opacity: 0.95; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 3px;">' + bytes.length + ' Bytes | Node: ' + pfx + '</span>' +
+                    '</div>' +
                 '</div>' +
             '</div>' +
-            '<div style="display: flex; gap: 6px; align-items: center;">' +
-                '<button type="button" class="cbi-button cbi-button-action" onclick="createSchemeFromHex(window.g_activeCandidate)" title="Create scheme for this candidate"><%:✨ Create Scheme for Candidate%></button>' +
-                '<button type="button" class="cbi-button" onclick="clearActiveCandidate()" title="Dismiss candidate">✕ <%:Dismiss%></button>' +
+            '<div style="display: flex; gap: 8px; align-items: center;">' +
+                '<button type="button" style="background: #f59e0b; color: #000; font-weight: 800; font-size: 12px; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" onclick="createSchemeFromHex(window.g_activeCandidate)" title="Create scheme for this candidate"><%:✨ Create Scheme for Candidate%></button>' +
+                '<button type="button" style="background: rgba(255,255,255,0.2); color: #fff; font-weight: 700; font-size: 12px; border: 1px solid rgba(255,255,255,0.4); padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="clearActiveCandidate()" title="Dismiss candidate">✕ <%:Dismiss%></button>' +
             '</div>' +
         '</div>';
 }
