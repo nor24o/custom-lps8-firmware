@@ -1,12 +1,59 @@
 # LoRa Telemetry Pipeline, Decoder Studio & Home Assistant Integration Suite
 
-A high-performance, standalone & gateway-integrated LoRa telemetry decoding engine, interactive Web GUI (Decoder Studio), and Home Assistant MQTT integration designed for Dragino LoRa Gateways (**LPS8 SX1302** and **LG01/LG02 SX1276**) and remote edge systems (**Raspberry Pi, Docker, Debian/Ubuntu server, PC, Mac, Home Assistant OS**).
+A high-performance, standalone & gateway-integrated LoRa telemetry decoding engine, interactive Web GUI (Decoder Studio), and Home Assistant MQTT integration designed for Dragino LoRa Gateways (**LPS8 SX1302** and **LG01/LG02 SX1276**) and remote edge systems (**Windows, Linux, macOS, Raspberry Pi, Docker, Home Assistant OS**).
 
 ---
 
-## 1. High-Speed Pipeline Architecture & Execution Flow
+## 1. Universal Quick Start (Any Operating System)
 
-The pipeline is ordered to guarantee minimum latency, prevent database contention, and eliminate orphan entity spam in Home Assistant:
+The standalone decoder and Web Studio are designed to run on **any machine**, regardless of whether you have Python, Node.js, Lua, or **none of them installed**:
+
+### On Windows (PowerShell or Command Prompt / CMD)
+```powershell
+cd standalone
+
+# Option 1: 1-Click Batch Launcher (Double-click or run from CMD/PowerShell)
+.\run.bat
+
+# Option 2: PowerShell Universal Launcher
+.\run.ps1
+
+# Option 3: Zero-Install Direct Browser Mode (Zero dependencies!)
+# Double-click 'index.html' in File Explorer, or run:
+start index.html
+```
+> **Auto-Detection:** The Windows launcher automatically detects whether you have `py` (official Windows Python launcher), standard `python`, `python3`, `node`, or `lua`. If no working runtime is detected (e.g. fresh Windows install with the Microsoft Store alias), it automatically launches `index.html` in your default browser in **Zero-Install Mode**.
+
+### On Linux, macOS, Raspberry Pi, WSL, or Git Bash
+```bash
+cd standalone
+
+# 1-Click Multi-Runtime Test Runner
+./test.sh
+
+# Launch Decoder Studio Web UI on port 8080
+./test.sh --web 8080
+
+# Run high-precision 5,000-packet benchmark
+./test.sh --bench
+```
+
+---
+
+## 2. Interactive Web Interface (Decoder Studio)
+
+The complete Decoder Studio Web Interface is included **both** as an OpenWrt LuCI module and as a **100% standalone web application**:
+
+- **Visual Byte Slicer:** Interactively maps byte ranges (`[0..1] Node ID`, `[2..5] Serial`, `[6..7] Temp`) with live hex color tagging.
+- **Scheme Manager:** Create, edit, clone, delete, test, and reorder decoder schemes with auto-saving to `decoders.json`.
+- **Live Payload Workbench:** Test live hex payloads with instant decoded JSON preview and discrete metric tiles.
+- **Smart Candidate Suppression:** Automatically hides the "Add Candidate" button when a node is already mapped and decoded.
+- **Zero-Dependency Web Servers:** Bundled with lightweight servers in Python (`web_server.py`) and Node.js (`web_server.js`), or runs serverless via `index.html`.
+- **Offline Resilience:** If opened directly via `file://` (double-clicking `index.html`), the interface operates locally using in-memory default schemes (including Node CAFE) and LocalStorage, with 1-click **Export JSON** and **Import JSON** capabilities.
+
+---
+
+## 3. High-Speed Pipeline Architecture & Execution Flow
 
 ```mermaid
 flowchart TD
@@ -33,46 +80,7 @@ Topic: lora/<node_id>/state"]
 
 ---
 
-## 2. Interactive Web Interface (Decoder Studio)
-
-The complete Decoder Studio Web Interface is included **both** as an OpenWrt LuCI module and as a **100% standalone web application** that runs anywhere without OpenWrt:
-
-### Launching the Standalone Web Interface
-You can run the web interface on any device (PC, Linux, Mac, Raspberry Pi, Docker, Home Assistant OS):
-
-```bash
-cd standalone
-
-# Option 1: 1-Click Runner
-./test.sh --web 8080
-
-# Option 2: Via Python 3 (Zero external dependencies)
-python3 web_server.py --port 8080
-
-# Option 3: Via Node.js (Zero external dependencies)
-node web_server.js 8080
-
-# Option 4: Via Lua Service CLI
-lua service.lua --web 8080
-
-# Option 5: Offline / Direct File Access
-# Open 'standalone/index.html' or 'standalone/web/index.html' directly in any browser!
-```
-
-Open your browser to:
-**`http://localhost:8080`**
-
-### Web Studio Features
-- **Visual Byte Slicer:** Interactively maps byte ranges (`[0..1] Node ID`, `[2..5] Serial`, `[6..7] Temp`) with live hex color tagging.
-- **Scheme Manager:** Create, edit, clone, delete, test, and reorder decoder schemes with auto-saving to `decoders.json`.
-- **Live Payload Workbench:** Test live hex payloads with instant decoded JSON preview and discrete metric tiles.
-- **Smart Candidate Suppression:** Automatically hides the "Add Candidate" button when a node is already mapped and decoded.
-- **Zero-Dependency REST API:** Embedded HTTP backend provides `/api/decoders`, `/api/packets`, and `/api/nodes`.
-- **Offline Resilience:** If no web server is running, the interface falls back to LocalStorage and local caching.
-
----
-
-## 3. Pipeline Speed & Real-World Latency Benchmarks
+## 4. Pipeline Speed & Real-World Latency Benchmarks
 
 Performance was benchmarked across **5,000 real telemetry packets** (evaluating CRC integrity, multi-sensor scheme matching, discrete metric extraction, and Home Assistant enrollment checks):
 
@@ -83,7 +91,7 @@ Performance was benchmarked across **5,000 real telemetry packets** (evaluating 
 
 ---
 
-## 4. Platform Abstraction & Cross-Platform Portability
+## 5. Platform Abstraction & Cross-Platform Portability
 
 The core decoding engine is 100% decoupled from the underlying operating system and gateway hardware:
 
@@ -94,12 +102,15 @@ The core decoding engine is 100% decoupled from the underlying operating system 
 
 ---
 
-## 5. Standalone Feature Suite & Verification Tools
-
-The `standalone/` directory provides everything needed to run or test the decoder on any machine:
+## 6. Standalone Feature Suite Directory Layout
 
 ```
 standalone/
+├── run.bat                # 1-Click Windows Batch Launcher (Auto-detects py/python/node/browser)
+├── run.ps1                # 1-Click Windows PowerShell Launcher
+├── test.bat               # Windows Test Suite & Launcher
+├── test.ps1               # PowerShell Test Suite & Launcher
+├── test.sh                # 1-Click Linux / Mac / WSL / Git Bash Test Runner
 ├── index.html             # Standalone Single-Page Decoder Studio Web App
 ├── web/                   # Dedicated Web UI Assets:
 │   ├── index.html         # Web Studio UI
@@ -114,69 +125,14 @@ standalone/
 ├── service.lua            # Unified CLI Runner, Daemon, File Watcher & Web Launcher
 ├── decoders.json          # Configured Decoder Schemes (Node CAFE, Cayenne LPP, TLV, ASCII)
 ├── benchmark_pipeline.lua # High-precision 5,000-packet latency & throughput benchmark
-├── test.sh                # 1-Click Multi-Runtime Auto-Detecting Test Runner
 ├── test_standalone.js     # Node.js Test Runner
 ├── test_standalone.py     # Python 3 Test Runner
 └── README.md              # Standalone Operational Documentation
 ```
 
-### Quick Verification Commands
-
-#### 1-Click Multi-Runtime Auto-Detecting Runner
-```bash
-cd standalone
-chmod +x test.sh
-./test.sh
-```
-
-#### Launch Standalone Web Studio
-```bash
-cd standalone
-./test.sh --web 8080
-```
-
-#### Run Performance Benchmark
-```bash
-cd standalone
-./test.sh --bench
-# Or directly via Lua:
-lua benchmark_pipeline.lua
-```
-
-#### Run Full Test Suite via Lua
-```bash
-cd standalone
-lua service.lua --test
-```
-*Verifies CRC gate rejection, multi-sensor LPP decoding, node ID routing, and pipeline execution (6/6 tests passing).*
-
-#### Run via Python 3
-```bash
-cd standalone
-python3 test_standalone.py
-```
-
-#### Run via Node.js
-```bash
-cd standalone
-node test_standalone.js
-```
-
-#### Decode Single Packet via CLI
-```bash
-cd standalone
-lua service.lua --hex CAFE96B840EB010201490271FFFB00180421036700B404880000000000000000 --decoders decoders.json
-```
-
-#### Run Live Daemon / File Watcher Mode
-```bash
-cd standalone
-lua service.lua   --watch /tmp/lora_packets.json   --decoders ./decoders.json   --broker 192.168.1.13   --port 1883   --user admin   --pass admin
-```
-
 ---
 
-## 6. Home Assistant Integration & Zero Auto-Enrollment Security
+## 7. Home Assistant Integration & Security
 
 ### Zero Auto-Enrollment Security Gate
 - **Problem:** In multi-node LoRa environments, gateways frequently receive stray packets from neighboring networks or unsanctioned devices. Auto-enrolling every device creates clutter and orphan sensors in Home Assistant.
@@ -190,7 +146,7 @@ lua service.lua   --watch /tmp/lora_packets.json   --decoders ./decoders.json   
 
 ---
 
-## 7. 1-Click Gateway Deployment
+## 8. 1-Click Gateway Deployment
 
 To deploy this entire suite (GUI, pipeline, decoder, and Home Assistant bridge) directly to a live Dragino gateway:
 
@@ -201,7 +157,7 @@ chmod +x deploy.sh
 
 ---
 
-## 8. Repository Structure
+## 9. Repository Structure
 
 ```
 .
@@ -229,9 +185,11 @@ chmod +x deploy.sh
 │   ├── ha_bridge.lua            # Tailored MQTT auto-discovery & instant telemetry dispatch
 │   └── lora_mqtt_bridge.lua     # Gateway Device discovery, topology & downlink bridge
 │
-├── standalone/                  # Portable Standalone Service, Multi-Runtime Tests & Web UI
+├── standalone/                  # Universal Standalone Suite (Windows / Linux / Mac / Server)
+│   ├── run.bat / run.ps1        # Universal 1-Click Windows Launchers
+│   ├── test.sh                  # Universal 1-Click Unix / Mac / WSL Launcher
 │   ├── index.html               # Standalone Single-Page Decoder Studio Web App
-│   ├── web/                     # Dedicated Web UI assets (index.html, lora_decoder.js, decoders.json)
+│   ├── web/                     # Dedicated Web UI assets
 │   ├── web_server.py            # Python 3 Web Server
 │   ├── web_server.js            # Node.js Web Server
 │   ├── service.lua              # CLI runner, daemon, watcher & web launcher
@@ -240,11 +198,7 @@ chmod +x deploy.sh
 │   ├── pipeline.lua             # Standalone pipeline
 │   ├── ha_bridge.lua            # Standalone HA bridge
 │   ├── decoders.json            # Decoder schemes
-│   ├── benchmark_pipeline.lua   # 5,000-packet latency & throughput benchmark
-│   ├── test.sh                  # 1-Click multi-runtime test runner & web launcher
-│   ├── test_standalone.js       # Node.js test runner
-│   ├── test_standalone.py       # Python 3 test runner
-│   └── README.md                # Standalone documentation
+│   └── benchmark_pipeline.lua   # 5,000-packet latency & throughput benchmark
 │
 ├── files/                       # Ready-to-flash OpenWrt rootfs overlay tree
 │   ├── etc/
