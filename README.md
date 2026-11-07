@@ -1,18 +1,55 @@
-# LoRa Telemetry Pipeline, Decoder Studio & Home Assistant Integration Suite
+# LoRa Telemetry Pipeline, Decoder Studio, Home Assistant & MQTT Suite
 
-A high-performance, standalone & gateway-integrated LoRa telemetry decoding engine, interactive Web GUI (Decoder Studio), and Home Assistant MQTT integration designed for Dragino LoRa Gateways (**LPS8 SX1302** and **LG01/LG02 SX1276**) and remote edge systems (**Windows, Linux, macOS, Raspberry Pi, Docker, Home Assistant OS**).
+A complete, high-performance LoRa telemetry processing suite, interactive Web Application (Decoder Studio, Home Assistant Manager, and MQTT Bridge), and gateway firmware designed for Dragino LoRa Gateways (**LPS8 SX1302** and **LG01/LG02 SX1276**) and remote edge systems (**Windows, Linux, macOS, Raspberry Pi, Docker, Home Assistant OS**).
 
 ---
 
-## 1. Universal Quick Start (Any Operating System)
+## 1. Web Application Features & Navigation Tabs
 
-The standalone decoder and Web Studio are designed to run on **any machine**, regardless of whether you have Python, Node.js, Lua, or **none of them installed**:
+The Web Interface provides a complete, unified management console accessible in any web browser (`http://localhost:8080`):
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  📡 LoRa Gateway Studio [Suite v2.2]                     ● Broker: Connected (192.168.1.13:1883) │
+├──────────────────────────┬─────────────────────────────┬───────────────────────┬─────────────────┤
+│ 🔬 Payload Decoder Studio│ 🏠 Home Assistant Integrat. │ 📨 MQTT Broker & Bridge│ 📊 Live Traffic │
+└──────────────────────────┴─────────────────────────────┴───────────────────────┴─────────────────┘
+```
+
+### 🔬 Tab 1: Payload Decoder Studio
+- **Visual Byte Slicer:** Interactively maps byte ranges (`[0..1] Node ID`, `[2..5] Serial`, `[6..7] Temp`) with live hex color tagging.
+- **Scheme Manager:** Create, edit, clone, delete, test, and reorder decoder schemes with auto-saving to `decoders.json`.
+- **Live Payload Workbench:** Test live hex payloads with instant decoded JSON preview and discrete metric tiles.
+- **Smart Candidate Suppression:** Automatically hides the "Add Candidate" button when a node is already mapped and decoded.
+
+### 🏠 Tab 2: Home Assistant Integration
+- **Strict Zero Auto-Enrollment Security Gate:** Prevents rogue nodes or bleed-through packets from neighboring networks from polluting Home Assistant. Only approved nodes with defined schemes publish discovery entities.
+- **Enrolled Devices Table:** View enrolled nodes (`Node CAFE`, `Node AA0B`), device serials, discovered sensor metrics, and live status.
+- **1-Click Live Telemetry Dispatch:** Instantly publish sample telemetry (`lora/<node_id>/state`) to verify real-time dashboard updates in Home Assistant without waiting for radio broadcasts.
+- **1-Click Auto-Discovery Sync:** Dispatches entity configs (`homeassistant/sensor/<node_id>_<metric>/config`) for all approved nodes.
+- **1-Click Ghost Entity Purge:** Sends empty retained discovery payloads to wipe out obsolete or ghost sensors from Home Assistant.
+
+### 📨 Tab 3: MQTT Broker & Bridge
+- **Broker Connection Settings:** Configure Host IP (`192.168.1.13`), Port (`1883`), Username, Password, Discovery Prefix (`homeassistant`), and Telemetry State Prefix (`lora`).
+- **Live Ping & Connection Tester:** 1-click test button verifies TCP and MQTT v3.1.1 connectivity with real-time latency measurement.
+- **Direct Telemetry Publisher:** Publish custom MQTT JSON payloads directly to test node downlinks and Home Assistant reactions.
+
+### 📊 Tab 4: Live Packet Traffic
+- **Real-Time Radio Ingestion Stream:** Displays live incoming packets with timestamp, Frequency, RSSI, SNR, Size, Raw Hex, and Decoded metrics.
+- **Hardware CRC Gate Status:** Color-coded badges for `CRC_OK` vs `CRC_BAD` (corrupted packets dropped at line 0).
+- **1-Click Byte Slicing:** Click `🔬 Slice` on any live packet to load it directly into the Decoder Studio workbench.
+
+---
+
+## 2. Universal Quick Start (Any Operating System)
+
+The suite runs on **any machine**, regardless of whether you have Python, Node.js, Lua, or **none of them installed**:
 
 ### On Windows (PowerShell or Command Prompt / CMD)
 ```powershell
 cd standalone
 
-# Option 1: 1-Click Batch Launcher (Double-click or run from CMD/PowerShell)
+# Option 1: 1-Click Batch Launcher (Double-click run.bat in File Explorer)
 .\run.bat
 
 # Option 2: PowerShell Universal Launcher
@@ -22,7 +59,7 @@ cd standalone
 # Double-click 'index.html' in File Explorer, or run:
 start index.html
 ```
-> **Auto-Detection:** The Windows launcher automatically detects whether you have `py` (official Windows Python launcher), standard `python`, `python3`, `node`, or `lua`. If no working runtime is detected (e.g. fresh Windows install with the Microsoft Store alias), it automatically launches `index.html` in your default browser in **Zero-Install Mode**.
+> **Auto-Detection:** Automatically detects whether you have `py`, `python`, `node`, or `lua`. If no working runtime is detected (e.g. fresh Windows install with the Microsoft Store alias), it automatically launches `index.html` in your default browser in **Zero-Install Mode**.
 
 ### On Linux, macOS, Raspberry Pi, WSL, or Git Bash
 ```bash
@@ -37,19 +74,6 @@ cd standalone
 # Run high-precision 5,000-packet benchmark
 ./test.sh --bench
 ```
-
----
-
-## 2. Interactive Web Interface (Decoder Studio)
-
-The complete Decoder Studio Web Interface is included **both** as an OpenWrt LuCI module and as a **100% standalone web application**:
-
-- **Visual Byte Slicer:** Interactively maps byte ranges (`[0..1] Node ID`, `[2..5] Serial`, `[6..7] Temp`) with live hex color tagging.
-- **Scheme Manager:** Create, edit, clone, delete, test, and reorder decoder schemes with auto-saving to `decoders.json`.
-- **Live Payload Workbench:** Test live hex payloads with instant decoded JSON preview and discrete metric tiles.
-- **Smart Candidate Suppression:** Automatically hides the "Add Candidate" button when a node is already mapped and decoded.
-- **Zero-Dependency Web Servers:** Bundled with lightweight servers in Python (`web_server.py`) and Node.js (`web_server.js`), or runs serverless via `index.html`.
-- **Offline Resilience:** If opened directly via `file://` (double-clicking `index.html`), the interface operates locally using in-memory default schemes (including Node CAFE) and LocalStorage, with 1-click **Export JSON** and **Import JSON** capabilities.
 
 ---
 
@@ -71,18 +95,11 @@ Topic: lora/<node_id>/state"]
     F --> H["Background Local Logging & Downlink Check (SQLite RAM / Flash)"]
 ```
 
-### Execution Steps
-1. **Strict Hardware CRC Integrity Gate:** Corrupted frames (`CRC_BAD` or invalid checksums) are discarded immediately at line 0. They never touch SQLite, memory caches, or the decoder.
-2. **Multi-Scheme Telemetry Decoder:** Decodes raw binary payloads using pre-configured schemes (Cayenne LPP / IPSO, CTV / TLV, Field Slicer, or ASCII).
-3. **Zero Auto-Enrollment Approval Gate:** Prevents rogue nodes or bleed-through packets from neighboring networks from polluting Home Assistant. Only nodes with an explicit, active decoder scheme publish MQTT Auto-Discovery topics.
-4. **Immediate MQTT State Dispatch:** Valid telemetry is published to `lora/<node_id>/state` within milliseconds, ensuring real-time sensor updates in Home Assistant.
-5. **Background SQLite Buffering & Downlink Actions:** Telemetry storage and downlink rule evaluation run asynchronously to avoid blocking packet ingestion.
-
 ---
 
 ## 4. Pipeline Speed & Real-World Latency Benchmarks
 
-Performance was benchmarked across **5,000 real telemetry packets** (evaluating CRC integrity, multi-sensor scheme matching, discrete metric extraction, and Home Assistant enrollment checks):
+Performance was benchmarked across **5,000 real telemetry packets**:
 
 | Target Platform & Architecture | Per-Packet Latency | Ingestion Throughput | Real-World Operational Context |
 | :--- | :--- | :--- | :--- |
@@ -91,120 +108,42 @@ Performance was benchmarked across **5,000 real telemetry packets** (evaluating 
 
 ---
 
-## 5. Platform Abstraction & Cross-Platform Portability
-
-The core decoding engine is 100% decoupled from the underlying operating system and gateway hardware:
-
-- **Zero C Bitwise Dependencies:** Pure integer arithmetic (`* 256`, `/ 256`, `% 256`) is used in place of platform-specific C modules (`bit`, `bit32`). It runs identically across Lua 5.1 (OpenWrt), Lua 5.2, Lua 5.3, Lua 5.4, and LuaJIT without requiring compilation.
-- **Dual-Context Universal JavaScript (`lora_decoder.js`):** Runs seamlessly in the LuCI browser web UI, standalone web UI, and backend headless runtimes (Node.js via `module.exports = LoraDecoder`).
-- **Decoupled from OpenWrt Internals:** The decoder does not rely on OpenWrt `uci`, `luci`, or `ubus` libraries. Input is a raw hex string or byte buffer; output is standard JSON telemetry.
-- **Unified Scheme Specification (`decoders.json`):** Shared JSON configuration format supported across all runtimes.
-
----
-
-## 6. Standalone Feature Suite Directory Layout
+## 5. Standalone Directory Layout
 
 ```
 standalone/
 ├── run.bat                # 1-Click Windows Batch Launcher (Auto-detects py/python/node/browser)
 ├── run.ps1                # 1-Click Windows PowerShell Launcher
-├── test.bat               # Windows Test Suite & Launcher
-├── test.ps1               # PowerShell Test Suite & Launcher
-├── test.sh                # 1-Click Linux / Mac / WSL / Git Bash Test Runner
-├── index.html             # Standalone Single-Page Decoder Studio Web App
+├── test.bat / test.ps1    # Windows Test Suites
+├── test.sh                # 1-Click Linux / Mac / WSL Test Runner & Web Launcher
+├── index.html             # Standalone 4-Tab Web Application
+├── config.json            # MQTT Broker, Gateway & Topic Configuration
+├── decoders.json          # Configured Decoder Schemes (Node CAFE, Cayenne LPP, TLV, ASCII)
 ├── web/                   # Dedicated Web UI Assets:
 │   ├── index.html         # Web Studio UI
-│   ├── lora_decoder.js    # Visual Slicer & In-Browser Decoder Engine
-│   └── decoders.json      # Pre-configured Schemes
-├── web_server.py          # Zero-dependency Python 3 HTTP Server (API + Web UI)
-├── web_server.js          # Zero-dependency Node.js HTTP Server (API + Web UI)
+│   ├── config.json        # Configuration
+│   ├── decoders.json      # Schemes Specification
+│   └── lora_decoder.js    # Visual Slicer & In-Browser Decoder Engine
+├── web_server.py          # Zero-dependency Python 3 Web Server & MQTT Bridge
+├── web_server.js          # Zero-dependency Node.js Web Server & MQTT Bridge
 ├── lora_decoder.lua       # Multi-Scheme Decoder Engine (Pure arithmetic Lua)
 ├── lora_decoder.js        # Universal JS Decoder (Node.js & Browser dual-environment)
 ├── pipeline.lua           # Strict Hardware CRC Integrity Gate & Ingestion Pipeline
 ├── ha_bridge.lua          # Home Assistant MQTT Auto-Discovery & Instant Telemetry
 ├── service.lua            # Unified CLI Runner, Daemon, File Watcher & Web Launcher
-├── decoders.json          # Configured Decoder Schemes (Node CAFE, Cayenne LPP, TLV, ASCII)
 ├── benchmark_pipeline.lua # High-precision 5,000-packet latency & throughput benchmark
 ├── test_standalone.js     # Node.js Test Runner
 ├── test_standalone.py     # Python 3 Test Runner
-└── README.md              # Standalone Operational Documentation
+└── README.md              # Operational Documentation
 ```
 
 ---
 
-## 7. Home Assistant Integration & Security
-
-### Zero Auto-Enrollment Security Gate
-- **Problem:** In multi-node LoRa environments, gateways frequently receive stray packets from neighboring networks or unsanctioned devices. Auto-enrolling every device creates clutter and orphan sensors in Home Assistant.
-- **Solution:** Telemetry packets only trigger Home Assistant Auto-Discovery (`homeassistant/sensor/<node_id>/<sensor>/config`) if the node has an **active, configured scheme** in `decoders.json`.
-- Unconfigured packets are retained as discovery candidates in the LuCI / Standalone Web GUI for administrator inspection but are **blocked** from enrolling into Home Assistant.
-
-### Tailored Entity Mapping & Bug Fixes
-- **1661.9°C & 0V Bug Resolution:** Strict data type validation and scaling prevent raw int16 values from being misparsed as invalid temperatures or zero voltages.
-- **Stable Sensor Topics:** Telemetry state is published to `lora/<node_id>/state` as a structured JSON object with the retained flag enabled, ensuring instant sensor state recovery upon Home Assistant restart.
-- **Device Topology:** All node entities are linked under a unified device registry (`LoRa Node <node_id>`), complete with model, serial, and firmware metadata.
-
----
-
-## 8. 1-Click Gateway Deployment
+## 6. 1-Click Gateway Deployment
 
 To deploy this entire suite (GUI, pipeline, decoder, and Home Assistant bridge) directly to a live Dragino gateway:
 
 ```bash
 chmod +x deploy.sh
 ./deploy.sh 192.168.1.17 root root
-```
-
----
-
-## 9. Repository Structure
-
-```
-.
-├── gui/                         # LuCI Web GUI & Visual Slicer
-│   ├── luci/
-│   │   ├── controller/lora.lua  # REST APIs (decoders, packets, nodes, mqtt, downlinks)
-│   │   ├── model/cbi/lora/      # Gateway config model
-│   │   └── view/lora/           # HTML templates (decoder, status, nodes, config, diag, log)
-│   └── www/
-│       ├── luci-static/resources/lora_decoder.js  # Universal Byte Segmentation & Decoder Engine
-│       └── images/              # Hardware pinout & architectural diagrams
-│
-├── pipeline/                    # Telemetry Intake & Processing Pipeline
-│   ├── lora_linking_engine.lua  # Ultra-low-latency linking, CRC gate & telemetry dispatcher
-│   ├── pipeline.lua             # Pure Lua CRC gate & ingestion pipeline module
-│   ├── lora_db_init.sh          # Dual SQLite database schema setup (Flash /etc/lora & RAM /tmp)
-│   ├── lora_keepalive.sh        # Service supervisor & auto-respawn watchdog
-│   └── lora_sync_config.sh      # Configuration synchronizer
-│
-├── decoder/                     # Multi-Scheme Payload Decoder
-│   ├── lora_decoder.lua         # Multi-scheme decoding engine
-│   └── decoders.json            # Active schemes specification
-│
-├── homeassistant/               # Home Assistant MQTT Integration
-│   ├── ha_bridge.lua            # Tailored MQTT auto-discovery & instant telemetry dispatch
-│   └── lora_mqtt_bridge.lua     # Gateway Device discovery, topology & downlink bridge
-│
-├── standalone/                  # Universal Standalone Suite (Windows / Linux / Mac / Server)
-│   ├── run.bat / run.ps1        # Universal 1-Click Windows Launchers
-│   ├── test.sh                  # Universal 1-Click Unix / Mac / WSL Launcher
-│   ├── index.html               # Standalone Single-Page Decoder Studio Web App
-│   ├── web/                     # Dedicated Web UI assets
-│   ├── web_server.py            # Python 3 Web Server
-│   ├── web_server.js            # Node.js Web Server
-│   ├── service.lua              # CLI runner, daemon, watcher & web launcher
-│   ├── lora_decoder.lua         # Standalone decoder (Lua)
-│   ├── lora_decoder.js          # Standalone decoder (Node.js / Universal)
-│   ├── pipeline.lua             # Standalone pipeline
-│   ├── ha_bridge.lua            # Standalone HA bridge
-│   ├── decoders.json            # Decoder schemes
-│   └── benchmark_pipeline.lua   # 5,000-packet latency & throughput benchmark
-│
-├── files/                       # Ready-to-flash OpenWrt rootfs overlay tree
-│   ├── etc/
-│   ├── usr/
-│   └── www/
-│
-├── deploy.sh                    # 1-Click live gateway deployer script
-└── .gitignore
 ```
