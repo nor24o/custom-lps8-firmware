@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# test.sh — 1-Click Standalone LoRa Decoder & Pipeline Test Runner
+# test.sh — 1-Click Standalone LoRa Decoder, Pipeline & Benchmark Runner
 # ==============================================================================
 # Auto-detects available runtime (Lua, Python 3, or Node.js) and executes
 # the standalone self-test suite and sample payload decoding.
+#
+# Usage:
+#   ./test.sh          # Run complete verification test suite
+#   ./test.sh --bench  # Run high-precision performance benchmark
 # ==============================================================================
 
 set -e
@@ -11,13 +15,9 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-echo "=============================================================="
-echo " Standalone LoRa Decoder & Pipeline Verification Runner"
-echo "=============================================================="
-
 SAMPLE_HEX="CAFE96B840EB010201490271FFFB00180421036700B404880000000000000000"
 
-# 1. Try Lua
+# Detect Lua binary
 LUA_BIN=""
 for b in lua lua5.1 lua5.2 lua5.3 lua5.4 luajit; do
     if command -v "$b" >/dev/null 2>&1; then
@@ -26,6 +26,21 @@ for b in lua lua5.1 lua5.2 lua5.3 lua5.4 luajit; do
     fi
 done
 
+if [ "$1" = "--bench" ]; then
+    if [ -n "$LUA_BIN" ]; then
+        echo "[INFO] Running benchmark via $LUA_BIN..."
+        exec "$LUA_BIN" benchmark_pipeline.lua
+    else
+        echo "[ERROR] Lua runtime is required for benchmark_pipeline.lua."
+        exit 1
+    fi
+fi
+
+echo "=============================================================="
+echo " Standalone LoRa Decoder & Pipeline Verification Runner"
+echo "=============================================================="
+
+# 1. Try Lua
 if [ -n "$LUA_BIN" ]; then
     echo "[INFO] Running via Lua ($LUA_BIN)..."
     "$LUA_BIN" service.lua --test
