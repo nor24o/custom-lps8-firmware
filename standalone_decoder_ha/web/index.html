@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoRa Payload Decoder Studio - Standalone Web Edition</title>
+    <title>LoRa Gateway Suite — Decoder Studio, Home Assistant & MQTT Bridge</title>
     <style>
         *, *::before, *::after { box-sizing: border-box; }
         body {
@@ -14,7 +14,7 @@
             color: #1e293b;
             line-height: 1.5;
         }
-        .standalone-navbar {
+        .top-navbar {
             background: #0f172a;
             color: #ffffff;
             padding: 12px 24px;
@@ -24,13 +24,13 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .navbar-brand {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 700;
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        .navbar-brand span.badge {
+        .navbar-brand .badge-tag {
             font-size: 11px;
             background: #2563eb;
             color: #ffffff;
@@ -38,27 +38,67 @@
             border-radius: 9999px;
             font-weight: 600;
         }
-        .navbar-links {
+        .navbar-status {
             display: flex;
             align-items: center;
             gap: 16px;
+            font-size: 12px;
         }
-        .navbar-links a {
-            color: #94a3b8;
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-        .navbar-links a:hover {
-            color: #ffffff;
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-weight: 600;
+            background: #064e3b;
+            color: #6ee7b7;
+            border: 1px solid #059669;
         }
         .main-wrapper {
             max-width: 1280px;
-            margin: 24px auto;
+            margin: 20px auto;
             padding: 0 16px;
         }
-        /* LuCI CBI button polyfill styles */
+        .tab-nav-bar {
+            display: flex;
+            gap: 8px;
+            border-bottom: 2px solid #cbd5e1;
+            margin-bottom: 20px;
+            background: #ffffff;
+            padding: 8px 12px 0 12px;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .tab-btn {
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #64748b;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tab-btn:hover {
+            color: #2563eb;
+            background: #f8fafc;
+            border-radius: 6px 6px 0 0;
+        }
+        .tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        .tab-content-panel {
+            display: none;
+        }
+        .tab-content-panel.active {
+            display: block;
+        }
         .cbi-button {
             display: inline-flex;
             align-items: center;
@@ -74,67 +114,111 @@
             transition: all 0.15s ease;
             user-select: none;
         }
-        .cbi-button:hover {
-            background: #f8fafc;
-            border-color: #94a3b8;
+        .cbi-button:hover { background: #f8fafc; border-color: #94a3b8; }
+        .cbi-button:active { transform: scale(0.98); }
+        .cbi-button-action { background: #2563eb; color: #ffffff; border-color: #1d4ed8; }
+        .cbi-button-action:hover { background: #1d4ed8; color: #ffffff; }
+        .cbi-button-apply { background: #059669; color: #ffffff; border-color: #047857; }
+        .cbi-button-apply:hover { background: #047857; color: #ffffff; }
+        .cbi-button-reset { background: #ef4444; color: #ffffff; border-color: #dc2626; }
+        .cbi-button-reset:hover { background: #dc2626; color: #ffffff; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
         }
-        .cbi-button:active {
-            transform: scale(0.98);
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
-        .cbi-button-action {
-            background: #2563eb;
-            color: #ffffff;
-            border-color: #1d4ed8;
-        }
-        .cbi-button-action:hover {
-            background: #1d4ed8;
-            color: #ffffff;
-        }
-        .cbi-button-apply {
-            background: #059669;
-            color: #ffffff;
-            border-color: #047857;
-        }
-        .cbi-button-apply:hover {
-            background: #047857;
-            color: #ffffff;
-        }
-        .cbi-button-reset {
-            background: #ef4444;
-            color: #ffffff;
-            border-color: #dc2626;
-        }
-        .cbi-button-reset:hover {
-            background: #dc2626;
-            color: #ffffff;
-        }
-        .cbi-input-text, .cbi-input-select {
-            padding: 6px 10px;
+        .form-group label {
             font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+        }
+        .form-input {
+            padding: 8px 12px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
+            font-size: 13px;
             outline: none;
-            transition: border-color 0.15s ease;
+            transition: border-color 0.15s;
         }
-        .cbi-input-text:focus, .cbi-input-select:focus {
+        .form-input:focus {
             border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
         }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+        .data-table th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            padding: 10px 14px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .data-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .data-table tr:hover {
+            background: #f8fafc;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-green { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+        .badge-amber { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+        .badge-red   { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .badge-blue  { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .alert-box {
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+        .alert-success { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
     </style>
+    <script src="lora_decoder.js"></script>
 </head>
 <body>
-    <header class="standalone-navbar">
+    <header class="top-navbar">
         <div class="navbar-brand">
-            <span>📡 LoRa Payload Decoder Studio</span>
-            <span class="badge">Standalone Web Edition</span>
+            <span>📡 LoRa Gateway Studio</span>
+            <span class="badge-tag">Suite v2.2</span>
         </div>
-        <div class="navbar-links">
-            <span id="backend-status" style="font-size: 12px; color: #10b981; font-weight: 600;">● Active / Ready</span>
-            <a href="https://github.com/nor24o/custom-lps8-firmware/tree/feat/lora-ha-telemetry-and-decoders" target="_blank" rel="noopener">GitHub Repository</a>
+        <div class="navbar-status">
+            <span id="ha-broker-status" class="status-pill">● Checking Broker...</span>
+            <a href="https://github.com/nor24o/custom-lps8-firmware/tree/feat/lora-ha-telemetry-and-decoders" target="_blank" rel="noopener" style="color: #94a3b8; text-decoration: none; font-size: 12px;">GitHub Branch</a>
         </div>
     </header>
-    <main class="main-wrapper">
 
+    <main class="main-wrapper">
+        <nav class="tab-nav-bar">
+            <button class="tab-btn active" id="tab-btn-decoder" onclick="switchStudioTab('tab-decoder')">🔬 Payload Decoder Studio</button>
+            <button class="tab-btn" id="tab-btn-ha" onclick="switchStudioTab('tab-ha')">🏠 Home Assistant Integration</button>
+            <button class="tab-btn" id="tab-btn-mqtt" onclick="switchStudioTab('tab-mqtt')">📨 MQTT Broker & Bridge</button>
+            <button class="tab-btn" id="tab-btn-packets" onclick="switchStudioTab('tab-packets')">📊 Live Packet Traffic</button>
+        </nav>
+
+        <!-- TAB 1: DECODER STUDIO -->
+        <div id="tab-decoder" class="tab-content-panel active">
+            
 
 <style type="text/css">
 .studio-container {
@@ -494,40 +578,8 @@
     </div>
 </div>
 
-<script type="text/javascript" src="lora_decoder.js"></script>
+
 <script type="text/javascript">//<![CDATA[
-
-// Standalone XHR Polyfill
-if (!window.XHR) {
-    window.XHR = {
-        get: function(url, data, callback) {
-            var fullUrl = url + (data ? '?' + new URLSearchParams(data).toString() : '');
-            fetch(fullUrl)
-                .then(function(r) { return r.json(); })
-                .then(function(json) {
-                    if (callback) callback({ responseText: JSON.stringify(json), responseJSON: json, status: 200 }, json);
-                })
-                .catch(function(e) {
-                    if (callback) callback({ status: 500, error: e }, null);
-                });
-        },
-        post: function(url, data, callback) {
-            fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: typeof data === 'string' ? data : JSON.stringify(data)
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(json) {
-                if (callback) callback({ responseText: JSON.stringify(json), responseJSON: json, status: 200 }, json);
-            })
-            .catch(function(e) {
-                if (callback) callback({ status: 500, error: e }, null);
-            });
-        }
-    };
-}
-
 var g_schemes = [];
 var g_globalNodeId = { source: "node_2b", format: "hex", prefix: "" };
 var g_apiEndpoint = '/api/decoders';
@@ -2208,7 +2260,419 @@ function createSchemeFromCurrentHex() {
 //]]></script>
 
 
+
+        </div>
+
+        <!-- TAB 2: HOME ASSISTANT INTEGRATION -->
+        <div id="tab-ha" class="tab-content-panel">
+            <div class="studio-card">
+                <h3>🏠 Home Assistant MQTT Integration & Zero Auto-Enrollment</h3>
+                <div class="alert-box alert-info">
+                    <span>🔒</span>
+                    <div>
+                        <strong>Strict Zero Auto-Enrollment Security Gate:</strong>
+                        Only LoRa nodes with active, configured decoder schemes publish discovery entities into Home Assistant. Stray or unsanctioned packets from neighboring networks are blocked, preventing orphan sensors.
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 18px;">
+                    <button type="button" class="cbi-button cbi-button-apply" onclick="syncAllHomeAssistant()">⚡ Sync All Configured Schemes to Home Assistant</button>
+                    <button type="button" class="cbi-button cbi-button-reset" onclick="purgeAllHomeAssistant()">🧹 Purge Orphan Entities from HA</button>
+                    <button type="button" class="cbi-button" onclick="loadHANodes()">🔄 Refresh Enrolled Nodes</button>
+                </div>
+
+                <div style="font-weight: 700; margin-bottom: 8px; font-size: 14px;">Enrolled LoRa Devices in Home Assistant:</div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Node ID</th>
+                            <th>Device Name</th>
+                            <th>Matching Scheme</th>
+                            <th>Serial / MAC</th>
+                            <th>Sensor Metrics</th>
+                            <th>Enrollment Gate</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ha-nodes-table-body">
+                        <tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">Loading enrolled devices...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="studio-card">
+                <h3>📡 Home Assistant Live Telemetry Dispatch Tester</h3>
+                <p style="font-size: 13px; color: #64748b; margin-top: 0;">
+                    Verify real-time sensor updates in your Home Assistant dashboard instantly without waiting for a physical radio transmission:
+                </p>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <button type="button" class="cbi-button cbi-button-action" onclick="dispatchTestTelemetry('CAFE')">📡 Dispatch Node CAFE Telemetry (18.5°C, 3.29V)</button>
+                    <button type="button" class="cbi-button cbi-button-action" onclick="dispatchTestTelemetry('AA0B')">📡 Dispatch Node AA0B Telemetry (19.5°C, 4.01V)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: MQTT BROKER & BRIDGE -->
+        <div id="tab-mqtt" class="tab-content-panel">
+            <div class="studio-card">
+                <h3>📨 MQTT Broker Connection Settings</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Broker Host / IP Address:</label>
+                        <input type="text" id="mqtt-host" class="form-input" value="192.168.1.13">
+                    </div>
+                    <div class="form-group">
+                        <label>Broker Port:</label>
+                        <input type="number" id="mqtt-port" class="form-input" value="1883">
+                    </div>
+                    <div class="form-group">
+                        <label>Username:</label>
+                        <input type="text" id="mqtt-user" class="form-input" value="admin">
+                    </div>
+                    <div class="form-group">
+                        <label>Password:</label>
+                        <input type="password" id="mqtt-password" class="form-input" value="admin">
+                    </div>
+                    <div class="form-group">
+                        <label>Home Assistant Discovery Prefix:</label>
+                        <input type="text" id="mqtt-ha-prefix" class="form-input" value="homeassistant">
+                    </div>
+                    <div class="form-group">
+                        <label>Telemetry State Topic Root:</label>
+                        <input type="text" id="mqtt-state-prefix" class="form-input" value="lora">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+                    <button type="button" class="cbi-button cbi-button-apply" onclick="saveMqttConfig()">💾 Save MQTT Settings</button>
+                    <button type="button" class="cbi-button cbi-button-action" onclick="testMqttBrokerConnection()">🔌 Test Broker Connection</button>
+                    <span id="mqtt-test-result" style="font-size: 13px; font-weight: 600; margin-left: 8px;"></span>
+                </div>
+            </div>
+
+            <div class="studio-card">
+                <h3>📤 Direct MQTT Message Publisher</h3>
+                <div class="form-grid">
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Topic:</label>
+                        <input type="text" id="pub-topic" class="form-input" value="lora/CAFE/state">
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Payload (JSON / String):</label>
+                        <textarea id="pub-payload" class="form-input" style="height: 70px; font-family: monospace;">{"node_id":"CAFE","temperature":18.5,"battery":3.29}</textarea>
+                    </div>
+                </div>
+                <button type="button" class="cbi-button cbi-button-action" onclick="publishRawMqtt()">📤 Publish MQTT Message</button>
+            </div>
+        </div>
+
+        <!-- TAB 4: LIVE PACKET TRAFFIC -->
+        <div id="tab-packets" class="tab-content-panel">
+            <div class="studio-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <h3 style="margin: 0;">📊 Live Radio Ingestion Traffic</h3>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <label style="font-size: 13px; font-weight: 600;">
+                            <input type="checkbox" id="auto-refresh-packets" checked onchange="togglePacketAutoRefresh(this.checked)"> Auto-Refresh (2s)
+                        </label>
+                        <button type="button" class="cbi-button" onclick="loadRecentTrafficTable()">🔄 Refresh Now</button>
+                    </div>
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Status (CRC)</th>
+                            <th>Freq / RSSI / SNR</th>
+                            <th>Size</th>
+                            <th>Raw Payload (HEX)</th>
+                            <th>Decoded Output</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="traffic-table-body">
+                        <tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">Loading packet stream...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </main>
+
+    <script type="text/javascript">
+    // Global Tab Switcher
+    function switchStudioTab(tabId) {
+        var panels = document.querySelectorAll('.tab-content-panel');
+        for (var i = 0; i < panels.length; i++) {
+            panels[i].classList.remove('active');
+        }
+        var btns = document.querySelectorAll('.tab-btn');
+        for (var j = 0; j < btns.length; j++) {
+            btns[j].classList.remove('active');
+        }
+        var targetPanel = document.getElementById(tabId);
+        if (targetPanel) targetPanel.classList.add('active');
+
+        var btnId = 'tab-btn-' + tabId.replace('tab-', '');
+        var targetBtn = document.getElementById(btnId);
+        if (targetBtn) targetBtn.classList.add('active');
+
+        if (tabId === 'tab-ha') loadHANodes();
+        if (tabId === 'tab-mqtt') loadMqttConfig();
+        if (tabId === 'tab-packets') loadRecentTrafficTable();
+    }
+
+    // Check MQTT Status on Startup
+    function checkBrokerHealth() {
+        fetch('/api/mqtt/test', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var el = document.getElementById('ha-broker-status');
+                if (el) {
+                    if (d.success) {
+                        el.style.background = '#064e3b';
+                        el.style.color = '#6ee7b7';
+                        el.style.borderColor = '#059669';
+                        el.innerText = '● Broker: Connected (' + (d.message || 'OK') + ')';
+                    } else {
+                        el.style.background = '#7f1d1d';
+                        el.style.color = '#fca5a5';
+                        el.style.borderColor = '#dc2626';
+                        el.innerText = '● Broker: Disconnected';
+                    }
+                }
+            })
+            .catch(function() {
+                var el = document.getElementById('ha-broker-status');
+                if (el) {
+                    el.style.background = '#475569';
+                    el.style.color = '#cbd5e1';
+                    el.innerText = '● Standalone Offline Mode';
+                }
+            });
+    }
+
+    // Load & Save MQTT Settings
+    function loadMqttConfig() {
+        fetch('/api/config')
+            .then(function(r) { return r.json(); })
+            .then(function(cfg) {
+                var m = cfg.mqtt || {};
+                if (m.host) document.getElementById('mqtt-host').value = m.host;
+                if (m.port) document.getElementById('mqtt-port').value = m.port;
+                if (m.user !== undefined) document.getElementById('mqtt-user').value = m.user;
+                if (m.password !== undefined) document.getElementById('mqtt-password').value = m.password;
+                if (m.ha_prefix) document.getElementById('mqtt-ha-prefix').value = m.ha_prefix;
+                if (m.state_prefix) document.getElementById('mqtt-state-prefix').value = m.state_prefix;
+            }).catch(function() {});
+    }
+
+    function saveMqttConfig() {
+        var payload = {
+            mqtt: {
+                host: document.getElementById('mqtt-host').value.trim(),
+                port: parseInt(document.getElementById('mqtt-port').value.trim(), 10),
+                user: document.getElementById('mqtt-user').value.trim(),
+                password: document.getElementById('mqtt-password').value,
+                ha_prefix: document.getElementById('mqtt-ha-prefix').value.trim(),
+                state_prefix: document.getElementById('mqtt-state-prefix').value.trim()
+            }
+        };
+        fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function() {
+            showToast("MQTT Configuration saved to config.json!", "success");
+            checkBrokerHealth();
+        }).catch(function(e) {
+            showToast("Failed to save MQTT config: " + e, "error");
+        });
+    }
+
+    function testMqttBrokerConnection() {
+        var el = document.getElementById('mqtt-test-result');
+        el.innerText = 'Connecting...';
+        el.style.color = '#2563eb';
+
+        var payload = {
+            host: document.getElementById('mqtt-host').value.trim(),
+            port: parseInt(document.getElementById('mqtt-port').value.trim(), 10),
+            user: document.getElementById('mqtt-user').value.trim(),
+            password: document.getElementById('mqtt-password').value
+        };
+
+        fetch('/api/mqtt/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.success) {
+                el.innerText = '✓ ' + d.message;
+                el.style.color = '#059669';
+                showToast("MQTT Broker Connected: " + d.message, "success");
+            } else {
+                el.innerText = '✗ ' + d.message;
+                el.style.color = '#dc2626';
+                showToast("Connection failed: " + d.message, "error");
+            }
+        }).catch(function(e) {
+            el.innerText = '✗ ' + e;
+            el.style.color = '#dc2626';
+        });
+    }
+
+    function publishRawMqtt() {
+        var topic = document.getElementById('pub-topic').value.trim();
+        var payload = document.getElementById('pub-payload').value.trim();
+        fetch('/api/mqtt/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic: topic, payload: payload, retain: true })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.success) {
+                showToast("Message successfully published to " + topic, "success");
+            } else {
+                showToast("Publish error: " + (d.error || d.message), "error");
+            }
+        }).catch(function(e) {
+            showToast("Publish failed: " + e, "error");
+        });
+    }
+
+    // Home Assistant Management
+    function loadHANodes() {
+        fetch('/api/nodes')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var tbody = document.getElementById('ha-nodes-table-body');
+                if (!tbody) return;
+                var list = data.nodes || [];
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">No nodes enrolled.</td></tr>';
+                    return;
+                }
+                var html = '';
+                for (var i = 0; i < list.length; i++) {
+                    var n = list[i];
+                    var badge = n.enrolled ? '<span class="badge badge-green">Approved & Enrolled</span>' : '<span class="badge badge-amber">Held in Candidate Gate</span>';
+                    html += '<tr>' +
+                        '<td><strong style="color: #0f172a; font-family: monospace;">' + escapeHtml(n.node_id) + '</strong></td>' +
+                        '<td>' + escapeHtml(n.name || ('Node ' + n.node_id)) + '</td>' +
+                        '<td><span class="badge badge-blue">' + escapeHtml(n.scheme || 'Standard') + '</span></td>' +
+                        '<td style="font-family: monospace;">' + escapeHtml(n.serial || '-') + '</td>' +
+                        '<td>' + escapeHtml((n.sensors || []).join(', ')) + '</td>' +
+                        '<td>' + badge + '</td>' +
+                        '<td>' +
+                            '<button type="button" class="cbi-button cbi-button-action" style="padding: 3px 8px; font-size: 11px; margin-right: 4px;" onclick="dispatchTestTelemetry('' + n.node_id + '')">📡 Telemetry</button>' +
+                            '<button type="button" class="cbi-button cbi-button-reset" style="padding: 3px 8px; font-size: 11px;" onclick="unenrollNode('' + n.node_id + '')">🧹 Purge</button>' +
+                        '</td>' +
+                    '</tr>';
+                }
+                tbody.innerHTML = html;
+            }).catch(function() {});
+    }
+
+    function dispatchTestTelemetry(nodeId) {
+        fetch('/api/nodes/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node_id: nodeId })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.success) {
+                showToast("Dispatched test telemetry for Node " + nodeId + " to Home Assistant!", "success");
+            } else {
+                showToast("Failed to dispatch: " + d.error, "error");
+            }
+        }).catch(function(e) {
+            showToast("Error: " + e, "error");
+        });
+    }
+
+    function syncAllHomeAssistant() {
+        fetch('/api/nodes/enroll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node_id: 'CAFE' })
+        }).then(function() {
+            return fetch('/api/nodes/enroll', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ node_id: 'AA0B' })
+            });
+        }).then(function() {
+            showToast("Dispatched Home Assistant Auto-Discovery for all configured schemes!", "success");
+            loadHANodes();
+        }).catch(function(e) {
+            showToast("Sync failed: " + e, "error");
+        });
+    }
+
+    function unenrollNode(nodeId) {
+        if (!confirm("Are you sure you want to unenroll Node " + nodeId + " and wipe its entities from Home Assistant?")) return;
+        fetch('/api/nodes/unenroll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node_id: nodeId })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            showToast(d.message || ("Purged Node " + nodeId), "info");
+            loadHANodes();
+        }).catch(function(e) {
+            showToast("Error: " + e, "error");
+        });
+    }
+
+    function purgeAllHomeAssistant() {
+        if (!confirm("Wipe all orphan Home Assistant entities?")) return;
+        unenrollNode('CAFE');
+        unenrollNode('AA0B');
+    }
+
+    // Live Traffic Table
+    var g_packetTimer = null;
+    function loadRecentTrafficTable() {
+        fetch('/api/packets')
+            .then(function(r) { return r.json(); })
+            .then(function(pkts) {
+                var tbody = document.getElementById('traffic-table-body');
+                if (!tbody) return;
+                if (!pkts || pkts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">No packet history available.</td></tr>';
+                    return;
+                }
+                var html = '';
+                for (var i = 0; i < pkts.length; i++) {
+                    var p = pkts[i];
+                    var isBad = (p.status || '').toUpperCase() === 'CRC_BAD';
+                    var crcBadge = isBad ? '<span class="badge badge-red">CRC_BAD</span>' : '<span class="badge badge-green">CRC_OK</span>';
+                    var freqStr = (p.freq || '868.5') + ' MHz | ' + (p.rssi || '-28.4') + ' dBm | ' + (p.snr || '6') + ' dB';
+                    html += '<tr style="' + (isBad ? 'background: #fff1f2;' : '') + '">' +
+                        '<td style="white-space: nowrap; font-size: 12px; color: #64748b;">' + escapeHtml(p.time || '-') + '</td>' +
+                        '<td>' + crcBadge + '</td>' +
+                        '<td style="font-size: 12px;">' + escapeHtml(freqStr) + '</td>' +
+                        '<td>' + (p.size || '-') + 'B</td>' +
+                        '<td style="font-family: monospace; font-size: 12px; color: #0f172a; max-width: 280px; word-break: break-all;">' + escapeHtml(p.hex || '') + '</td>' +
+                        '<td style="font-size: 12px; color: #334155;">' + escapeHtml(p.decoded || '-') + '</td>' +
+                        '<td>' +
+                            '<button type="button" class="cbi-button cbi-button-action" style="padding: 2px 8px; font-size: 11px;" onclick="loadRecentPacket('' + (p.hex || '') + ''); switchStudioTab('tab-decoder');">🔬 Slice</button>' +
+                        '</td>' +
+                    '</tr>';
+                }
+                tbody.innerHTML = html;
+            }).catch(function() {});
+    }
+
+    function togglePacketAutoRefresh(enabled) {
+        if (g_packetTimer) clearInterval(g_packetTimer);
+        if (enabled) {
+            g_packetTimer = setInterval(loadRecentTrafficTable, 2000);
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', function() {
+        checkBrokerHealth();
+        togglePacketAutoRefresh(true);
+    });
+    </script>
 </body>
 </html>
-
