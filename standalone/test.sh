@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# test.sh — 1-Click Standalone LoRa Decoder, Pipeline & Benchmark Runner
+# test.sh — 1-Click Standalone LoRa Decoder, Pipeline, Benchmark & Web UI Runner
 # ==============================================================================
-# Auto-detects available runtime (Lua, Python 3, or Node.js) and executes
-# the standalone self-test suite and sample payload decoding.
-#
 # Usage:
 #   ./test.sh          # Run complete verification test suite
-#   ./test.sh --bench  # Run high-precision performance benchmark
+#   ./test.sh --web    # Launch standalone Decoder Studio Web UI (http://localhost:8080)
+#   ./test.sh --bench  # Run high-precision latency & throughput benchmark
 # ==============================================================================
 
 set -e
@@ -26,6 +24,23 @@ for b in lua lua5.1 lua5.2 lua5.3 lua5.4 luajit; do
     fi
 done
 
+# Check for --web command
+if [ "$1" = "--web" ]; then
+    PORT="${2:-8080}"
+    if command -v python3 >/dev/null 2>&1; then
+        echo "[INFO] Starting Decoder Studio Web UI via Python 3 on port $PORT..."
+        exec python3 web_server.py --port "$PORT"
+    elif command -v node >/dev/null 2>&1; then
+        echo "[INFO] Starting Decoder Studio Web UI via Node.js on port $PORT..."
+        exec node web_server.js "$PORT"
+    else
+        echo "[ERROR] Python 3 or Node.js is required to run the standalone Web Server."
+        echo "Tip: You can also open '$DIR/web/index.html' directly in your browser!"
+        exit 1
+    fi
+fi
+
+# Check for --bench command
 if [ "$1" = "--bench" ]; then
     if [ -n "$LUA_BIN" ]; then
         echo "[INFO] Running benchmark via $LUA_BIN..."
@@ -51,6 +66,8 @@ if [ -n "$LUA_BIN" ]; then
     echo "=============================================================="
     echo " Standalone Test Passed via $LUA_BIN!"
     echo "=============================================================="
+    echo " Tip: Run './test.sh --web' to launch the interactive Web Studio!"
+    echo "=============================================================="
     exit 0
 fi
 
@@ -58,6 +75,7 @@ fi
 if command -v node >/dev/null 2>&1; then
     echo "[INFO] Running via Node.js..."
     node test_standalone.js
+    echo " Tip: Run './test.sh --web' to launch the interactive Web Studio!"
     exit 0
 fi
 
@@ -65,6 +83,7 @@ fi
 if command -v python3 >/dev/null 2>&1; then
     echo "[INFO] Running via Python 3..."
     python3 test_standalone.py
+    echo " Tip: Run './test.sh --web' to launch the interactive Web Studio!"
     exit 0
 fi
 

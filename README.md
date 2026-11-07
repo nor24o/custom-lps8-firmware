@@ -1,6 +1,6 @@
 # LoRa Telemetry Pipeline, Decoder Studio & Home Assistant Integration Suite
 
-A high-performance, standalone & gateway-integrated LoRa telemetry decoding engine, interactive LuCI Web GUI (Decoder Studio), and Home Assistant MQTT integration designed for Dragino LoRa Gateways (**LPS8 SX1302** and **LG01/LG02 SX1276**) and remote edge systems (**Raspberry Pi, Docker, Debian/Ubuntu server, Home Assistant OS**).
+A high-performance, standalone & gateway-integrated LoRa telemetry decoding engine, interactive Web GUI (Decoder Studio), and Home Assistant MQTT integration designed for Dragino LoRa Gateways (**LPS8 SX1302** and **LG01/LG02 SX1276**) and remote edge systems (**Raspberry Pi, Docker, Debian/Ubuntu server, PC, Mac, Home Assistant OS**).
 
 ---
 
@@ -33,7 +33,46 @@ Topic: lora/<node_id>/state"]
 
 ---
 
-## 2. Pipeline Speed & Real-World Latency Benchmarks
+## 2. Interactive Web Interface (Decoder Studio)
+
+The complete Decoder Studio Web Interface is included **both** as an OpenWrt LuCI module and as a **100% standalone web application** that runs anywhere without OpenWrt:
+
+### Launching the Standalone Web Interface
+You can run the web interface on any device (PC, Linux, Mac, Raspberry Pi, Docker, Home Assistant OS):
+
+```bash
+cd standalone
+
+# Option 1: 1-Click Runner
+./test.sh --web 8080
+
+# Option 2: Via Python 3 (Zero external dependencies)
+python3 web_server.py --port 8080
+
+# Option 3: Via Node.js (Zero external dependencies)
+node web_server.js 8080
+
+# Option 4: Via Lua Service CLI
+lua service.lua --web 8080
+
+# Option 5: Offline / Direct File Access
+# Open 'standalone/index.html' or 'standalone/web/index.html' directly in any browser!
+```
+
+Open your browser to:
+**`http://localhost:8080`**
+
+### Web Studio Features
+- **Visual Byte Slicer:** Interactively maps byte ranges (`[0..1] Node ID`, `[2..5] Serial`, `[6..7] Temp`) with live hex color tagging.
+- **Scheme Manager:** Create, edit, clone, delete, test, and reorder decoder schemes with auto-saving to `decoders.json`.
+- **Live Payload Workbench:** Test live hex payloads with instant decoded JSON preview and discrete metric tiles.
+- **Smart Candidate Suppression:** Automatically hides the "Add Candidate" button when a node is already mapped and decoded.
+- **Zero-Dependency REST API:** Embedded HTTP backend provides `/api/decoders`, `/api/packets`, and `/api/nodes`.
+- **Offline Resilience:** If no web server is running, the interface falls back to LocalStorage and local caching.
+
+---
+
+## 3. Pipeline Speed & Real-World Latency Benchmarks
 
 Performance was benchmarked across **5,000 real telemetry packets** (evaluating CRC integrity, multi-sensor scheme matching, discrete metric extraction, and Home Assistant enrollment checks):
 
@@ -44,28 +83,35 @@ Performance was benchmarked across **5,000 real telemetry packets** (evaluating 
 
 ---
 
-## 3. Platform Abstraction & Cross-Platform Portability
+## 4. Platform Abstraction & Cross-Platform Portability
 
 The core decoding engine is 100% decoupled from the underlying operating system and gateway hardware:
 
 - **Zero C Bitwise Dependencies:** Pure integer arithmetic (`* 256`, `/ 256`, `% 256`) is used in place of platform-specific C modules (`bit`, `bit32`). It runs identically across Lua 5.1 (OpenWrt), Lua 5.2, Lua 5.3, Lua 5.4, and LuaJIT without requiring compilation.
-- **Dual-Context Universal JavaScript (`lora_decoder.js`):** Runs seamlessly in the LuCI browser web UI (Decoder Studio) and backend headless runtimes (Node.js via `module.exports = LoraDecoder`).
+- **Dual-Context Universal JavaScript (`lora_decoder.js`):** Runs seamlessly in the LuCI browser web UI, standalone web UI, and backend headless runtimes (Node.js via `module.exports = LoraDecoder`).
 - **Decoupled from OpenWrt Internals:** The decoder does not rely on OpenWrt `uci`, `luci`, or `ubus` libraries. Input is a raw hex string or byte buffer; output is standard JSON telemetry.
 - **Unified Scheme Specification (`decoders.json`):** Shared JSON configuration format supported across all runtimes.
 
 ---
 
-## 4. Standalone Feature Suite & Verification Tools
+## 5. Standalone Feature Suite & Verification Tools
 
-The `standalone/` directory provides everything needed to run or test the decoder on any machine (PC, Linux, Mac, Raspberry Pi, Docker, Home Assistant OS):
+The `standalone/` directory provides everything needed to run or test the decoder on any machine:
 
 ```
 standalone/
+├── index.html             # Standalone Single-Page Decoder Studio Web App
+├── web/                   # Dedicated Web UI Assets:
+│   ├── index.html         # Web Studio UI
+│   ├── lora_decoder.js    # Visual Slicer & In-Browser Decoder Engine
+│   └── decoders.json      # Pre-configured Schemes
+├── web_server.py          # Zero-dependency Python 3 HTTP Server (API + Web UI)
+├── web_server.js          # Zero-dependency Node.js HTTP Server (API + Web UI)
 ├── lora_decoder.lua       # Multi-Scheme Decoder Engine (Pure arithmetic Lua)
 ├── lora_decoder.js        # Universal JS Decoder (Node.js & Browser dual-environment)
 ├── pipeline.lua           # Strict Hardware CRC Integrity Gate & Ingestion Pipeline
 ├── ha_bridge.lua          # Home Assistant MQTT Auto-Discovery & Instant Telemetry
-├── service.lua            # Unified CLI Runner, Daemon & File Watcher
+├── service.lua            # Unified CLI Runner, Daemon, File Watcher & Web Launcher
 ├── decoders.json          # Configured Decoder Schemes (Node CAFE, Cayenne LPP, TLV, ASCII)
 ├── benchmark_pipeline.lua # High-precision 5,000-packet latency & throughput benchmark
 ├── test.sh                # 1-Click Multi-Runtime Auto-Detecting Test Runner
@@ -81,6 +127,12 @@ standalone/
 cd standalone
 chmod +x test.sh
 ./test.sh
+```
+
+#### Launch Standalone Web Studio
+```bash
+cd standalone
+./test.sh --web 8080
 ```
 
 #### Run Performance Benchmark
@@ -115,64 +167,26 @@ node test_standalone.js
 cd standalone
 lua service.lua --hex CAFE96B840EB010201490271FFFB00180421036700B404880000000000000000 --decoders decoders.json
 ```
-**Output:**
-```json
-{
-  "node_id": "CAFE",
-  "scheme_id": "scheme_node_cafe",
-  "scheme_name": "Node CAFE (Multi-Sensor LPP)",
-  "status": "SUCCESS",
-  "ha_enrolled": true,
-  "metrics": {
-    "node_id": "CAFE",
-    "device_serial": "96B840EB",
-    "temperature": 18.5,
-    "battery": 3.29,
-    "accel_x": -0.004,
-    "accel_y": 0.024,
-    "accel_z": 1.055,
-    "latitude": 0,
-    "longitude": 0,
-    "altitude": 0
-  }
-}
-```
 
 #### Run Live Daemon / File Watcher Mode
-Watches the gateway packet buffer, decodes incoming packets, and publishes immediately to Home Assistant:
 ```bash
 cd standalone
-lua service.lua \
-  --watch /tmp/lora_packets.json \
-  --decoders ./decoders.json \
-  --broker 192.168.1.13 \
-  --port 1883 \
-  --user admin \
-  --pass admin
+lua service.lua   --watch /tmp/lora_packets.json   --decoders ./decoders.json   --broker 192.168.1.13   --port 1883   --user admin   --pass admin
 ```
 
 ---
 
-## 5. Home Assistant Integration & Zero Auto-Enrollment Security
+## 6. Home Assistant Integration & Zero Auto-Enrollment Security
 
 ### Zero Auto-Enrollment Security Gate
 - **Problem:** In multi-node LoRa environments, gateways frequently receive stray packets from neighboring networks or unsanctioned devices. Auto-enrolling every device creates clutter and orphan sensors in Home Assistant.
 - **Solution:** Telemetry packets only trigger Home Assistant Auto-Discovery (`homeassistant/sensor/<node_id>/<sensor>/config`) if the node has an **active, configured scheme** in `decoders.json`.
-- Unconfigured packets are retained as discovery candidates in the LuCI Web GUI for administrator inspection but are **blocked** from enrolling into Home Assistant.
+- Unconfigured packets are retained as discovery candidates in the LuCI / Standalone Web GUI for administrator inspection but are **blocked** from enrolling into Home Assistant.
 
 ### Tailored Entity Mapping & Bug Fixes
 - **1661.9°C & 0V Bug Resolution:** Strict data type validation and scaling prevent raw int16 values from being misparsed as invalid temperatures or zero voltages.
 - **Stable Sensor Topics:** Telemetry state is published to `lora/<node_id>/state` as a structured JSON object with the retained flag enabled, ensuring instant sensor state recovery upon Home Assistant restart.
 - **Device Topology:** All node entities are linked under a unified device registry (`LoRa Node <node_id>`), complete with model, serial, and firmware metadata.
-
----
-
-## 6. LuCI Web GUI: Decoder Studio
-
-The LuCI Web GUI provides an interactive Decoder Studio built directly into OpenWrt:
-- **Visual Byte Slicer:** Interactively maps byte ranges (e.g. `[0..1] Node ID`, `[2..5] Serial`, `[6..7] Temp`) with live hex color tagging.
-- **Smart Candidate Suppression:** If a node already has a configured, active decoder scheme, the "Add Candidate" button is automatically suppressed in the live traffic view.
-- **Live Test Runner:** Test custom decoder schemes directly in the browser against recent packet captures with real-time JSON preview.
 
 ---
 
@@ -184,8 +198,6 @@ To deploy this entire suite (GUI, pipeline, decoder, and Home Assistant bridge) 
 chmod +x deploy.sh
 ./deploy.sh 192.168.1.17 root root
 ```
-
-The script automatically transfers all files, configures permissions, updates LuCI menus, clears caches, and restarts the LoRa gateway service.
 
 ---
 
@@ -217,15 +229,19 @@ The script automatically transfers all files, configures permissions, updates Lu
 │   ├── ha_bridge.lua            # Tailored MQTT auto-discovery & instant telemetry dispatch
 │   └── lora_mqtt_bridge.lua     # Gateway Device discovery, topology & downlink bridge
 │
-├── standalone/                  # Portable Standalone Service Runner & Multi-Runtime Tests
-│   ├── service.lua              # CLI runner, daemon & file watcher
+├── standalone/                  # Portable Standalone Service, Multi-Runtime Tests & Web UI
+│   ├── index.html               # Standalone Single-Page Decoder Studio Web App
+│   ├── web/                     # Dedicated Web UI assets (index.html, lora_decoder.js, decoders.json)
+│   ├── web_server.py            # Python 3 Web Server
+│   ├── web_server.js            # Node.js Web Server
+│   ├── service.lua              # CLI runner, daemon, watcher & web launcher
 │   ├── lora_decoder.lua         # Standalone decoder (Lua)
 │   ├── lora_decoder.js          # Standalone decoder (Node.js / Universal)
 │   ├── pipeline.lua             # Standalone pipeline
 │   ├── ha_bridge.lua            # Standalone HA bridge
 │   ├── decoders.json            # Decoder schemes
 │   ├── benchmark_pipeline.lua   # 5,000-packet latency & throughput benchmark
-│   ├── test.sh                  # 1-Click multi-runtime test runner
+│   ├── test.sh                  # 1-Click multi-runtime test runner & web launcher
 │   ├── test_standalone.js       # Node.js test runner
 │   ├── test_standalone.py       # Python 3 test runner
 │   └── README.md                # Standalone documentation
