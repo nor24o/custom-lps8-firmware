@@ -1303,6 +1303,11 @@
         LoraDecoder.activeSchemes = LoraDecoder.getDefaultSchemes();
     }
 
-    window.LoraDecoder = LoraDecoder;
+    if (typeof window !== 'undefined') {
+        window.LoraDecoder = LoraDecoder;
+    }
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = LoraDecoder;
+    }
 
-})(window);
+})(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this));
