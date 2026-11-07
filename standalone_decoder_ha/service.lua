@@ -61,6 +61,7 @@ USAGE:
   lua service.lua [OPTIONS]
 
 COMMANDS:
+  --web [PORT]               Launch standalone Decoder Studio Web UI (default: 8080)
   --test                     Run internal self-tests and CRC verification
   --hex <HEX>                Decode a single raw HEX payload and output JSON
   --packet '<JSON>'          Process a raw packet JSON object through pipeline
@@ -351,6 +352,18 @@ end
 -- ------------------------------------------------------------------------------
 local function main()
     local mode, target_val = parse_args(arg)
+
+    if mode == "web" then
+        local port = target_val or "8080"
+        print_log("Launching LoRa Decoder Studio Web UI on port " .. port .. "...")
+        local cmd = "python3 " .. script_dir .. "web_server.py --port " .. port
+        local ret = os.execute(cmd)
+        if ret ~= 0 then
+            cmd = "node " .. script_dir .. "web_server.js " .. port
+            os.execute(cmd)
+        end
+        return
+    end
 
     if mode == "test" then
         io.stdout:write("=== Standalone Decoder, Pipeline & HA Bridge Verification ===\n")
