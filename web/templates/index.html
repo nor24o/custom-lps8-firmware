@@ -2622,21 +2622,34 @@
 
   <!-- 4. Node Rolling History Modal -->
   <div id="modal-history" class="modal-overlay">
-    <div class="modal-card modal-card-lg">
-      <div class="modal-header">
-        <h3 id="modal-history-title">Node Message History</h3>
-        <button class="btn btn-secondary btn-sm" onclick="closeHistoryModal()">✕</button>
+    <div class="modal-card modal-card-lg" style="max-width: 960px; padding: 1.25rem;">
+      <div class="modal-header" style="padding-bottom: 0.75rem; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.25rem;">📜</span>
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h3 id="modal-history-title" style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">Node Message History</h3>
+              <span id="modal-history-counter" class="pill pill-cyan" style="font-size: 0.7rem; padding: 2px 8px;">0 msgs</span>
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Rolling memory buffer stored in RAM disk (/tmp/lora_messages.db)</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="btn btn-secondary btn-sm" onclick="refreshCurrentHistory()" title="Reload rolling messages">↻ Refresh</button>
+          <button class="btn btn-secondary btn-sm" onclick="closeHistoryModal()">✕</button>
+        </div>
       </div>
-      <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
-        <table class="data-table">
-          <thead>
+      <div class="table-responsive" style="max-height: 480px; overflow-y: auto; overflow-x: hidden; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table class="data-table" style="table-layout: fixed; width: 100%; border-collapse: collapse; margin: 0;">
+          <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <tr>
-              <th>Timestamp</th>
-              <th>RSSI</th>
-              <th>SNR</th>
-              <th>Freq / SF</th>
-              <th>Raw Hex</th>
-              <th>Decoded Telemetry</th>
+              <th style="width: 85px; padding: 7px 10px; font-size: 0.72rem; color: #475569;">Time</th>
+              <th style="width: 85px; padding: 7px 10px; font-size: 0.72rem; color: #475569; text-align: center;">RSSI</th>
+              <th style="width: 65px; padding: 7px 10px; font-size: 0.72rem; color: #475569; text-align: center;">SNR</th>
+              <th style="width: 110px; padding: 7px 10px; font-size: 0.72rem; color: #475569; text-align: center;">Freq / SF</th>
+              <th style="width: 150px; padding: 7px 10px; font-size: 0.72rem; color: #475569;">Raw Payload</th>
+              <th style="padding: 7px 10px; font-size: 0.72rem; color: #475569;">Decoded Telemetry</th>
+              <th style="width: 75px; padding: 7px 10px; font-size: 0.72rem; color: #475569; text-align: center;">Action</th>
             </tr>
           </thead>
           <tbody id="node-history-tbody">
@@ -2644,8 +2657,9 @@
           </tbody>
         </table>
       </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="closeHistoryModal()">Close</button>
+      <div class="modal-actions" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 0.75rem; color: #64748b;" id="modal-history-footer-info">Showing last 50 messages in memory</div>
+        <button class="btn btn-secondary btn-sm" onclick="closeHistoryModal()">Close</button>
       </div>
     </div>
   </div>
@@ -3233,40 +3247,128 @@
     }
 
     // History Modal
+    let g_currentHistoryNodeId = null;
+
     async function openHistoryModal(nid) {
-      document.getElementById('modal-history-title').textContent = `Message History: Node ${nid} (Rolling 50 Buffer)`;
-      document.getElementById('modal-history').style.display = 'flex';
+      g_currentHistoryNodeId = nid;
+      const titleEl = document.getElementById('modal-history-title');
+      if (titleEl) titleEl.textContent = `Message History: Node ${nid}`;
+      const modal = document.getElementById('modal-history');
+      if (modal) modal.style.display = 'flex';
+
+      await loadNodeHistoryMessages(nid);
+    }
+
+    async function refreshCurrentHistory() {
+      if (g_currentHistoryNodeId) {
+        await loadNodeHistoryMessages(g_currentHistoryNodeId);
+      }
+    }
+
+    async function loadNodeHistoryMessages(nid) {
       const tbody = document.getElementById('node-history-tbody');
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Loading rolling history...</td></tr>';
+      const counterEl = document.getElementById('modal-history-counter');
+      const footerEl = document.getElementById('modal-history-footer-info');
+      if (!tbody) return;
+
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 1.5rem; font-size: 0.82rem;">Loading rolling history...</td></tr>';
+
       try {
         const res = await fetch(`/api/lora/nodes/${nid}/messages`);
         const d = await res.json();
         const msgs = d.messages || [];
+
+        if (counterEl) counterEl.textContent = `${msgs.length} msgs`;
+        if (footerEl) footerEl.textContent = `Showing ${msgs.length} rolling messages for [${nid}] (RAM buffer)`;
+
         if (!msgs.length) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No messages recorded yet for this node.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 2rem; font-size: 0.85rem;">No messages recorded yet for this node. Concentrator is listening...</td></tr>';
           return;
         }
+
         let html = '';
         msgs.forEach(m => {
-          let decStr = m.payload_decoded || '--';
+          const raw = (m.payload_raw || '').toUpperCase();
+          const ts = m.timestamp || '--';
+          const parts = ts.split(' ');
+          const timeStr = parts.length > 1 ? parts[1] : ts;
+          const dateStr = parts.length > 1 ? parts[0] : '';
+
+          const rssiVal = m.rssi || 0;
+          const rssiColor = rssiVal > -90 ? '#15803d' : (rssiVal > -105 ? '#b45309' : '#b91c1c');
+          const rssiBg = rssiVal > -90 ? '#dcfce7' : (rssiVal > -105 ? '#fef3c7' : '#fee2e2');
+
+          const freqMhz = m.freq_hz ? (m.freq_hz / 1e6).toFixed(1) : (m.freq || '--');
+
+          // Parse and format decoded telemetry compactly
+          let decHtml = '';
           try {
-            const decObj = JSON.parse(m.payload_decoded);
-            decStr = Object.entries(decObj).map(([k, v]) => `${k}: ${v}`).join(', ');
-          } catch(e) {}
+            const decObj = typeof m.payload_decoded === 'object' ? m.payload_decoded : JSON.parse(m.payload_decoded || '{}');
+            const tags = [];
+            if (decObj.temperature !== undefined) tags.push(`🌡️ ${decObj.temperature}°C`);
+            else if (decObj.ch3_temperature_c !== undefined) tags.push(`🌡️ ${decObj.ch3_temperature_c}°C`);
+
+            if (decObj.battery !== undefined) tags.push(`🔋 ${decObj.battery}V`);
+            else if (decObj.ch1_analog_in !== undefined) tags.push(`🔋 ${decObj.ch1_analog_in}V`);
+
+            if (decObj.humidity !== undefined) tags.push(`💧 ${decObj.humidity}%`);
+            if (decObj.pressure !== undefined) tags.push(`🌀 ${decObj.pressure} hPa`);
+
+            if (decObj.accel_z !== undefined) tags.push(`📐 ${decObj.accel_z}g`);
+            if (decObj.ch5_digital_in !== undefined) tags.push(`DI5:${decObj.ch5_digital_in}`);
+            if (decObj.ch6_digital_in !== undefined) tags.push(`DI6:${decObj.ch6_digital_in}`);
+
+            if (!tags.length) {
+              for (const [k, v] of Object.entries(decObj)) {
+                if (['raw_hex', 'node_id', 'device_serial', 'node_class', 'capability'].includes(k)) continue;
+                if (typeof v === 'object' && v !== null) continue;
+                tags.push(`${k}: ${v}`);
+              }
+            }
+            decHtml = tags.length
+              ? `<span style="color: #0f766e; font-weight: 600;">${tags.join(' <span style="color: #cbd5e1; font-weight: normal;">•</span> ')}</span>`
+              : `<span style="color: #64748b; font-family: monospace;">${escapeHtml(raw.substring(0, 32))}</span>`;
+          } catch(e) {
+            decHtml = `<span style="color: #64748b; font-family: monospace;">${escapeHtml(raw.substring(0, 32))}</span>`;
+          }
+
+          function safeEsc(s) {
+            return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+          }
+
           html += `
-            <tr>
-              <td>${m.timestamp || '--'}</td>
-              <td style="color: ${m.rssi > -90 ? 'var(--success)' : 'var(--warning)'};">${m.rssi || '--'} dBm</td>
-              <td>${m.snr || '--'} dB</td>
-              <td>${(m.freq_hz / 1e6).toFixed(1)} MHz / SF${m.sf}</td>
-              <td style="font-family: var(--font-mono);">${m.payload_raw || '--'}</td>
-              <td style="color: #38bdf8; font-family: var(--font-mono);">${decStr}</td>
+            <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;">
+              <td style="padding: 6px 10px; font-family: monospace; font-size: 0.78rem; color: #0f172a; white-space: nowrap;">
+                <span title="${safeEsc(ts)}">${safeEsc(timeStr)}</span>
+                <span style="display: block; font-size: 0.68rem; color: #94a3b8;">${safeEsc(dateStr)}</span>
+              </td>
+              <td style="padding: 6px 10px; text-align: center;">
+                <span style="background: ${rssiBg}; color: ${rssiColor}; font-weight: 700; font-size: 0.74rem; padding: 2px 6px; border-radius: 4px; display: inline-block;">${rssiVal} dBm</span>
+              </td>
+              <td style="padding: 6px 10px; text-align: center; font-size: 0.78rem; font-weight: 600; color: #475569;">
+                ${m.snr !== undefined ? m.snr + ' dB' : '--'}
+              </td>
+              <td style="padding: 6px 10px; text-align: center;">
+                <span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 0.72rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${freqMhz} • SF${m.sf || 7}</span>
+              </td>
+              <td style="padding: 6px 10px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="font-family: monospace; font-size: 0.75rem; color: #334155; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${safeEsc(raw)}">${safeEsc(raw)}</span>
+                  <button class="btn btn-secondary btn-sm" style="padding: 1px 4px; font-size: 0.65rem;" onclick="copyText('${safeEsc(raw)}', 'Payload copied!')" title="Copy HEX">📋</button>
+                </div>
+              </td>
+              <td style="padding: 6px 10px; font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${safeEsc(m.payload_decoded || '')}">
+                ${decHtml}
+              </td>
+              <td style="padding: 6px 10px; text-align: center;">
+                <button class="btn btn-secondary btn-sm" onclick="closeHistoryModal(); testPacketInWorkbench('${safeEsc(raw)}')" title="Inspect in Decoder Studio" style="padding: 2px 7px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px;">🔍 Inspect</button>
+              </td>
             </tr>
           `;
         });
         tbody.innerHTML = html;
       } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="6" style="color: var(--danger);">Failed to load history: ${e}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="color: #b91c1c; text-align: center; padding: 1rem;">Failed to load history: ${safeEsc(String(e))}</td></tr>`;
       }
     }
 
