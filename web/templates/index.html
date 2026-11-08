@@ -2404,55 +2404,103 @@
       try {
         const res = await fetch('/api/lora/packets');
         const list = await res.json();
-        g_recentPackets = list || [];
 
-        const tbody = document.getElementById('dash-packets-tbody');
-        const selHistory = document.getElementById('sel-history-pkts');
-
-        if (selHistory) {
-          selHistory.innerHTML = '<option value="">-- Load recent packet --</option>';
-          g_recentPackets.forEach((p, idx) => {
-            const opt = document.createElement('option');
-            opt.value = p.hex || '';
-            opt.textContent = `[${p.time || idx}] ${p.hex?.substring(0, 16)}... (${p.datr}, ${p.rssic || p.rssi} dBm)`;
-            selHistory.appendChild(opt);
-          });
-        }
-
-        if (!g_recentPackets.length) {
-          tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No packets received yet. Concentrator is active and listening...</td></tr>';
-          return;
-        }
-
-        let html = '';
-        g_recentPackets.forEach((p) => {
-          const hex = p.hex || '';
-          const decoded = window.LoraDecoder ? window.LoraDecoder.decodePacket(p, g_schemes) : null;
-          const summary = decoded?.summary || hex;
-          let nodeGuess = hex.substring(0, 4).toUpperCase();
-          if (!nodeGuess) nodeGuess = '--';
-
-          html += `
-            <tr>
-              <td>${p.time || '--'}</td>
-              <td>${p.freq || '--'}</td>
-              <td><span class="badge badge-prefix">${p.datr || 'SF7'}</span></td>
-              <td style="color: ${(p.rssic || p.rssi) > -90 ? 'var(--success)' : 'var(--warning)'};">${p.rssic || p.rssi || '--'} dBm</td>
-              <td>${p.snr || '--'} dB</td>
-              <td><strong style="color: var(--primary);">${nodeGuess}</strong></td>
-              <td style="max-width: 160px; overflow: hidden; text-overflow: ellipsis;">${hex}</td>
-              <td style="color: #38bdf8; max-width: 220px; overflow: hidden; text-overflow: ellipsis;">${summary}</td>
-              <td>
-                <button class="btn btn-secondary btn-sm" onclick="testPacketInWorkbench('${hex}')">🔍 Inspect</button>
-              </td>
-            </tr>
-          `;
+        // STRICT INTEGRITY FILTER: Only valid packets that passed hardware CRC verification are allowed
+        const pkts = (list || []).filter(function(p) {
+          if (!p || !p.hex) return false;
+          const st = (p.status || "").toUpperCase();
+          return st === "" || st === "CRC_OK";
         });
-        tbody.innerHTML = html;
+
+        window.g_recentPackets = pkts;
+        g_recentPackets = pkts;
+
+        // 1. Update Decoder Studio select
+        const selRecent = document.getElementById("sel-recent-pkts");
+        if (selRecent) {
+          selRecent.innerHTML = '<option value="">-- Select from history (' + pkts.length + ' valid packets) --</option>';
+          for (let i = 0; i < pkts.length; i++) {
+            const p = pkts[i];
+            const opt = document.createElement("option");
+            opt.value = p.hex;
+            opt.textContent = (p.time || "") + " | " + p.hex.substring(0, 16) + (p.hex.length > 16 ? "..." : "") + " (" + (p.size || p.hex.length / 2) + "B, " + (p.freq || "") + "MHz)";
+            selRecent.appendChild(opt);
+          }
+        }
+
+        // 2. Update Drawer recent packets if drawer is open
+        if (typeof g_expandedIndex !== 'undefined' && g_expandedIndex >= 0 && typeof populateDrawerRecentPackets === 'function') {
+          populateDrawerRecentPackets(g_expandedIndex);
+        }
+
+        // 3. Update Dashboard Packets Table
+        const tbody = document.getElementById('dash-packets-tbody');
+        if (tbody) {
+          if (!pkts.length) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #64748b; padding: 1.5rem; font-size: 0.9rem;">No packets received yet. Concentrator is active and listening...</td></tr>';
+            return;
+          }
+
+          let html = '';
+          pkts.slice(0, 25).forEach(function(p) {
+            const hex = (p.hex || '').toUpperCase();
+            const decoded = window.LoraDecoder ? window.LoraDecoder.decodePacket(p, typeof g_schemes !== 'undefined' ? g_schemes : []) : null;
+
+            // Format clean summary
+            let summary = '';
+            if (decoded && decoded.summary) {
+              summary = decoded.summary;
+            } else if (decoded && decoded.data) {
+              const parts = [];
+              if (decoded.data.temperature !== undefined) parts.push("Temp: " + decoded.data.temperature + "°C");
+              if (decoded.data.humidity !== undefined) parts.push("Hum: " + decoded.data.humidity + "%");
+              if (decoded.data.battery !== undefined) parts.push("Batt: " + decoded.data.battery + "V");
+              summary = parts.join(' • ') || hex.substring(0, 32);
+            } else {
+              summary = hex.substring(0, 32);
+            }
+
+            // Extract Node ID
+            let nodeGuess = '--';
+            if (decoded && decoded.data && decoded.data.node_id) {
+              nodeGuess = decoded.data.node_id;
+            } else if (hex.length >= 4) {
+              nodeGuess = hex.substring(0, 4);
+            }
+
+            const rssiVal = p.rssic || p.rssi || 0;
+            const rssiColor = rssiVal > -90 ? '#15803d' : (rssiVal > -105 ? '#b45309' : '#b91c1c');
+            const rssiBg = rssiVal > -90 ? '#f0fdf4' : (rssiVal > -105 ? '#fffbeb' : '#fef2f2');
+
+            function safeEsc(s) {
+              return String(s || '').replace(/[&<>"']/g, function(c) {
+                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+              });
+            }
+
+            html += `
+              <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;">
+                <td style="font-family: monospace; font-size: 0.8rem; color: #64748b; font-weight: 500;">${p.time || '--'}</td>
+                <td style="font-weight: 700; color: #0f172a; font-size: 0.85rem;">${p.freq || '--'}</td>
+                <td><span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-family: monospace;">${p.datr || 'SF7'}</span></td>
+                <td><span style="background: ${rssiBg}; color: ${rssiColor}; font-weight: 700; font-size: 0.8rem; padding: 2px 6px; border-radius: 4px;">${rssiVal} dBm</span></td>
+                <td style="font-size: 0.8rem; color: #64748b; font-weight: 600;">${p.snr !== undefined ? p.snr + ' dB' : '--'}</td>
+                <td><span style="background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 800; font-size: 0.82rem; padding: 2px 8px; border-radius: 4px; font-family: monospace; letter-spacing: 0.5px;">${nodeGuess}</span></td>
+                <td style="font-family: monospace; font-size: 0.78rem; color: #334155; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${hex}">${hex}</td>
+                <td style="color: #0f766e; font-weight: 600; font-size: 0.8rem; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${safeEsc(summary)}">${safeEsc(summary)}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" onclick="testPacketInWorkbench('${hex}')" title="Inspect byte-by-byte in Decoder Studio" style="font-size: 0.75rem; padding: 0.25rem 0.55rem; display: inline-flex; align-items: center; gap: 4px;">🔍 Inspect</button>
+                </td>
+              </tr>
+            `;
+          });
+          tbody.innerHTML = html;
+        }
       } catch (e) {
         console.error('Packets fetch error:', e);
       }
     }
+
 
     // ==================== DECODERS & WORKBENCH COMPATIBILITY BRIDGES ====================
     function loadDecoders() {
@@ -3797,40 +3845,7 @@ function loadRecentPacket(hexVal) {
     }
 }
 
-function loadRecentPackets() {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', g_packetsApi, true);
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                var rawList = JSON.parse(xhr.responseText) || [];
-                // STRICT INTEGRITY FILTER: Only valid packets that passed hardware CRC verification are allowed
-                var pkts = rawList.filter(function(p) {
-                    if (!p || !p.hex) return false;
-                    var st = (p.status || "").toUpperCase();
-                    return st === "" || st === "CRC_OK";
-                });
-                window.g_recentPackets = pkts;
-                var sel = document.getElementById("sel-recent-pkts");
-                if (sel) {
-                    sel.innerHTML = '<option value="">-- Select from history (' + pkts.length + ' valid packets) --</option>';
-                    for (var i = 0; i < pkts.length; i++) {
-                        var p = pkts[i];
-                        if (!p.hex) continue;
-                        var opt = document.createElement("option");
-                        opt.value = p.hex;
-                        opt.text = (p.time || "") + " | " + p.hex.substring(0, 16) + (p.hex.length > 16 ? "..." : "") + " (" + p.size + "B, " + (p.freq || "") + "MHz)";
-                        sel.appendChild(opt);
-                    }
-                }
-                if (g_expandedIndex >= 0) {
-                    populateDrawerRecentPackets(g_expandedIndex);
-                }
-            } catch(e) {}
-        }
-    };
-    xhr.send();
-}
+// loadRecentPackets is defined globally in the Dashboard controller
 
 function normalizeGlobalNodeSource(rule) {
     if (!rule || !rule.source) return "node_2b";
