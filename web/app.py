@@ -308,7 +308,8 @@ def api_status():
             'active': lora_app_active,
             'enabled': lora_app_enabled,
             'metrics': lora_metrics
-        }
+        },
+        'pipeline': (json.load(open('/etc/lora/config.json', 'r', encoding='utf-8')).get('pipeline', {}) if os.path.exists('/etc/lora/config.json') else {})
     })
 
 @app.route('/api/wifi/scan')
@@ -469,6 +470,42 @@ def api_lora_app_service():
             'action': action,
             'message': res.stderr or res.stdout or f'Service {action} successful'
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/lora/pipeline', methods=['GET', 'POST'])
+def api_lora_pipeline():
+    cfg_path = '/etc/lora/config.json'
+    default_pipeline = {
+        'decoding_enabled': True,
+        'ha_telemetry_enabled': True,
+        'ha_discovery_enabled': True,
+        'ha_gateway_telemetry_enabled': True,
+        'sqlite_logging_enabled': True,
+        'linking_enabled': True,
+        'filter_unregistered_nodes': False
+    }
+
+    try:
+        cfg = {}
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+        pipeline = dict(default_pipeline)
+        pipeline.update(cfg.get('pipeline', {}))
+
+        if request.method == 'POST':
+            data = request.get_json(silent=True) or {}
+            for k in default_pipeline.keys():
+                if k in data:
+                    pipeline[k] = bool(data[k])
+            cfg['pipeline'] = pipeline
+            with open(cfg_path, 'w', encoding='utf-8') as f:
+                json.dump(cfg, f, indent=4)
+            return jsonify({'success': True, 'pipeline': pipeline})
+
+        return jsonify({'success': True, 'pipeline': pipeline})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

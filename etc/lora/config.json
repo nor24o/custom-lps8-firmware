@@ -190,5 +190,14 @@
             "pwr_idx": 22,
             "rf_power": 27
         }
-    ]
+    ],
+    "pipeline": {
+        "decoding_enabled": true,
+        "ha_telemetry_enabled": true,
+        "ha_discovery_enabled": true,
+        "ha_gateway_telemetry_enabled": true,
+        "sqlite_logging_enabled": true,
+        "linking_enabled": true,
+        "filter_unregistered_nodes": false
+    }
 }

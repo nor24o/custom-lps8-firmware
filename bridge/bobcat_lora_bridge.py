@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-bobcat_lora_bridge.py - Industrial LoRa Ingestion, Decoder, SQLite, and Home Assistant MQTT Bridge
+bobcat_lora_bridge.py - Industrial LoRa Ingestion, Multi-Scheme Decoder, SQLite & HA MQTT Bridge
 Bobcat Miner 300 (RK3566 / SX1302 Concentrator)
 """
 
@@ -35,28 +35,29 @@ except ImportError:
 
 
 # -----------------------------------------------------------------------------
-# Configuration Loader
+# Configuration & Scheme Loader
 # -----------------------------------------------------------------------------
 def load_config():
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"[WARN] Failed to read {CONFIG_PATH}: {e}")
         return {}
 
 
 def load_decoders():
     try:
         with open(DECODERS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f).get("schemes", [])
+            data = json.load(f)
+            schemes = data.get("schemes", [])
+            global_rule = data.get("globalNodeId", {"source": "node_2b"})
+            return schemes, global_rule
     except Exception as e:
-        print(f"[WARN] Failed to read {DECODERS_PATH}: {e}")
-        return []
+        return [], {"source": "node_2b"}
 
 
 # -----------------------------------------------------------------------------
-# Payload Decoders Engine
+# Multi-Scheme Payload Decoding Engine
 # -----------------------------------------------------------------------------
 def is_printable_ascii(raw_bytes):
     if len(raw_bytes) < 2:
@@ -64,103 +65,109 @@ def is_printable_ascii(raw_bytes):
     return all((32 <= b <= 126) or b in (9, 10, 13) for b in raw_bytes)
 
 
-def decode_cayenne_lpp(raw_bytes):
+def decode_cayenne_lpp(raw_bytes, offset=0):
     out = {}
-    i = 0
-    parsed_any = False
+    i = offset
     n = len(raw_bytes)
+    parsed_any = False
 
     while i < n:
-        ch = raw_bytes[i]
-        i += 1
-        if i >= n:
+        if i + 1 >= n:
             break
-        type_code = raw_bytes[i]
-        i += 1
+        ch = raw_bytes[i]
+        type_code = raw_bytes[i + 1]
+        i += 2
         pfx = f"ch{ch}_"
 
         if type_code == 0x00:  # Digital Input (1B)
-            if i >= n:
-                break
-            out[f"{pfx}digital_in"] = raw_bytes[i]
+            if i >= n: break
+            val = raw_bytes[i]
             i += 1
+            out[f"{pfx}digital_in"] = val
             parsed_any = True
         elif type_code == 0x01:  # Digital Output (1B)
-            if i >= n:
-                break
-            out[f"{pfx}digital_out"] = raw_bytes[i]
+            if i >= n: break
+            val = raw_bytes[i]
             i += 1
+            out[f"{pfx}digital_out"] = val
             parsed_any = True
         elif type_code == 0x02:  # Analog Input (2B, 0.01 signed)
-            if i + 1 >= n:
-                break
-            val = struct.unpack(">h", raw_bytes[i:i+2])[0]
+            if i + 1 >= n: break
+            val = struct.unpack(">h", raw_bytes[i:i + 2])[0]
             i += 2
-            out[f"{pfx}analog_in"] = round(val * 0.01, 2)
+            computed = round(val * 0.01, 2)
+            out[f"{pfx}analog_in"] = computed
+            if "battery" not in out:
+                out["battery"] = computed
             parsed_any = True
         elif type_code == 0x03:  # Analog Output (2B, 0.01 signed)
-            if i + 1 >= n:
-                break
-            val = struct.unpack(">h", raw_bytes[i:i+2])[0]
+            if i + 1 >= n: break
+            val = struct.unpack(">h", raw_bytes[i:i + 2])[0]
             i += 2
             out[f"{pfx}analog_out"] = round(val * 0.01, 2)
             parsed_any = True
         elif type_code == 0x65:  # Illuminance (2B, 1 Lux)
-            if i + 1 >= n:
-                break
-            val = struct.unpack(">H", raw_bytes[i:i+2])[0]
+            if i + 1 >= n: break
+            val = struct.unpack(">H", raw_bytes[i:i + 2])[0]
             i += 2
             out[f"{pfx}illuminance_lux"] = val
             parsed_any = True
         elif type_code == 0x66:  # Presence (1B)
-            if i >= n:
-                break
+            if i >= n: break
             out[f"{pfx}presence"] = raw_bytes[i]
             i += 1
             parsed_any = True
         elif type_code == 0x67:  # Temperature (2B, 0.1 °C signed)
-            if i + 1 >= n:
-                break
-            val = struct.unpack(">h", raw_bytes[i:i+2])[0]
+            if i + 1 >= n: break
+            val = struct.unpack(">h", raw_bytes[i:i + 2])[0]
             i += 2
-            val_c = round(val * 0.1, 1)
-            out[f"{pfx}temperature_c"] = val_c
-            out["temperature"] = val_c
+            temp_c = round(val * 0.1, 1)
+            out[f"{pfx}temperature_c"] = temp_c
+            out["temperature"] = temp_c
             parsed_any = True
         elif type_code == 0x68:  # Humidity (1B, 0.5 %)
-            if i >= n:
-                break
-            val_h = round(raw_bytes[i] * 0.5, 1)
+            if i >= n: break
+            h = round(raw_bytes[i] * 0.5, 1)
             i += 1
-            out[f"{pfx}humidity_pct"] = val_h
-            out["humidity"] = val_h
+            out[f"{pfx}humidity_pct"] = h
+            out["humidity"] = h
+            parsed_any = True
+        elif type_code == 0x71:  # Accelerometer (6B, 3x int16, 0.001 g)
+            if i + 5 >= n: break
+            ax, ay, az = struct.unpack(">hhh", raw_bytes[i:i + 6])
+            i += 6
+            out["accel_x"] = round(ax * 0.001, 3)
+            out["accel_y"] = round(ay * 0.001, 3)
+            out["accel_z"] = round(az * 0.001, 3)
+            out[f"{pfx}accel"] = {"x": out["accel_x"], "y": out["accel_y"], "z": out["accel_z"]}
             parsed_any = True
         elif type_code == 0x73:  # Barometer (2B, 0.1 hPa)
-            if i + 1 >= n:
-                break
-            val = struct.unpack(">H", raw_bytes[i:i+2])[0]
+            if i + 1 >= n: break
+            val = struct.unpack(">H", raw_bytes[i:i + 2])[0]
             i += 2
-            out[f"{pfx}barometer_hpa"] = round(val * 0.1, 1)
-            out["pressure"] = round(val * 0.1, 1)
+            p = round(val * 0.1, 1)
+            out[f"{pfx}barometer_hpa"] = p
+            out["pressure"] = p
+            parsed_any = True
+        elif type_code == 0x86:  # Gyrometer (6B, 3x int16, 0.01 °/s)
+            if i + 5 >= n: break
+            gx, gy, gz = struct.unpack(">hhh", raw_bytes[i:i + 6])
+            i += 6
+            out[f"{pfx}gyro"] = {"x": round(gx * 0.01, 2), "y": round(gy * 0.01, 2), "z": round(gz * 0.01, 2)}
             parsed_any = True
         elif type_code == 0x88:  # GPS (9B)
-            if i + 8 >= n:
-                break
-            lat_raw = (raw_bytes[i] << 16) | (raw_bytes[i+1] << 8) | raw_bytes[i+2]
-            if lat_raw & 0x800000:
-                lat_raw -= 0x1000000
-            lon_raw = (raw_bytes[i+3] << 16) | (raw_bytes[i+4] << 8) | raw_bytes[i+5]
-            if lon_raw & 0x800000:
-                lon_raw -= 0x1000000
-            alt_raw = (raw_bytes[i+6] << 16) | (raw_bytes[i+7] << 8) | raw_bytes[i+8]
-            if alt_raw & 0x800000:
-                alt_raw -= 0x1000000
+            if i + 8 >= n: break
+            lat_raw = (raw_bytes[i] << 16) | (raw_bytes[i + 1] << 8) | raw_bytes[i + 2]
+            if lat_raw & 0x800000: lat_raw -= 0x1000000
+            lon_raw = (raw_bytes[i + 3] << 16) | (raw_bytes[i + 4] << 8) | raw_bytes[i + 5]
+            if lon_raw & 0x800000: lon_raw -= 0x1000000
+            alt_raw = (raw_bytes[i + 6] << 16) | (raw_bytes[i + 7] << 8) | raw_bytes[i + 8]
+            if alt_raw & 0x800000: alt_raw -= 0x1000000
             i += 9
-            out[f"{pfx}gps"] = {
-                "latitude": round(lat_raw * 0.0001, 4),
-                "longitude": round(lon_raw * 0.0001, 4),
-                "altitude_m": round(alt_raw * 0.01, 2)
-            }
+            out["latitude"] = round(lat_raw * 0.0001, 4)
+            out["longitude"] = round(lon_raw * 0.0001, 4)
+            out["altitude_m"] = round(alt_raw * 0.01, 2)
+            out[f"{pfx}gps"] = {"lat": out["latitude"], "lon": out["longitude"], "alt": out["altitude_m"]}
             parsed_any = True
         else:
             break
@@ -187,7 +194,7 @@ def decode_fields_slicer(raw_bytes, fields):
 
         if ftype == "hex":
             end = min(off + flen, n)
-            out[name] = raw_bytes[off:end].hex()
+            out[name] = raw_bytes[off:end].hex().upper()
             continue
 
         if ftype == "ascii":
@@ -195,27 +202,27 @@ def decode_fields_slicer(raw_bytes, fields):
             try:
                 out[name] = raw_bytes[off:end].decode("ascii", errors="replace")
             except Exception:
-                out[name] = raw_bytes[off:end].hex()
+                out[name] = raw_bytes[off:end].hex().upper()
             continue
 
-        val = 0
         try:
+            val = 0
             if ftype == "uint8":
                 val = raw_bytes[off]
             elif ftype == "int8":
-                val = struct.unpack("b", raw_bytes[off:off+1])[0]
+                val = struct.unpack("b", raw_bytes[off:off + 1])[0]
             elif ftype == "uint16_be":
-                val = struct.unpack(">H", raw_bytes[off:off+2])[0]
+                val = struct.unpack(">H", raw_bytes[off:off + 2])[0]
             elif ftype == "uint16_le":
-                val = struct.unpack("<H", raw_bytes[off:off+2])[0]
+                val = struct.unpack("<H", raw_bytes[off:off + 2])[0]
             elif ftype == "int16_be":
-                val = struct.unpack(">h", raw_bytes[off:off+2])[0]
+                val = struct.unpack(">h", raw_bytes[off:off + 2])[0]
             elif ftype == "int16_le":
-                val = struct.unpack("<h", raw_bytes[off:off+2])[0]
+                val = struct.unpack("<h", raw_bytes[off:off + 2])[0]
             elif ftype == "uint32_be":
-                val = struct.unpack(">I", raw_bytes[off:off+4])[0]
+                val = struct.unpack(">I", raw_bytes[off:off + 4])[0]
             elif ftype == "uint32_le":
-                val = struct.unpack("<I", raw_bytes[off:off+4])[0]
+                val = struct.unpack("<I", raw_bytes[off:off + 4])[0]
             computed = round((val * scale) + add, 3)
             out[name] = computed
             if unit:
@@ -226,50 +233,51 @@ def decode_fields_slicer(raw_bytes, fields):
 
 
 def decode_aa0b(raw_bytes, hex_str):
-    # AA0B scheme: [0..1]=AA0B, [2..3]=seq, [4..5]=temp_raw/10, [6..7]=volt_raw/1000
     if len(raw_bytes) < 8:
         return {"raw_hex": hex_str}
     seq = (raw_bytes[2] << 8) | raw_bytes[3]
     temp_raw = struct.unpack(">h", raw_bytes[4:6])[0]
     volt_raw = (raw_bytes[6] << 8) | raw_bytes[7]
-    temp_c = round(temp_raw / 10.0, 1)
-    volt_v = round(volt_raw / 1000.0, 2)
     return {
         "node_type": "AA0B",
         "seq": seq,
-        "temperature": temp_c,
-        "battery": volt_v,
+        "temperature": round(temp_raw / 10.0, 1),
+        "battery": round(volt_raw / 1000.0, 2),
         "battery_mv": volt_raw,
         "extra": hex_str[16:]
     }
 
 
 def decode_aa0c(raw_bytes, hex_str):
-    # AA0C scheme: [0..1]=AA0C, [2..3]=seq, [4..5]=sensor_val, [6..7]=volt_raw/1000
     if len(raw_bytes) < 8:
         return {"raw_hex": hex_str}
     seq = (raw_bytes[2] << 8) | raw_bytes[3]
     sensor_raw = (raw_bytes[4] << 8) | raw_bytes[5]
     volt_raw = (raw_bytes[6] << 8) | raw_bytes[7]
-    volt_v = round(volt_raw / 1000.0, 2)
     return {
         "node_type": "AA0C",
         "seq": seq,
         "sensor_val": sensor_raw,
         "ch1_val": sensor_raw,
-        "battery": volt_v,
+        "battery": round(volt_raw / 1000.0, 2),
         "battery_mv": volt_raw,
         "extra": hex_str[16:]
     }
 
 
-def execute_decoder(raw_bytes, hex_str, schemes):
+def execute_decoder(raw_bytes, hex_str, schemes, dec_enabled=True):
     clean_hex = hex_str.lower()
+    if not dec_enabled:
+        return "raw_disabled", "Raw Passthrough (Decoding Disabled)", {"hex": hex_str, "raw_hex": hex_str, "decoding": False}
+
     for s in schemes:
         if not s.get("enabled", True):
             continue
         m_type = s.get("matchType", "default")
         m_val = str(s.get("matchValue", "")).strip().lower()
+        s_id = s.get("id", "")
+        s_type = s.get("type", "cayenne_lpp")
+        data_offset = int(s.get("dataOffset", 0))
 
         matched = False
         if m_type == "prefix":
@@ -281,58 +289,126 @@ def execute_decoder(raw_bytes, hex_str, schemes):
                 matched = (len(raw_bytes) == int(m_val))
             except ValueError:
                 pass
+        elif m_type == "condition":
+            if s_id == "scheme_ascii_ping":
+                matched = is_printable_ascii(raw_bytes)
+            elif s_id == "scheme_2b_node_tlv":
+                matched = (len(raw_bytes) >= 4)
+            else:
+                matched = True
         elif m_type == "default":
             matched = True
 
         if matched:
-            s_type = s.get("type", "js")
-            s_id = s.get("id", "")
-            if s_id == "scheme_aa0b" or clean_hex.startswith("aa0b"):
-                return s_id, s.get("name", "AA0B"), decode_aa0b(raw_bytes, hex_str)
-            elif s_id == "scheme_aa0c" or clean_hex.startswith("aa0c"):
-                return s_id, s.get("name", "AA0C"), decode_aa0c(raw_bytes, hex_str)
-            elif s_type == "ascii":
-                return s_id, s.get("name", "ASCII"), {"text": raw_bytes.decode("ascii", errors="replace")}
-            elif s_type == "cayenne_lpp":
-                res = decode_cayenne_lpp(raw_bytes)
-                if res:
-                    return s_id, s.get("name", "Cayenne LPP"), res
-            elif s_type == "fields":
-                res = decode_fields_slicer(raw_bytes, s.get("fields", []))
-                return s_id, s.get("name", "Fields"), res
+            name = s.get("name", s_id)
+            # 1. Node CAFE special handling (Multi-Sensor LPP)
+            if s_id == "scheme_node_cafe" or clean_hex.startswith("cafe"):
+                res = {}
+                if len(raw_bytes) >= 6:
+                    res["node_id"] = raw_bytes[0:2].hex().upper()
+                    res["device_serial"] = raw_bytes[2:6].hex().upper()
+                    res["node_class"] = "A"
+                    res["capability"] = "Sensor"
+                lpp_res = decode_cayenne_lpp(raw_bytes, offset=data_offset or 6)
+                if lpp_res:
+                    res.update(lpp_res)
+                return s_id, name, res
 
-    # Automatic fallback
+            # 2. Standard 2B Node TLV
+            if s_id == "scheme_2b_node_tlv" or s_type == "ctv":
+                res = {}
+                if len(raw_bytes) >= 4:
+                    res["node_id"] = raw_bytes[0:2].hex().upper()
+                    dev_type = raw_bytes[2]
+                    res["device_type"] = f"0x{dev_type:02X}"
+                    class_code = dev_type // 16
+                    res["node_class"] = "B" if class_code == 2 else ("C" if class_code == 3 else "A")
+                    res["seq"] = raw_bytes[3]
+                lpp_res = decode_cayenne_lpp(raw_bytes, offset=data_offset or 4)
+                if lpp_res:
+                    res.update(lpp_res)
+                return s_id, name, res
+
+            # 3. AA0B / AA0C
+            if s_id == "scheme_aa0b" or clean_hex.startswith("aa0b"):
+                return s_id, name, decode_aa0b(raw_bytes, hex_str)
+            if s_id == "scheme_aa0c" or clean_hex.startswith("aa0c"):
+                return s_id, name, decode_aa0c(raw_bytes, hex_str)
+
+            # 4. ASCII
+            if s_type == "ascii":
+                return s_id, name, {"text": raw_bytes.decode("ascii", errors="replace")}
+
+            # 5. Fields Slicer
+            if s_type == "fields":
+                return s_id, name, decode_fields_slicer(raw_bytes, s.get("fields", []))
+
+            # 6. Standard Cayenne LPP
+            if s_type == "cayenne_lpp":
+                lpp_res = decode_cayenne_lpp(raw_bytes, offset=data_offset)
+                if lpp_res:
+                    return s_id, name, lpp_res
+
+    # Automatic Fallbacks
+    if clean_hex.startswith("cafe"):
+        res = {"node_id": "CAFE"}
+        if len(raw_bytes) >= 6:
+            res["device_serial"] = raw_bytes[2:6].hex().upper()
+        lpp = decode_cayenne_lpp(raw_bytes, offset=6)
+        if lpp: res.update(lpp)
+        return "scheme_node_cafe", "Node CAFE (Multi-Sensor LPP)", res
+
     if clean_hex.startswith("aa0b"):
         return "scheme_aa0b", "Sensor Node AA0B", decode_aa0b(raw_bytes, hex_str)
     if clean_hex.startswith("aa0c"):
         return "scheme_aa0c", "Sensor Node AA0C", decode_aa0c(raw_bytes, hex_str)
     if is_printable_ascii(raw_bytes):
         return "fallback_ascii", "ASCII Text", {"text": raw_bytes.decode("ascii", errors="replace")}
-    lpp = decode_cayenne_lpp(raw_bytes)
+
+    lpp = decode_cayenne_lpp(raw_bytes, 0)
     if lpp:
         return "fallback_lpp", "Cayenne LPP", lpp
 
     return "raw", "Raw Payload", {"hex": hex_str}
 
 
-def extract_node_id(raw_bytes, hex_str, decoded_data):
+def extract_node_id(raw_bytes, hex_str, decoded_data, schemes=None, global_rule=None):
     clean_hex = hex_str.upper()
-    if clean_hex.startswith("AA0B"):
-        return "AA0B"
-    if clean_hex.startswith("AA0C"):
-        return "AA0C"
-    if "node_type" in decoded_data and decoded_data["node_type"]:
-        return str(decoded_data["node_type"]).upper()
-    if len(raw_bytes) >= 4 and clean_hex.startswith("AA"):
+
+    if decoded_data and isinstance(decoded_data, dict):
+        for k in ("node_id", "nodeId", "id", "device_id"):
+            if k in decoded_data and decoded_data[k]:
+                return str(decoded_data[k]).upper()
+
+    rule = global_rule or {"source": "node_2b"}
+    src = rule.get("source", "node_2b")
+    if src == "node_2b" and len(raw_bytes) >= 2:
         return f"{raw_bytes[0]:02X}{raw_bytes[1]:02X}"
-    if len(clean_hex) >= 4:
-        return clean_hex[:4]
+    if src == "serial_4b" and len(raw_bytes) >= 6:
+        return raw_bytes[2:6].hex().upper()
+
+    if clean_hex.startswith("AA0B"): return "AA0B"
+    if clean_hex.startswith("AA0C"): return "AA0C"
+    if clean_hex.startswith("CAFE"): return "CAFE"
+    if len(clean_hex) >= 4: return clean_hex[:4]
     return "UNKNOWN"
 
 
 # -----------------------------------------------------------------------------
-# SQLite Database Storage & Auto-Registration
+# SQLite Database Storage & Node Registry
 # -----------------------------------------------------------------------------
+def is_node_registered(node_id):
+    try:
+        con = sqlite3.connect(DB_NODES_PATH, timeout=2)
+        cur = con.cursor()
+        cur.execute("SELECT is_configured FROM node_settings WHERE node_id = ?", (node_id,))
+        row = cur.fetchone()
+        con.close()
+        return bool(row and row[0] == 1)
+    except Exception:
+        return True
+
+
 def record_to_databases(node_id, pkt, raw_hex, decoded_dict):
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     rssi = float(pkt.get("rssi", pkt.get("rssis", -100.0)))
@@ -347,7 +423,6 @@ def record_to_databases(node_id, pkt, raw_hex, decoded_dict):
             sf = 7
     tmst = int(pkt.get("tmst", 0))
 
-    # 1. Ephemeral DB (/tmp/lora_messages.db)
     try:
         con_ram = sqlite3.connect(DB_RAM_PATH, timeout=5)
         cur_ram = con_ram.cursor()
@@ -360,7 +435,6 @@ def record_to_databases(node_id, pkt, raw_hex, decoded_dict):
     except Exception as e:
         print(f"[DB-RAM-ERR] {e}")
 
-    # 2. Persistent DB (/etc/lora/nodes.db)
     try:
         con_nodes = sqlite3.connect(DB_NODES_PATH, timeout=5)
         cur_nodes = con_nodes.cursor()
@@ -373,7 +447,7 @@ def record_to_databases(node_id, pkt, raw_hex, decoded_dict):
                 WHERE node_id = ?
             """, (now_str, rssi, snr, now_str, node_id))
         else:
-            default_model = "temperature_sensor" if node_id == "AA0B" else ("relay_valve" if node_id == "AA0C" else "generic")
+            default_model = "Multi-Sensor (CAFE)" if node_id == "CAFE" else ("temperature_sensor" if node_id == "AA0B" else ("relay_valve" if node_id == "AA0C" else "generic"))
             node_cls = "C" if default_model == "relay_valve" else "A"
             cur_nodes.execute("""
                 INSERT INTO node_settings (node_id, name, node_class, model, group_name, is_configured, ha_enabled, last_seen, last_rssi, last_snr, created_at, updated_at)
@@ -444,7 +518,6 @@ def evaluate_linking_rules(source_node, decoded_dict):
         rules = cur_nodes.fetchall()
         con_nodes.close()
     except Exception as e:
-        print(f"[LINK-ERR] {e}")
         return
 
     now = time.time()
@@ -452,7 +525,6 @@ def evaluate_linking_rules(source_node, decoded_dict):
         (link_id, name, src, trigger_field, op, thresh, target_node,
          action_type, action_payload, turnaround_ms, cooldown_sec, last_trig_str) = rule
 
-        # Check cooldown
         if last_trig_str:
             try:
                 last_trig_t = datetime.strptime(last_trig_str, "%Y-%m-%d %H:%M:%S").timestamp()
@@ -461,7 +533,6 @@ def evaluate_linking_rules(source_node, decoded_dict):
             except Exception:
                 pass
 
-        # Check condition
         current_val = None
         if trigger_field in decoded_dict:
             current_val = decoded_dict[trigger_field]
@@ -502,24 +573,10 @@ def evaluate_linking_rules(source_node, decoded_dict):
             except Exception:
                 pass
 
-            # Optional turnaround delay
             if turnaround_ms and turnaround_ms > 0:
                 time.sleep(turnaround_ms / 1000.0)
 
-            # Dispatch action
             dispatch_lora_downlink(target_node, action_payload)
-
-            # Log audit
-            try:
-                con_l = sqlite3.connect(DB_RAM_PATH, timeout=5)
-                con_l.execute("""
-                    INSERT INTO link_execution_logs (link_id, timestamp, event_type, source_node, target_node, tx_status, details)
-                    VALUES (?, ?, 'AUTO_TRIGGER', ?, ?, 'DISPATCHED', ?)
-                """, (link_id, now_str, src, target_node, f"Condition: {trigger_field} {op} {thresh} (val={current_val})"))
-                con_l.commit()
-                con_l.close()
-            except Exception:
-                pass
 
 
 # -----------------------------------------------------------------------------
@@ -559,9 +616,12 @@ class MqttBridgeSupervisor(threading.Thread):
                 self.client.loop_start()
 
                 while self.connected:
-                    self.publish_gateway_telemetry()
-                    self.sync_all_discovery()
                     time.sleep(10)
+                    pipeline = load_config().get("pipeline", {})
+                    if pipeline.get("ha_gateway_telemetry_enabled", True):
+                        self.publish_gateway_telemetry()
+                    if pipeline.get("ha_discovery_enabled", True):
+                        self.sync_all_discovery()
 
                 self.client.loop_stop()
             except Exception as e:
@@ -574,12 +634,15 @@ class MqttBridgeSupervisor(threading.Thread):
             self.connected = True
             cfg = load_config()
             m_cfg = cfg.get("mqtt", {})
+            pipeline = cfg.get("pipeline", {})
             topic_root = m_cfg.get("state_prefix", "lora")
             client.subscribe(f"{topic_root}/+/set")
             client.subscribe(f"{topic_root}/gateway/restart")
-            self.publish_gateway_discovery()
-            self.sync_all_discovery()
-            self.publish_gateway_telemetry()
+            if pipeline.get("ha_discovery_enabled", True):
+                self.publish_gateway_discovery()
+                self.sync_all_discovery()
+            if pipeline.get("ha_gateway_telemetry_enabled", True):
+                self.publish_gateway_telemetry()
         else:
             print(f"[MQTT] Connection rejected (rc={rc})")
             self.connected = False
@@ -608,7 +671,6 @@ class MqttBridgeSupervisor(threading.Thread):
             node_id = topic[len(prefix):-len(suffix)].upper()
             print(f"[MQTT-CMD] Downlink dispatch for node {node_id}: {payload}")
             dispatch_lora_downlink(node_id, payload)
-            # Update state in HA immediately
             state_val = "ON" if (payload in ("ON", "1", "0101")) else "OFF"
             self.publish(f"{topic_root}/{node_id}/state", json.dumps({"state": state_val, "last_cmd": payload}), retain=True)
 
@@ -637,7 +699,6 @@ class MqttBridgeSupervisor(threading.Thread):
         cfg = load_config()
         m_cfg = cfg.get("mqtt", {})
         topic_root = m_cfg.get("state_prefix", "lora")
-
         stat = self.query_gateway_status()
         active_nodes = 0
         try:
@@ -674,11 +735,9 @@ class MqttBridgeSupervisor(threading.Thread):
             "name": "Bobcat LoRa Gateway",
             "model": "Bobcat Miner 300 (SX1302 8-CH)",
             "manufacturer": "Bobcat / Rockchip",
-            "sw_version": "v2.2.0",
-            "configuration_url": "http://192.168.1.15/"
+            "sw_version": "v2.2.0"
         }
 
-        # Temperature
         self.publish(f"{ha_pfx}/sensor/bobcat_gw_{gw_id}/temp/config", json.dumps({
             "name": "Concentrator Temperature",
             "unique_id": f"bobcat_gw_{gw_id}_temp",
@@ -686,52 +745,23 @@ class MqttBridgeSupervisor(threading.Thread):
             "value_template": "{{ value_json.temp_c | default(none) }}",
             "unit_of_measurement": "°C",
             "device_class": "temperature",
-            "state_class": "measurement",
             "device": gw_device
         }), retain=True)
 
-        # Uplinks Received
         self.publish(f"{ha_pfx}/sensor/bobcat_gw_{gw_id}/rx/config", json.dumps({
             "name": "LoRa Uplinks Received",
             "unique_id": f"bobcat_gw_{gw_id}_rx",
             "state_topic": state_topic,
             "value_template": "{{ value_json.rx | default(0) }}",
-            "state_class": "total_increasing",
-            "entity_category": "diagnostic",
-            "icon": "mdi:radio-tower",
             "device": gw_device
         }), retain=True)
 
-        # Downlinks Sent
-        self.publish(f"{ha_pfx}/sensor/bobcat_gw_{gw_id}/tx/config", json.dumps({
-            "name": "LoRa Downlinks Sent",
-            "unique_id": f"bobcat_gw_{gw_id}_tx",
-            "state_topic": state_topic,
-            "value_template": "{{ value_json.tx | default(0) }}",
-            "state_class": "total_increasing",
-            "entity_category": "diagnostic",
-            "icon": "mdi:transmit-tower",
-            "device": gw_device
-        }), retain=True)
-
-        # Active Nodes
-        self.publish(f"{ha_pfx}/sensor/bobcat_gw_{gw_id}/active_nodes/config", json.dumps({
-            "name": "Active LoRa Nodes",
-            "unique_id": f"bobcat_gw_{gw_id}_active_nodes",
-            "state_topic": state_topic,
-            "value_template": "{{ value_json.active_nodes | default(0) }}",
-            "icon": "mdi:devices",
-            "device": gw_device
-        }), retain=True)
-
-        # Concentrator Restart Button
         self.publish(f"{ha_pfx}/button/bobcat_gw_{gw_id}/restart/config", json.dumps({
             "name": "Restart LoRa Concentrator",
             "unique_id": f"bobcat_gw_{gw_id}_restart",
             "command_topic": f"{topic_root}/gateway/restart",
             "payload_press": "PRESS",
             "device_class": "restart",
-            "entity_category": "config",
             "device": gw_device
         }), retain=True)
 
@@ -752,7 +782,6 @@ class MqttBridgeSupervisor(threading.Thread):
             purged_ids = [r["node_id"] for r in cur.fetchall()]
             con.close()
         except Exception as e:
-            print(f"[HA-SYNC-ERR] {e}")
             return
 
         for node in active_nodes:
@@ -799,7 +828,20 @@ class MqttBridgeSupervisor(threading.Thread):
                 "device": dev_obj
             }), retain=True)
 
-            # RSSI
+            # Accelerometer X, Y, Z
+            for axis in ("x", "y", "z"):
+                self.publish(f"{ha_pfx}/sensor/lora_{nid}/accel_{axis}/config", json.dumps({
+                    "name": f"Acceleration {axis.upper()}",
+                    "has_entity_name": True,
+                    "unique_id": f"lora_{nid}_accel_{axis}",
+                    "state_topic": state_topic,
+                    "value_template": f"{{{{ value_json.accel_{axis} | default(none) }}}}",
+                    "unit_of_measurement": "g",
+                    "icon": "mdi:axis-arrow",
+                    "device": dev_obj
+                }), retain=True)
+
+            # Signal RSSI & SNR
             self.publish(f"{ha_pfx}/sensor/lora_{nid}/rssi/config", json.dumps({
                 "name": "Signal RSSI",
                 "has_entity_name": True,
@@ -812,7 +854,6 @@ class MqttBridgeSupervisor(threading.Thread):
                 "device": dev_obj
             }), retain=True)
 
-            # SNR
             self.publish(f"{ha_pfx}/sensor/lora_{nid}/snr/config", json.dumps({
                 "name": "Signal SNR",
                 "has_entity_name": True,
@@ -821,11 +862,10 @@ class MqttBridgeSupervisor(threading.Thread):
                 "value_template": "{{ value_json.snr | default(none) }}",
                 "unit_of_measurement": "dB",
                 "entity_category": "diagnostic",
-                "icon": "mdi:signal-distance-variant",
                 "device": dev_obj
             }), retain=True)
 
-            # Actuator Switch (Class C or valve/relay)
+            # Switch (Class C)
             if cls == "C" or any(w in model.lower() for w in ("valve", "relay", "actuator")):
                 self.publish(f"{ha_pfx}/switch/lora_{nid}/switch/config", json.dumps({
                     "name": "Actuator",
@@ -841,9 +881,8 @@ class MqttBridgeSupervisor(threading.Thread):
                     "device": dev_obj
                 }), retain=True)
 
-        # Purge inactive
         for nid in purged_ids:
-            for comp, key in [("sensor", "temp"), ("sensor", "batt"), ("sensor", "rssi"), ("sensor", "snr"), ("switch", "switch")]:
+            for comp, key in [("sensor", "temp"), ("sensor", "batt"), ("sensor", "rssi"), ("sensor", "snr"), ("switch", "switch"), ("sensor", "accel_x"), ("sensor", "accel_y"), ("sensor", "accel_z")]:
                 self.publish(f"{ha_pfx}/{comp}/lora_{nid}/{key}/config", "", retain=True)
 
     def publish_node_telemetry(self, node_id, metrics):
@@ -854,7 +893,7 @@ class MqttBridgeSupervisor(threading.Thread):
 
 
 # -----------------------------------------------------------------------------
-# Main Ingestion UDP Loop
+# Hardware Watchdog Thread
 # -----------------------------------------------------------------------------
 def raw_lora_watchdog_thread():
     while True:
@@ -865,43 +904,37 @@ def raw_lora_watchdog_thread():
             res = s.connect_ex(('127.0.0.1', STATUS_PORT))
             s.close()
             if res != 0:
-                # raw_lora_app is not responding (broken/stopped) -> set solid RED
                 try:
-                    with open("/sys/class/leds/red:status/brightness", "w") as f:
-                        f.write("1")
-                    with open("/sys/class/leds/blue:status/brightness", "w") as f:
-                        f.write("0")
-                    with open("/sys/class/leds/green:status/brightness", "w") as f:
-                        f.write("0")
+                    with open("/sys/class/leds/red:status/brightness", "w") as f: f.write("1")
+                    with open("/sys/class/leds/blue:status/brightness", "w") as f: f.write("0")
+                    with open("/sys/class/leds/green:status/brightness", "w") as f: f.write("0")
                 except Exception:
                     pass
         except Exception:
             pass
 
 
+# -----------------------------------------------------------------------------
+# Main Ingestion UDP Loop
+# -----------------------------------------------------------------------------
 def main():
-    print(f"============================================================")
+    print("============================================================")
     print(f"Bobcat LoRa Bridge & Ingestion Daemon Starting (UDP :{PORT_UP})")
-    print(f"============================================================")
+    print("============================================================")
 
-    # Initialize databases if needed
     os.system("/usr/local/bin/lora_db_init.sh >/dev/null 2>&1")
-
-    # Start Concentrator Watchdog for Hardware Error LED indication
     threading.Thread(target=raw_lora_watchdog_thread, daemon=True).start()
 
-    # Start MQTT Supervisor
     mqtt_super = MqttBridgeSupervisor()
     mqtt_super.start()
 
-    # Bind UDP Socket for raw_lora_app uplinks
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("0.0.0.0", PORT_UP))
     print(f"[BRIDGE] Listening for raw_lora_app uplinks on UDP port {PORT_UP}...")
 
-    schemes = load_decoders()
-    last_schemes_reload = time.time()
+    schemes, global_rule = load_decoders()
+    last_reload = time.time()
 
     while True:
         try:
@@ -909,10 +942,17 @@ def main():
             if not data:
                 continue
 
-            # Reload decoders periodically or on mod
-            if time.time() - last_schemes_reload > 10:
-                schemes = load_decoders()
-                last_schemes_reload = time.time()
+            if time.time() - last_reload > 3:
+                schemes, global_rule = load_decoders()
+                last_reload = time.time()
+
+            cfg = load_config()
+            pipeline = cfg.get("pipeline", {})
+            dec_enabled = pipeline.get("decoding_enabled", True)
+            ha_telemetry_enabled = pipeline.get("ha_telemetry_enabled", True)
+            sqlite_logging_enabled = pipeline.get("sqlite_logging_enabled", True)
+            linking_enabled = pipeline.get("linking_enabled", True)
+            filter_unregistered = pipeline.get("filter_unregistered_nodes", False)
 
             try:
                 msg = json.loads(data.decode("utf-8", errors="replace"))
@@ -921,6 +961,13 @@ def main():
 
             rxpk_list = msg.get("rxpk", [])
             for pkt in rxpk_list:
+                # 1. Hardware CRC Gate
+                stat_val = pkt.get("stat", 1)
+                status_str = pkt.get("status", "")
+                if stat_val == -1 or status_str == "CRC_BAD":
+                    print(f"[CRC-DROP] Corrupted packet dropped (stat={stat_val}, status={status_str})")
+                    continue
+
                 b64_str = pkt.get("data", "")
                 if not b64_str:
                     continue
@@ -930,11 +977,16 @@ def main():
                 except Exception:
                     continue
 
-                # Run Multi-Scheme Decoder Engine
-                scheme_id, scheme_name, decoded = execute_decoder(raw_bytes, raw_hex, schemes)
+                # 2. Multi-Scheme Decoder Engine (Feature Toggle: decoding_enabled)
+                scheme_id, scheme_name, decoded = execute_decoder(raw_bytes, raw_hex, schemes, dec_enabled=dec_enabled)
 
-                # Extract Node ID
-                node_id = extract_node_id(raw_bytes, raw_hex, decoded)
+                # 3. Extract Node ID
+                node_id = extract_node_id(raw_bytes, raw_hex, decoded, schemes, global_rule)
+
+                # 4. Strict Registered Node Filter (Feature Toggle: filter_unregistered_nodes)
+                if filter_unregistered and not is_node_registered(node_id):
+                    print(f"[GATE-DROP] Node [{node_id}] rejected by unregistered node filter")
+                    continue
 
                 # Attach RF Metadata to decoded payload
                 telemetry_payload = dict(decoded)
@@ -948,21 +1000,29 @@ def main():
                 print(f"[UPLINK] Node [{node_id}] | Scheme: {scheme_name} | RSSI: {telemetry_payload['rssi']} dBm | Payload: {raw_hex}")
                 print(f"         Decoded: {decoded}")
 
-                # Record into SQLite databases (/tmp/lora_messages.db & /etc/lora/nodes.db)
-                record_to_databases(node_id, pkt, raw_hex, decoded)
+                # 5. Database Logging (Feature Toggle: sqlite_logging_enabled)
+                if sqlite_logging_enabled:
+                    record_to_databases(node_id, pkt, raw_hex, decoded)
+                else:
+                    print(f"[DB-SKIP] SQLite persistence disabled by toggle for [{node_id}]")
 
-                # Publish to Home Assistant MQTT
-                mqtt_super.publish_node_telemetry(node_id, telemetry_payload)
+                # 6. Home Assistant MQTT Telemetry (Feature Toggle: ha_telemetry_enabled)
+                if ha_telemetry_enabled:
+                    mqtt_super.publish_node_telemetry(node_id, telemetry_payload)
+                else:
+                    print(f"[MQTT-SKIP] HA Telemetry disabled by toggle for [{node_id}]")
 
-                # Evaluate Edge Device Linking Rules
-                evaluate_linking_rules(node_id, decoded)
+                # 7. Edge Device Linking Rules (Feature Toggle: linking_enabled)
+                if linking_enabled:
+                    evaluate_linking_rules(node_id, decoded)
+                else:
+                    print(f"[LINK-SKIP] Edge linking disabled by toggle for [{node_id}]")
 
         except KeyboardInterrupt:
             print("[BRIDGE] Exiting on SIGINT.")
             break
         except Exception as e:
             print(f"[BRIDGE-ERR] {e}")
-            traceback.print_exc()
             time.sleep(0.5)
 
 
