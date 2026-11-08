@@ -684,6 +684,207 @@ def api_lora_packets():
     except Exception as e:
         return jsonify([])
 
+# ==================== CONCENTRATOR FLEET (MAIN & SATELLITES) ====================
+
+@app.route('/api/lora/concentrators', methods=['GET', 'POST'])
+def api_lora_concentrators():
+    concentrators_path = '/tmp/lora_concentrators.json'
+    satellites_path = '/etc/lora/satellites.json'
+    
+    cfg = {}
+    try:
+        with open('/etc/lora/config.json', 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+    except:
+        pass
+    mqtt_cfg = cfg.get('mqtt', {})
+    state_prefix = mqtt_cfg.get('state_prefix', 'lora')
+    main_eui = "0016C001F1500B48"
+
+    if request.method == 'GET':
+        data = {}
+        if os.path.exists(concentrators_path):
+            try:
+                with open(concentrators_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except:
+                pass
+        
+        # Ensure main concentrator is tracked
+        if main_eui not in data:
+            data[main_eui] = {
+                "gateway_id": main_eui,
+                "name": "Bobcat Main Concentrator",
+                "type": "main",
+                "ip": "127.0.0.1",
+                "port": 5555,
+                "protocol": "Local SX1302 SPI",
+                "status": "ONLINE",
+                "last_seen": "--",
+                "uptime_s": 0,
+                "rx_count": 0,
+                "crc_err": 0,
+                "nodes": {}
+            }
+
+        # Merge saved satellites from /etc/lora/satellites.json
+        if os.path.exists(satellites_path):
+            try:
+                with open(satellites_path, 'r', encoding='utf-8') as f:
+                    saved_sats = json.load(f)
+                    for s in saved_sats:
+                        gid = s.get('gateway_id')
+                        if gid and gid not in data:
+                            data[gid] = {
+                                "gateway_id": gid,
+                                "name": s.get('name', f"Satellite {gid}"),
+                                "type": "satellite",
+                                "ip": s.get('ip', '0.0.0.0'),
+                                "port": s.get('port', 1700),
+                                "protocol": s.get('protocol', 'Semtech UDP 1700'),
+                                "status": "STANDBY",
+                                "last_seen": s.get('last_seen', '--'),
+                                "uptime_s": 0,
+                                "rx_count": 0,
+                                "crc_err": 0,
+                                "nodes": {}
+                            }
+            except:
+                pass
+
+        concentrator_list = list(data.values())
+        return jsonify({
+            "success": True,
+            "main_eui": main_eui,
+            "topic_prefix": state_prefix,
+            "broker": f"{mqtt_cfg.get('server', '127.0.0.1')}:{mqtt_cfg.get('port', 1883)}",
+            "concentrators": concentrator_list
+        })
+
+    elif request.method == 'POST':
+        req = request.get_json(silent=True) or {}
+        gid = req.get('gateway_id', '').strip().upper()
+        if not gid:
+            return jsonify({'error': 'Missing gateway_id'}), 400
+        
+        saved_sats = []
+        if os.path.exists(satellites_path):
+            try:
+                with open(satellites_path, 'r', encoding='utf-8') as f:
+                    saved_sats = json.load(f)
+            except:
+                pass
+        
+        found = False
+        for s in saved_sats:
+            if s.get('gateway_id') == gid:
+                s['name'] = req.get('name', s.get('name'))
+                s['ip'] = req.get('ip', s.get('ip'))
+                s['port'] = req.get('port', s.get('port', 1700))
+                s['protocol'] = req.get('protocol', s.get('protocol', 'Semtech UDP 1700'))
+                found = True
+                break
+        if not found:
+            saved_sats.append({
+                "gateway_id": gid,
+                "name": req.get('name', f"Satellite {gid}"),
+                "ip": req.get('ip', '192.168.1.50'),
+                "port": req.get('port', 1700),
+                "protocol": req.get('protocol', 'Semtech UDP 1700')
+            })
+        
+        with open(satellites_path, 'w', encoding='utf-8') as f:
+            json.dump(saved_sats, f, indent=2)
+
+        return jsonify({'success': True, 'message': f'Satellite {gid} saved'})
+
+
+@app.route('/api/lora/concentrators/<gateway_id>', methods=['DELETE'])
+def api_lora_concentrator_delete(gateway_id):
+    satellites_path = '/etc/lora/satellites.json'
+    concentrators_path = '/tmp/lora_concentrators.json'
+    gid = gateway_id.strip().upper()
+
+    if os.path.exists(satellites_path):
+        try:
+            with open(satellites_path, 'r', encoding='utf-8') as f:
+                saved_sats = json.load(f)
+            saved_sats = [s for s in saved_sats if s.get('gateway_id') != gid]
+            with open(satellites_path, 'w', encoding='utf-8') as f:
+                json.dump(saved_sats, f, indent=2)
+        except:
+            pass
+
+    if os.path.exists(concentrators_path):
+        try:
+            with open(concentrators_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if gid in data and data[gid].get('type') != 'main':
+                del data[gid]
+                with open(concentrators_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2)
+        except:
+            pass
+
+    return jsonify({'success': True, 'message': f'Concentrator {gid} removed'})
+
+
+@app.route('/api/lora/concentrators/ping', methods=['POST'])
+def api_lora_concentrators_ping():
+    req = request.get_json(silent=True) or {}
+    ip = req.get('ip', '').strip()
+    if not ip or ip in ('127.0.0.1', '0.0.0.0', '--'):
+        return jsonify({'success': True, 'reachable': True, 'latency': '< 0.1 ms'})
+    try:
+        res = subprocess.run(['ping', '-c', '1', '-W', '2', ip], capture_output=True, text=True)
+        reachable = (res.returncode == 0)
+        latency = '--'
+        if reachable and 'time=' in res.stdout:
+            latency = res.stdout.split('time=')[1].split()[0] + ' ms'
+        return jsonify({'success': True, 'reachable': reachable, 'latency': latency})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/lora/concentrators/simulate', methods=['POST'])
+def api_lora_concentrators_simulate():
+    req = request.get_json(silent=True) or {}
+    sat_id = req.get('gateway_id', 'A840411F49824810').upper()
+    try:
+        token = b'\x12\x34'
+        try:
+            eui_bytes = bytes.fromhex(sat_id)
+        except:
+            eui_bytes = b'\xa8\x40\x41\x1f\x49\x82\x48\x10'
+        if len(eui_bytes) != 8:
+            eui_bytes = (eui_bytes + b'\x00' * 8)[:8]
+
+        pkt_json = json.dumps({
+            "rxpk": [{
+                "time": datetime.utcnow().strftime("%H:%M:%S"),
+                "tmst": int(time.time()),
+                "chan": 2,
+                "rfch": 0,
+                "freq": 868.3,
+                "stat": 1,
+                "modu": "LORA",
+                "datr": "SF12BW125",
+                "codr": "4/5",
+                "rssi": -41.4,
+                "lsnr": 5.5,
+                "size": 39,
+                "data": "yv6WuEDrAQIBSgJxAAgAGQQkA2cBBASIAAAAAAAAAAAABQBIBgCH"
+            }]
+        }).encode('utf-8')
+
+        datagram = b'\x02' + token + b'\x00' + eui_bytes + pkt_json
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(datagram, ('127.0.0.1', 1700))
+        sock.close()
+        return jsonify({'success': True, 'message': f'Injected test uplink from Satellite Concentrator [{sat_id}]'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # ==================== NODES REGISTRY & MESSAGES ====================
 
 @app.route('/api/lora/nodes', methods=['GET', 'POST'])
