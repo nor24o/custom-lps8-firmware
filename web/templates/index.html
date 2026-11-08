@@ -799,6 +799,202 @@
 .toast-success { background: #059669; color: #ffffff; }
 .toast-error   { background: #dc2626; color: #ffffff; }
 .toast-info    { background: #2563eb; color: #ffffff; }
+
+
+/* PIPELINE FLOW GRAPHICAL CANVAS STYLES */
+.pipeline-flow-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.flow-top-bar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.flow-canvas {
+  background-color: #f8fafc;
+  background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+  background-size: 20px 20px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+  position: relative;
+  overflow-x: auto;
+}
+
+.flow-stages-row {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 1050px;
+}
+
+.flow-stage-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 190px;
+}
+
+.flow-stage-header {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.75px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0.25rem;
+}
+
+.flow-node-card {
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.9rem;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.flow-node-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+  border-color: #3b82f6 !important;
+}
+
+.flow-node-card.selected {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2), 0 6px 14px rgba(0,0,0,0.08);
+}
+
+.flow-node-card.state-active {
+  border-color: #10b981;
+}
+
+.flow-node-card.state-bypass {
+  border-color: #f59e0b;
+}
+
+.flow-node-card.state-muted {
+  border-color: #cbd5e1;
+  opacity: 0.75;
+  background: #f8fafc;
+}
+
+.flow-node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.flow-node-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.flow-node-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  letter-spacing: 0.5px;
+}
+
+.badge-green { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+.badge-blue { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.badge-amber { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.badge-purple { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
+.badge-gray { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+.badge-pink { background: #fce7f3; color: #be185d; border: 1px solid #fbcfe8; }
+
+.flow-node-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.flow-node-stats {
+  font-size: 0.72rem;
+  font-family: monospace;
+  background: #f8fafc;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flow-node-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.4rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.flow-arrow-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.flow-arrow-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  color: #2563eb;
+  font-weight: 800;
+  font-size: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  animation: arrowPulse 2s infinite ease-in-out;
+}
+
+@keyframes arrowPulse {
+  0%, 100% { transform: scale(1); border-color: #cbd5e1; }
+  50% { transform: scale(1.15); border-color: #3b82f6; box-shadow: 0 0 6px rgba(59, 130, 246, 0.4); }
+}
+
+.flow-inspector-card {
+  background: #ffffff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
 </style>
 </head>
 <body>
@@ -831,6 +1027,7 @@
   <div class="container">
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('pipeline')">🔀 Pipeline Flow</button>
       <button class="tab-btn" onclick="switchTab('decoders')">🧩 Decoders & Workbench</button>
       <button class="tab-btn" onclick="switchTab('nodes')">📱 Nodes & Home Assistant</button>
       <button class="tab-btn" onclick="switchTab('links')">⚡ Device Automations</button>
@@ -1130,6 +1327,290 @@
       </div>
     </div>
 
+<!-- TAB: GRAPHICAL PIPELINE FLOW & TOPOLOGICAL ARCHITECTURE -->
+    <div id="tab-pipeline" class="tab-content">
+      
+      <div class="pipeline-flow-container">
+        
+        <!-- TOP CONTROL & METRIC BAR -->
+        <div class="flow-top-bar">
+          <div>
+            <div style="font-weight: 800; font-size: 1.15rem; color: #0f172a; display: flex; align-items: center; gap: 0.6rem;">
+              <span>🔀 Live LoRa Data Pipeline & Topology Flow</span>
+              <span class="pill pill-cyan" id="flow-top-status-badge">PIPELINE ACTIVE</span>
+            </div>
+            <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">
+              Real-time architectural flow graph • Dynamically updates routing paths and node states based on live hardware configuration
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="setPipelineProfile('all_on'); updatePipelineGraph();" title="Enable all ingestion features" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;">⚡ All Features ON</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPipelineProfile('production'); updatePipelineGraph();" title="Production mode with strict enrollment" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;">🛡️ Strict Production</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPipelineProfile('passthrough'); updatePipelineGraph();" title="Raw hex passthrough mode" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;">🧪 Raw Passthrough</button>
+            <button class="btn btn-secondary btn-sm" onclick="updatePipelineGraph(true)" title="Refresh topology and live counters" style="font-size: 0.78rem; padding: 0.35rem 0.65rem;">↻</button>
+          </div>
+        </div>
+
+        <!-- TOPOLOGY SUMMARY METRIC TILES -->
+        <div class="grid-4" style="margin-bottom: 0.25rem;">
+          <div class="card" style="padding: 0.85rem 1rem;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Pipeline Health</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: #15803d; margin-top: 2px;" id="flow-stat-health">100% HEALTHY</div>
+            <div style="font-size: 0.72rem; color: #64748b;">Hardware CRC & Gateway OK</div>
+          </div>
+          <div class="card" style="padding: 0.85rem 1rem;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Processing Latency</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: #0284c7; margin-top: 2px;" id="flow-stat-latency">&lt; 3.8 ms</div>
+            <div style="font-size: 0.72rem; color: #64748b;">Ingest-to-MQTT Dispatch</div>
+          </div>
+          <div class="card" style="padding: 0.85rem 1rem;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Total Packets Ingested</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: #4338ca; margin-top: 2px;" id="flow-stat-rx-count">0</div>
+            <div style="font-size: 0.72rem; color: #64748b;" id="flow-stat-crc-text">0 CRC drops recorded</div>
+          </div>
+          <div class="card" style="padding: 0.85rem 1rem;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Egress Targets</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: #0f766e; margin-top: 2px;" id="flow-stat-egress">HA + SQLite</div>
+            <div style="font-size: 0.72rem; color: #64748b;" id="flow-stat-egress-sub">192.168.1.13:1883</div>
+          </div>
+        </div>
+
+        <!-- INTERACTIVE TOPOLOGICAL FLOW CANVAS -->
+        <div class="flow-canvas">
+          <div class="flow-stages-row">
+            
+            <!-- STAGE 1: RF INGRESS -->
+            <div class="flow-stage-col">
+              <div class="flow-stage-header">
+                <span>1. RF Ingress</span>
+              </div>
+              
+              <!-- Card 1A: SX1302 Local Concentrator -->
+              <div class="flow-node-card state-active" id="node-sx1302" onclick="inspectFlowNode('sx1302')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">📡 SX1302 Local SPI</span>
+                  <span class="flow-node-badge badge-green" id="badge-flow-sx1302">ACTIVE</span>
+                </div>
+                <div class="flow-node-desc">
+                  Semtech SX1302 Core • Dual SX1250 • 8-Ch Multi-SF (867.1–868.5 MHz)
+                </div>
+                <div class="flow-node-stats">
+                  <span>Bus: SPI5 (/dev/spidev5.0)</span>
+                  <span id="flow-sx1302-rx">4 RX</span>
+                </div>
+              </div>
+
+              <!-- Card 1B: Satellite Concentrators -->
+              <div class="flow-node-card state-active" id="node-satellite" onclick="inspectFlowNode('satellite')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">🛰️ Satellite Hubs</span>
+                  <span class="flow-node-badge badge-blue">LISTENING</span>
+                </div>
+                <div class="flow-node-desc">
+                  Remote gateways streaming packets via UDP <code style="font-size: 0.7rem; color: #2563eb;">0.0.0.0:5555 / :1700</code>
+                </div>
+                <div class="flow-node-stats">
+                  <span>Hub Ingress</span>
+                  <span>Dragino/RAK/RPi</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- CONNECTOR 1 -> 2 -->
+            <div class="flow-arrow-col">
+              <div class="flow-arrow-icon">➔</div>
+            </div>
+
+            <!-- STAGE 2: INTEGRITY & SECURITY GATES -->
+            <div class="flow-stage-col">
+              <div class="flow-stage-header">
+                <span>2. Verification Gates</span>
+              </div>
+
+              <!-- Card 2A: Hardware CRC Filter -->
+              <div class="flow-node-card state-active" id="node-crc" onclick="inspectFlowNode('crc')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">🛡️ Hardware CRC Gate</span>
+                  <span class="flow-node-badge badge-green">ENFORCED</span>
+                </div>
+                <div class="flow-node-desc">
+                  Hardware checksum check (<code style="font-size: 0.7rem;">stat=1 && CRC_OK</code>). Discards RF corruption.
+                </div>
+                <div class="flow-node-stats">
+                  <span>Drop: CRC_BAD</span>
+                  <span id="flow-crc-err" style="color: #15803d; font-weight: 700;">0 Dropped</span>
+                </div>
+              </div>
+
+              <!-- Card 2B: Strict Enrollment Gate -->
+              <div class="flow-node-card" id="node-whitelist" onclick="inspectFlowNode('whitelist')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">🔐 Enrollment Gate</span>
+                  <span class="flow-node-badge" id="badge-flow-whitelist">STRICT</span>
+                </div>
+                <div class="flow-node-desc" id="flow-whitelist-desc">
+                  Filters packets against 24 verified nodes in SQLite registry.
+                </div>
+                <div class="flow-node-footer">
+                  <span style="font-size: 0.7rem; color: #64748b;">Gate Policy:</span>
+                  <label class="switch" style="transform: scale(0.75); margin: 0;" onclick="event.stopPropagation();">
+                    <input type="checkbox" id="toggle-flow-filter_unregistered_nodes" onchange="togglePipelineFeature('filter_unregistered_nodes', this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- CONNECTOR 2 -> 3 -->
+            <div class="flow-arrow-col">
+              <div class="flow-arrow-icon">➔</div>
+            </div>
+
+            <!-- STAGE 3: MULTI-SCHEME DECODER ENGINE -->
+            <div class="flow-stage-col" style="flex: 1.15;">
+              <div class="flow-stage-header">
+                <span>3. Decoder Engine</span>
+              </div>
+
+              <!-- Card 3: Decoder Core -->
+              <div class="flow-node-card" id="node-decoders" onclick="inspectFlowNode('decoders')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">🧩 Multi-Scheme Decoder</span>
+                  <span class="flow-node-badge" id="badge-flow-decoders">ACTIVE</span>
+                </div>
+                <div class="flow-node-desc" id="flow-decoders-desc">
+                  Parses Node CAFE, Cayenne LPP, TLV & Visual Byte Maps into normalized JSON telemetry.
+                </div>
+                <div class="flow-node-stats">
+                  <span id="flow-decoders-count">6 Active Schemes</span>
+                  <span>&lt; 1 ms Execution</span>
+                </div>
+                <div class="flow-node-footer">
+                  <span style="font-size: 0.7rem; color: #64748b;">Decoding Engine:</span>
+                  <label class="switch" style="transform: scale(0.75); margin: 0;" onclick="event.stopPropagation();">
+                    <input type="checkbox" id="toggle-flow-decoding_enabled" onchange="togglePipelineFeature('decoding_enabled', this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- CONNECTOR 3 -> 4 -->
+            <div class="flow-arrow-col">
+              <div class="flow-arrow-icon">➔</div>
+            </div>
+
+            <!-- STAGE 4: PARALLEL DISPATCH & STORAGE BUS -->
+            <div class="flow-stage-col" style="flex: 1.25;">
+              <div class="flow-stage-header">
+                <span>4. Dispatch & Storage</span>
+              </div>
+
+              <!-- Card 4A: SQLite Database -->
+              <div class="flow-node-card" id="node-sqlite" onclick="inspectFlowNode('sqlite')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">🗄️ SQLite Database</span>
+                  <span class="flow-node-badge" id="badge-flow-sqlite">ACTIVE</span>
+                </div>
+                <div class="flow-node-desc">
+                  RAM cache <code style="font-size: 0.7rem;">/tmp/lora_messages.db</code> & Registry <code style="font-size: 0.7rem;">/etc/lora/nodes.db</code>
+                </div>
+                <div class="flow-node-footer">
+                  <span style="font-size: 0.7rem; color: #64748b;">Packet Store:</span>
+                  <label class="switch" style="transform: scale(0.75); margin: 0;" onclick="event.stopPropagation();">
+                    <input type="checkbox" id="toggle-flow-sqlite_logging_enabled" onchange="togglePipelineFeature('sqlite_logging_enabled', this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Card 4B: Edge Linking Rules -->
+              <div class="flow-node-card" id="node-linking" onclick="inspectFlowNode('linking')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">⚡ Edge Rule Engine</span>
+                  <span class="flow-node-badge" id="badge-flow-linking">ACTIVE</span>
+                </div>
+                <div class="flow-node-desc">
+                  Direct sensor-to-actuator cross-links evaluated autonomously without cloud latency.
+                </div>
+                <div class="flow-node-footer">
+                  <span style="font-size: 0.7rem; color: #64748b;">Rule Engine:</span>
+                  <label class="switch" style="transform: scale(0.75); margin: 0;" onclick="event.stopPropagation();">
+                    <input type="checkbox" id="toggle-flow-linking_enabled" onchange="togglePipelineFeature('linking_enabled', this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Card 4C: Home Assistant MQTT -->
+              <div class="flow-node-card" id="node-ha" onclick="inspectFlowNode('ha')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">🏠 Home Assistant Bridge</span>
+                  <span class="flow-node-badge" id="badge-flow-ha">STREAMING</span>
+                </div>
+                <div class="flow-node-desc" id="flow-ha-desc">
+                  Publishes <code style="font-size: 0.7rem;">lora/&lt;node&gt;/state</code> + MQTT Auto-Discovery.
+                </div>
+                <div class="flow-node-footer">
+                  <span style="font-size: 0.7rem; color: #64748b;">HA Dispatch:</span>
+                  <label class="switch" style="transform: scale(0.75); margin: 0;" onclick="event.stopPropagation();">
+                    <input type="checkbox" id="toggle-flow-ha_telemetry_enabled" onchange="togglePipelineFeature('ha_telemetry_enabled', this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- CONNECTOR 4 -> 5 -->
+            <div class="flow-arrow-col">
+              <div class="flow-arrow-icon">➔</div>
+            </div>
+
+            <!-- STAGE 5: DOWNLINK EGRESS (TX) -->
+            <div class="flow-stage-col">
+              <div class="flow-stage-header">
+                <span>5. Downlink (TX)</span>
+              </div>
+
+              <!-- Card 5: SX1302 Downlink Transmitter -->
+              <div class="flow-node-card state-active" id="node-downlink" onclick="inspectFlowNode('downlink')">
+                <div class="flow-node-header">
+                  <span class="flow-node-title">🚀 SX1302 TX Downlink</span>
+                  <span class="flow-node-badge badge-green">READY</span>
+                </div>
+                <div class="flow-node-desc">
+                  Downlink UDP socket <code style="font-size: 0.7rem;">127.0.0.1:5556</code> • PA Boost 27 dBm (500mW)
+                </div>
+                <div class="flow-node-stats">
+                  <span>868.1 MHz</span>
+                  <span id="flow-tx-count">0 TX Sent</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- STAGE INSPECTOR DRAWER -->
+        <div id="flow-inspector-panel" class="flow-inspector-card" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <div style="font-weight: 800; font-size: 1.05rem; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                <span id="insp-icon">🔍</span>
+                <span id="insp-title">Stage Details</span>
+                <span id="insp-badge" class="flow-node-badge badge-green">ACTIVE</span>
+              </div>
+              <div id="insp-subtitle" style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">Technical parameters and runtime metrics</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('flow-inspector-panel').style.display='none'">✕ Close Inspector</button>
+          </div>
+          
+          <div id="insp-body" style="font-size: 0.85rem; color: #334155; line-height: 1.5;"></div>
+        </div>
+
+      </div>
+    </div>
 
     <!-- TAB 2: DECODERS & WORKBENCH (FULL COMPLEX DECODER STUDIO) -->
     <div id="tab-decoders" class="tab-content">
@@ -2248,6 +2729,7 @@
       const target = document.getElementById('tab-' + tabId);
       if (target) target.classList.add('active');
 
+      if (tabId === 'pipeline') updatePipelineGraph();
       if (tabId === 'decoders') loadDecoders();
       if (tabId === 'nodes') { loadNodesTable(); loadMqttConfig(); }
       if (tabId === 'links') { loadLinkRules(); loadLinkLogs(); }
@@ -3154,10 +3636,13 @@
         .then(data => {
         if (data.pipeline) {
           updatePipelineSwitches(data.pipeline);
+          if (typeof updatePipelineGraph === 'function') updatePipelineGraph();
+          if (typeof updatePipelineGraph === 'function') updatePipelineGraph();
         }
 
           if (data && data.pipeline) {
             updatePipelineSwitches(data.pipeline);
+          if (typeof updatePipelineGraph === 'function') updatePipelineGraph();
           }
         })
         .catch(err => console.error('Error fetching pipeline config:', err));
@@ -3213,6 +3698,7 @@
         }
         if (data && data.pipeline) {
           updatePipelineSwitches(data.pipeline);
+          if (typeof updatePipelineGraph === 'function') updatePipelineGraph();
         }
       })
       .catch(err => {
@@ -3744,6 +4230,7 @@
         }
         if (data && data.pipeline) {
           updatePipelineSwitches(data.pipeline);
+          if (typeof updatePipelineGraph === 'function') updatePipelineGraph();
         }
       })
       .catch(err => console.error('Error applying pipeline profile:', err));
@@ -5402,6 +5889,384 @@ function createSchemeFromCurrentHex() {
 }
 
 
+
+
+
+    // -------------------------------------------------------------------------
+    // GRAPHICAL PIPELINE TOPOLOGY & FLOW CONTROLLER
+    // -------------------------------------------------------------------------
+    let g_selectedFlowNode = 'decoders';
+
+    async function updatePipelineGraph(forceFetch = false) {
+      try {
+        const [pRes, mRes, sRes, dRes] = await Promise.all([
+          fetch('/api/lora/pipeline').then(r => r.json()).catch(() => ({})),
+          fetch('/api/lora/mqtt').then(r => r.json()).catch(() => ({})),
+          fetch('/api/status').then(r => r.json()).catch(() => ({})),
+          fetch('/api/lora/decoders').then(r => r.json()).catch(() => ({}))
+        ]);
+
+        const pipe = pRes.pipeline || {};
+        const mqtt = mRes.mqtt || {};
+        const schemes = dRes.schemes || [];
+
+        // Top summary metrics
+        if (sRes.rx_count !== undefined) {
+          const el = document.getElementById('flow-stat-rx-count');
+          if (el) el.textContent = sRes.rx_count;
+          const sxRx = document.getElementById('flow-sx1302-rx');
+          if (sxRx) sxRx.textContent = sRes.rx_count + ' RX';
+        }
+        if (sRes.crc_err !== undefined) {
+          const el = document.getElementById('flow-stat-crc-text');
+          if (el) el.textContent = sRes.crc_err + ' CRC drops recorded';
+          const crcEl = document.getElementById('flow-crc-err');
+          if (crcEl) {
+            crcEl.textContent = sRes.crc_err + ' Dropped';
+            crcEl.style.color = sRes.crc_err > 0 ? '#b91c1c' : '#15803d';
+          }
+        }
+        if (sRes.tx_count !== undefined) {
+          const el = document.getElementById('flow-tx-count');
+          if (el) el.textContent = sRes.tx_count + ' TX Sent';
+        }
+
+        // 1. Strict Whitelist Gate Node
+        const isStrict = pipe.filter_unregistered_nodes === true;
+        const nodeWl = document.getElementById('node-whitelist');
+        const badgeWl = document.getElementById('badge-flow-whitelist');
+        const descWl = document.getElementById('flow-whitelist-desc');
+        const tglWl = document.getElementById('toggle-flow-filter_unregistered_nodes');
+        if (tglWl) tglWl.checked = isStrict;
+        if (nodeWl && badgeWl) {
+          if (isStrict) {
+            nodeWl.className = 'flow-node-card state-active';
+            badgeWl.className = 'flow-node-badge badge-green';
+            badgeWl.textContent = 'STRICT GATE';
+            if (descWl) descWl.textContent = 'Security active: Drops unverified rogue nodes. Only enrolled nodes pass.';
+          } else {
+            nodeWl.className = 'flow-node-card';
+            badgeWl.className = 'flow-node-badge badge-blue';
+            badgeWl.textContent = 'OPEN GATE';
+            if (descWl) descWl.textContent = 'Open ingestion: All overheard node IDs pass directly to decoders.';
+          }
+        }
+
+        // 2. Decoder Core Node
+        const isDec = pipe.decoding_enabled !== false;
+        const nodeDec = document.getElementById('node-decoders');
+        const badgeDec = document.getElementById('badge-flow-decoders');
+        const descDec = document.getElementById('flow-decoders-desc');
+        const tglDec = document.getElementById('toggle-flow-decoding_enabled');
+        if (tglDec) tglDec.checked = isDec;
+        if (nodeDec && badgeDec) {
+          if (isDec) {
+            nodeDec.className = 'flow-node-card state-active';
+            badgeDec.className = 'flow-node-badge badge-green';
+            badgeDec.textContent = 'ACTIVE';
+            if (descDec) descDec.textContent = 'Parsing Node CAFE, Cayenne LPP, TLV & Slicer maps into normalized JSON.';
+          } else {
+            nodeDec.className = 'flow-node-card state-bypass';
+            badgeDec.className = 'flow-node-badge badge-amber';
+            badgeDec.textContent = 'BYPASSED';
+            if (descDec) descDec.textContent = 'Decoding disabled by toggle. Emits raw hex passthrough to dispatch bus.';
+          }
+        }
+        const decCountEl = document.getElementById('flow-decoders-count');
+        if (decCountEl) decCountEl.textContent = schemes.length + ' Active Schemes';
+
+        // 3. SQLite Storage Node
+        const isSqlite = pipe.sqlite_logging_enabled !== false;
+        const nodeSql = document.getElementById('node-sqlite');
+        const badgeSql = document.getElementById('badge-flow-sqlite');
+        const tglSql = document.getElementById('toggle-flow-sqlite_logging_enabled');
+        if (tglSql) tglSql.checked = isSqlite;
+        if (nodeSql && badgeSql) {
+          if (isSqlite) {
+            nodeSql.className = 'flow-node-card state-active';
+            badgeSql.className = 'flow-node-badge badge-purple';
+            badgeSql.textContent = 'ACTIVE';
+          } else {
+            nodeSql.className = 'flow-node-card state-muted';
+            badgeSql.className = 'flow-node-badge badge-gray';
+            badgeSql.textContent = 'MUTED';
+          }
+        }
+
+        // 4. Edge Linking Node
+        const isLink = pipe.linking_enabled !== false;
+        const nodeLink = document.getElementById('node-linking');
+        const badgeLink = document.getElementById('badge-flow-linking');
+        const tglLink = document.getElementById('toggle-flow-linking_enabled');
+        if (tglLink) tglLink.checked = isLink;
+        if (nodeLink && badgeLink) {
+          if (isLink) {
+            nodeLink.className = 'flow-node-card state-active';
+            badgeLink.className = 'flow-node-badge badge-pink';
+            badgeLink.textContent = 'ACTIVE';
+          } else {
+            nodeLink.className = 'flow-node-card state-muted';
+            badgeLink.className = 'flow-node-badge badge-gray';
+            badgeLink.textContent = 'DISABLED';
+          }
+        }
+
+        // 5. Home Assistant Node
+        const isHa = pipe.ha_telemetry_enabled !== false;
+        const isMqttOn = mqtt.enabled !== false;
+        const nodeHa = document.getElementById('node-ha');
+        const badgeHa = document.getElementById('badge-flow-ha');
+        const descHa = document.getElementById('flow-ha-desc');
+        const tglHa = document.getElementById('toggle-flow-ha_telemetry_enabled');
+        if (tglHa) tglHa.checked = isHa;
+        if (nodeHa && badgeHa) {
+          if (!isMqttOn) {
+            nodeHa.className = 'flow-node-card state-muted';
+            badgeHa.className = 'flow-node-badge badge-gray';
+            badgeHa.textContent = 'BROKER OFF';
+            if (descHa) descHa.textContent = 'MQTT broker disabled in settings (' + (mqtt.server || '192.168.1.8') + ':' + (mqtt.port || 1883) + ')';
+          } else if (isHa) {
+            nodeHa.className = 'flow-node-card state-active';
+            badgeHa.className = 'flow-node-badge badge-green';
+            badgeHa.textContent = 'STREAMING';
+            if (descHa) descHa.textContent = 'Publishing to ' + (mqtt.server || '192.168.1.13') + ':' + (mqtt.port || 1883) + ' • lora/<node>/state';
+          } else {
+            nodeHa.className = 'flow-node-card state-bypass';
+            badgeHa.className = 'flow-node-badge badge-amber';
+            badgeHa.textContent = 'MUTED';
+            if (descHa) descHa.textContent = 'HA Telemetry disabled by pipeline switch. Packets not forwarded to MQTT.';
+          }
+        }
+
+        // Egress status tile
+        const egressEl = document.getElementById('flow-stat-egress');
+        const egressSub = document.getElementById('flow-stat-egress-sub');
+        if (egressEl && egressSub) {
+          const targets = [];
+          if (isHa && isMqttOn) targets.push('HA');
+          if (isSqlite) targets.push('SQLite');
+          if (isLink) targets.push('Rules');
+          egressEl.textContent = targets.length ? targets.join(' + ') : 'None (Muted)';
+          egressSub.textContent = isHa && isMqttOn ? `${mqtt.server || '192.168.1.13'}:${mqtt.port || 1883}` : 'Local only';
+        }
+
+        // Re-render open inspector if visible
+        const inspPanel = document.getElementById('flow-inspector-panel');
+        if (inspPanel && inspPanel.style.display !== 'none' && g_selectedFlowNode) {
+          inspectFlowNode(g_selectedFlowNode);
+        }
+
+      } catch (e) {
+        console.error('Error updating pipeline flow:', e);
+      }
+    }
+
+    function inspectFlowNode(nodeId) {
+      g_selectedFlowNode = nodeId;
+      document.querySelectorAll('.flow-node-card').forEach(c => c.classList.remove('selected'));
+      const activeCard = document.getElementById('node-' + nodeId);
+      if (activeCard) activeCard.classList.add('selected');
+
+      const panel = document.getElementById('flow-inspector-panel');
+      const icon = document.getElementById('insp-icon');
+      const title = document.getElementById('insp-title');
+      const badge = document.getElementById('insp-badge');
+      const subtitle = document.getElementById('insp-subtitle');
+      const body = document.getElementById('insp-body');
+      if (!panel) return;
+
+      panel.style.display = 'block';
+
+      const details = {
+        sx1302: {
+          icon: '📡',
+          title: 'SX1302 Concentrator Hardware (Local SPI)',
+          badge: 'ONLINE',
+          badgeClass: 'badge-green',
+          subtitle: 'Hardware RF Front-End • Semtech Core with Dual SX1250 Radios',
+          html: `
+            <div class="grid-3" style="gap: 1rem; margin-bottom: 1rem;">
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">BUS & PINOUT</div>
+                <div style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-top: 2px;">SPI5 (/dev/spidev5.0)</div>
+                <div style="font-size: 0.72rem; color: #64748b;">Reset GPIO 149 • Power GPIO 125/122</div>
+              </div>
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">DEMODULATOR MATRIX</div>
+                <div style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-top: 2px;">8 Multi-SF Channels</div>
+                <div style="font-size: 0.72rem; color: #64748b;">SF7 to SF12 parallel demodulation (125 kHz)</div>
+              </div>
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">DAEMON SERVICE</div>
+                <div style="font-size: 0.95rem; font-weight: 800; color: #15803d; margin-top: 2px;">raw-lora.service</div>
+                <div style="font-size: 0.72rem; color: #64748b;">PID 726 • Systemd managed</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary btn-sm" onclick="switchTab('lora')">⚙️ Configure Concentrator & Spectrum</button>
+            </div>
+          `
+        },
+        satellite: {
+          icon: '🛰️',
+          title: 'Satellite Concentrator Hub (Remote Gateways)',
+          badge: '0.0.0.0:5555 / :1700',
+          badgeClass: 'badge-blue',
+          subtitle: 'Central Ingress Hub for Satellite LoRa Gateways',
+          html: `
+            <p>This Bobcat gateway serves as a central LoRa Network Server & Telemetry Hub for other satellite gateways (Dragino LPS8, LG02, RAK, Mikrotik, Raspberry Pi).</p>
+            <div class="grid-2" style="gap: 1rem; margin-bottom: 1rem;">
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">RAW JSON FORWARDING</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: #0f172a; margin-top: 2px;">UDP Port 5555</div>
+                <div style="font-size: 0.72rem; color: #64748b;">In satellite config.json: target_ip = 192.168.1.16</div>
+              </div>
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">SEMTECH PACKET FORWARDER</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: #0f172a; margin-top: 2px;">UDP Port 1700</div>
+                <div style="font-size: 0.72rem; color: #64748b;">Standard PUSH_DATA / PULL_DATA protocol</div>
+              </div>
+            </div>
+          `
+        },
+        crc: {
+          icon: '🛡️',
+          title: 'Hardware CRC Verification Gate',
+          badge: '100% HARDWARE ENFORCED',
+          badgeClass: 'badge-green',
+          subtitle: 'Integrity Check against RF noise and frame collisions',
+          html: `
+            <p>Every frame received by the SX1302 or satellite gateways is validated via hardware checksum calculations before entering the software pipeline.</p>
+            <ul style="padding-left: 1.25rem; font-size: 0.85rem; color: #475569; line-height: 1.6;">
+              <li><strong>Pass Condition:</strong> <code style="color: #15803d;">stat == 1 && status == "CRC_OK"</code> ➔ Forwarded to Enrollment Gate</li>
+              <li><strong>Drop Condition:</strong> <code style="color: #b91c1c;">stat == -1 || status == "CRC_BAD"</code> ➔ Dropped instantly, recorded in stats</li>
+            </ul>
+          `
+        },
+        whitelist: {
+          icon: '🔐',
+          title: 'Strict Enrollment Whitelist Gate',
+          badge: document.getElementById('badge-flow-whitelist')?.textContent || 'STRICT',
+          badgeClass: document.getElementById('badge-flow-whitelist')?.className || 'badge-green',
+          subtitle: 'Protects the MQTT broker and SQLite database from rogue and unverified nodes',
+          html: `
+            <p>Determines whether overheard packets from unauthorized or unknown LoRa nodes are admitted to the decoder pipeline or dropped.</p>
+            <div style="display: flex; gap: 10px; align-items: center; margin: 10px 0; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+              <div><strong>Filter Unregistered Nodes:</strong></div>
+              <label class="switch" style="margin: 0;">
+                <input type="checkbox" ${document.getElementById('toggle-flow-filter_unregistered_nodes')?.checked ? 'checked' : ''} onchange="togglePipelineFeature('filter_unregistered_nodes', this.checked); updatePipelineGraph();">
+                <span class="slider"></span>
+              </label>
+              <span style="font-size: 0.8rem; color: #64748b;">(Toggle dynamically reconfigures live filtering)</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="switchTab('nodes')">📱 View Enrolled Nodes in SQLite</button>
+          `
+        },
+        decoders: {
+          icon: '🧩',
+          title: 'Multi-Scheme Payload Decoding Engine',
+          badge: document.getElementById('badge-flow-decoders')?.textContent || 'ACTIVE',
+          badgeClass: document.getElementById('badge-flow-decoders')?.className || 'badge-green',
+          subtitle: 'Transforms raw binary LoRa frames into structured sensor telemetry',
+          html: `
+            <p>Executes multi-scheme matching (by Prefix, Node ID, or Port) across 6 built-in and user-defined schemes (Node CAFE, Cayenne LPP, TLV, Field Slicers, TTN JS Sandbox).</p>
+            <div style="display: flex; gap: 10px; align-items: center; margin: 10px 0; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+              <div><strong>Payload Decoding Engine:</strong></div>
+              <label class="switch" style="margin: 0;">
+                <input type="checkbox" ${document.getElementById('toggle-flow-decoding_enabled')?.checked ? 'checked' : ''} onchange="togglePipelineFeature('decoding_enabled', this.checked); updatePipelineGraph();">
+                <span class="slider"></span>
+              </label>
+              <span style="font-size: 0.8rem; color: #64748b;">(When disabled, outputs raw hex passthrough)</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="switchTab('decoders')">🧩 Open Visual Byte Slicer & Decoder Studio</button>
+          `
+        },
+        sqlite: {
+          icon: '🗄️',
+          title: 'SQLite Packet Store & Telemetry Database',
+          badge: document.getElementById('badge-flow-sqlite')?.textContent || 'ACTIVE',
+          badgeClass: document.getElementById('badge-flow-sqlite')?.className || 'badge-purple',
+          subtitle: 'Dual-tier storage architecture for historical analysis and fast RAM indexing',
+          html: `
+            <p>Stores all ingested RF packets, RSSI, SNR, frequency, raw hex, and decoded telemetry.</p>
+            <ul style="padding-left: 1.25rem; font-size: 0.85rem; color: #475569; line-height: 1.6;">
+              <li><strong>RAM Disk:</strong> <code style="color: #4338ca;">/tmp/lora_messages.db</code> (Zero flash wear, ultra-fast queries)</li>
+              <li><strong>Persistent Storage:</strong> <code style="color: #4338ca;">/etc/lora/nodes.db</code> (Node metadata and enrollment)</li>
+            </ul>
+            <div style="display: flex; gap: 10px; align-items: center; margin: 10px 0;">
+              <label class="switch" style="margin: 0;">
+                <input type="checkbox" ${document.getElementById('toggle-flow-sqlite_logging_enabled')?.checked ? 'checked' : ''} onchange="togglePipelineFeature('sqlite_logging_enabled', this.checked); updatePipelineGraph();">
+                <span class="slider"></span>
+              </label>
+              <span style="font-size: 0.8rem; color: #64748b;">Toggle SQLite Persistence</span>
+            </div>
+          `
+        },
+        linking: {
+          icon: '⚡',
+          title: 'Edge Rule Automation & Device Linking',
+          badge: document.getElementById('badge-flow-linking')?.textContent || 'ACTIVE',
+          badgeClass: document.getElementById('badge-flow-linking')?.className || 'badge-pink',
+          subtitle: 'Direct peer-to-peer sensor-to-actuator control at the gateway edge',
+          html: `
+            <p>Evaluates configured trigger rules on decoded telemetry fields. When conditions are met (e.g. <code>temperature &gt; 30°C</code>), dispatches an immediate downlink command to the target actuator node without relying on internet or external home automation.</p>
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+              <button class="btn btn-secondary btn-sm" onclick="switchTab('links')">⚡ Manage Automation Rules</button>
+            </div>
+          `
+        },
+        ha: {
+          icon: '🏠',
+          title: 'Home Assistant MQTT Telemetry & Auto-Discovery',
+          badge: document.getElementById('badge-flow-ha')?.textContent || 'STREAMING',
+          badgeClass: document.getElementById('badge-flow-ha')?.className || 'badge-green',
+          subtitle: 'Seamless Zero-Config Home Assistant Integration',
+          html: `
+            <p>Publishes decoded state payloads directly to Home Assistant via standard MQTT topics.</p>
+            <div class="grid-2" style="gap: 1rem; margin-bottom: 0.75rem;">
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">STATE TELEMETRY TOPIC</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: #b91c1c; font-family: monospace; margin-top: 2px;">lora/&lt;node_id&gt;/state</div>
+              </div>
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">MQTT AUTO-DISCOVERY</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: #15803d; font-family: monospace; margin-top: 2px;">homeassistant/sensor/...</div>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="switchTab('nodes')">🏠 Configure MQTT Broker Settings</button>
+          `
+        },
+        downlink: {
+          icon: '🚀',
+          title: 'SX1302 Downlink Transmitter (TX Path)',
+          badge: 'READY',
+          badgeClass: 'badge-green',
+          subtitle: 'Downlink Radio Transmitter • Immediate Packet Dispatch',
+          html: `
+            <p>Handles queued and immediate downlinks dispatched from the Web UI, Home Assistant MQTT command topics, or Edge Automation Rules.</p>
+            <div class="grid-2" style="gap: 1rem; margin-bottom: 0.75rem;">
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">TX SOCKET</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: #0f172a; margin-top: 2px;">UDP 127.0.0.1:5556</div>
+              </div>
+              <div style="background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 700; color: #475569; font-size: 0.75rem;">MAX POWER</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: #0f172a; margin-top: 2px;">27 dBm (500 mW PA Boost)</div>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="switchTab('lora')">🚀 Open TX Downlink Studio</button>
+          `
+        }
+      };
+
+      const d = details[nodeId] || details.decoders;
+      icon.textContent = d.icon;
+      title.textContent = d.title;
+      badge.textContent = d.badge;
+      badge.className = 'flow-node-badge ' + (d.badgeClass || 'badge-green');
+      subtitle.textContent = d.subtitle;
+      body.innerHTML = d.html;
+    }
 
 </script>
 </body>
