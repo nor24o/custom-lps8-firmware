@@ -649,6 +649,7 @@ def api_lora_app_logs():
 # ==================== DECODERS & PACKETS ====================
 
 @app.route('/api/lora/decoders', methods=['GET', 'POST'])
+@app.route('/api/decoders', methods=['GET', 'POST'])
 def api_lora_decoders():
     dec_path = '/etc/lora/decoders.json'
     if request.method == 'GET':
@@ -671,6 +672,7 @@ def api_lora_decoders():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/lora/packets', methods=['GET'])
+@app.route('/api/packets', methods=['GET'])
 def api_lora_packets():
     packets_path = '/tmp/lora_packets.json'
     if not os.path.exists(packets_path):
@@ -685,6 +687,7 @@ def api_lora_packets():
 # ==================== NODES REGISTRY & MESSAGES ====================
 
 @app.route('/api/lora/nodes', methods=['GET', 'POST'])
+@app.route('/api/nodes', methods=['GET', 'POST'])
 def api_lora_nodes():
     db_nodes = '/etc/lora/nodes.db'
     db_ram = '/tmp/lora_messages.db'
