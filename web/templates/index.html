@@ -1788,6 +1788,61 @@
         </div>
       </div>
 
+      <!-- CUSTOM UDP JSON TELEMETRY STREAM -->
+      <div class="card" style="margin-top: 1.25rem;">
+        <div class="card-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 1.2rem;">🌐</span>
+            <div>
+              <span class="card-title">Custom UDP JSON Telemetry Stream</span>
+              <div style="font-size: 0.75rem; color: #64748b;">Direct real-time JSON packet streaming over UDP socket for custom applications, collectors & dashboards</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <label class="switch">
+              <input type="checkbox" id="udp-stream-enabled" onchange="saveUdpStreamConfig()">
+              <span class="slider"></span>
+            </label>
+            <span style="font-size: 0.85rem; font-weight: 600;">Enable UDP Stream</span>
+          </div>
+        </div>
+        <div class="grid-4" style="margin-bottom: 0.75rem;">
+          <div class="form-group">
+            <label class="form-label">Destination IP</label>
+            <input type="text" id="udp-stream-ip" class="form-input form-mono" value="192.168.1.13" placeholder="e.g. 192.168.1.13">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Destination Port</label>
+            <input type="number" id="udp-stream-port" class="form-input form-mono" value="9999" placeholder="9999">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Broadcast Mode</label>
+            <select id="udp-stream-bcast" class="form-select">
+              <option value="false">Unicast (Target IP)</option>
+              <option value="true">Broadcast (Subnet Wide)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Socket Status</label>
+            <div style="padding-top: 6px;">
+              <span id="udp-stream-status-badge" class="badge badge-green">STREAMING ACTIVE</span>
+            </div>
+          </div>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; font-size: 0.78rem; color: #475569; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <strong>Datagram Output:</strong> TTN-style joined JSON packets containing multi-gateway reception arrays (<code>gateways: [{rssi, snr, gateway_eui}]</code>), best gateway attribution, and decoded sensor properties.
+          </div>
+          <div style="font-family: var(--font-mono); font-size: 0.75rem; color: #0284c7; font-weight: 700;">
+            UDP &bull; Non-blocking &bull; Direct Socket Stream
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button class="btn btn-secondary" onclick="testUdpStream()">🧪 Send Test Packet</button>
+          <button class="btn btn-primary" onclick="saveUdpStreamConfig()">💾 Save Stream Config</button>
+        </div>
+      </div>
+
       <!-- NODES REGISTRY TABLE -->
       <div class="card">
         <div class="card-header">
@@ -2723,6 +2778,76 @@
     </div>
   </div>
 
+  <!-- 4.6. Remote Gateway Hardware & RF Configuration Modal -->
+  <div id="modal-gateway-config" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 580px; padding: 1.35rem;">
+      <div class="modal-header" style="padding-bottom: 0.75rem; margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.3rem;">⚙️</span>
+          <div>
+            <h3 id="gw-cfg-title" style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">Gateway Concentrator Configuration</h3>
+            <div id="gw-cfg-subtitle" style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">In-process RF re-init & channel management</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeGatewayConfigModal()">✕</button>
+      </div>
+
+      <input type="hidden" id="gw-cfg-id">
+      <input type="hidden" id="gw-cfg-ip">
+      <input type="hidden" id="gw-cfg-port">
+
+      <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700;">GATEWAY IDENTITY</div>
+            <div id="gw-cfg-ident" style="font-family: var(--font-mono); font-size: 0.88rem; font-weight: 800; color: #1e40af; margin-top: 2px;">0016C001F1500B48 (127.0.0.1)</div>
+          </div>
+          <span id="gw-cfg-status-badge" class="badge badge-green" style="font-size: 0.72rem;">ONLINE</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <div>
+            <label style="font-size: 0.75rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">Radio 0 Center Freq (MHz)</label>
+            <input type="number" step="0.001" id="gw-cfg-rf0" class="form-input form-mono" value="867.500" style="width: 100%;">
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">Radio 1 Center Freq (MHz)</label>
+            <input type="number" step="0.001" id="gw-cfg-rf1" class="form-input form-mono" value="868.500" style="width: 100%;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <div>
+            <label style="font-size: 0.75rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">Sync Word (Network Mode)</label>
+            <select id="gw-cfg-sync" class="form-select" style="width: 100%;">
+              <option value="private">Private Network (0x12)</option>
+              <option value="public">Public LoRaWAN (0x34)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">TX Power Default (dBm)</label>
+            <input type="number" id="gw-cfg-txpwr" class="form-input form-mono" min="10" max="27" value="27" style="width: 100%;">
+          </div>
+        </div>
+
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem; font-size: 0.75rem; color: #1e40af; line-height: 1.45;">
+          <strong>⚡ In-Process HAL Reconfiguration:</strong><br>
+          Pushing these settings sends a JSON UDP control packet to the gateway daemon (<code id="gw-cfg-port-display">127.0.0.1:5556</code>). The edge C application reconfigures the SX1302 registers in-process and returns a confirmation ACK without service dropping.
+        </div>
+
+        <div id="gw-cfg-feedback" style="display: none; padding: 0.6rem 0.8rem; border-radius: 6px; font-size: 0.78rem;"></div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn btn-secondary btn-sm" onclick="queryGatewayActiveConfig()">↻ Read from Gateway</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm" onclick="closeGatewayConfigModal()">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="btn-push-gw-cfg" onclick="pushGatewayConfig()">📡 Push Settings to Concentrator</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 5. Automation Link Rule Modal -->
   <div id="modal-link" class="modal-overlay">
     <div class="modal-card modal-card-lg">
@@ -2797,7 +2922,10 @@
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick')?.includes(tabId));
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => {
+        const oc = b.getAttribute('onclick');
+        return oc && oc.indexOf(tabId) !== -1;
+      });
       if (activeBtn) activeBtn.classList.add('active');
       const target = document.getElementById('tab-' + tabId);
       if (target) target.classList.add('active');
@@ -2828,17 +2956,17 @@
         }
 
         document.getElementById('header-uptime').textContent = d.uptime || '--';
-        const tempVal = d.soc_temp ?? d.cpu_temp ?? '--';
+        const tempVal = (d.soc_temp !== undefined) ? d.soc_temp : ((d.cpu_temp !== undefined) ? d.cpu_temp : '--');
         document.getElementById('header-temp').textContent = tempVal + '°C';
         if (document.getElementById('header-gpu-temp')) {
           document.getElementById('header-gpu-temp').textContent = (d.gpu_temp || '--') + '°C';
         }
 
-        const cpuPct = d.cpu_percent ?? d.cpu_usage ?? 0;
+        const cpuPct = (d.cpu_percent !== undefined) ? d.cpu_percent : ((d.cpu_usage !== undefined) ? d.cpu_usage : 0);
         document.getElementById('card-cpu-usage').textContent = cpuPct + '%';
         document.getElementById('cpu-bar').style.width = Math.min(100, Math.max(0, cpuPct)) + '%';
-        const ramUsed = d.ram_used_mb ?? d.ram?.used ?? 0;
-        const loadAvg = d.load_1m ?? d.loadavg?.[0] ?? '--';
+        const ramUsed = (d.ram_used_mb !== undefined) ? d.ram_used_mb : ((d.ram && d.ram.used !== undefined) ? d.ram.used : 0);
+        const loadAvg = (d.load_1m !== undefined) ? d.load_1m : ((d.loadavg && d.loadavg[0] !== undefined) ? d.loadavg[0] : '--');
         document.getElementById('card-ram-brief').textContent = `${ramUsed} MB / ${loadAvg}`;
 
         // Network Ethernet
@@ -2906,9 +3034,9 @@
           document.getElementById('header-eui').textContent = live.eui;
         }
 
-        const rxVal = live.rx ?? d.rx ?? 0;
-        const txVal = live.tx ?? d.tx ?? 0;
-        const crcVal = live.crc_err ?? d.crc_err ?? 0;
+        const rxVal = (live.rx !== undefined) ? live.rx : ((d.rx !== undefined) ? d.rx : 0);
+        const txVal = (live.tx !== undefined) ? live.tx : ((d.tx !== undefined) ? d.tx : 0);
+        const crcVal = (live.crc_err !== undefined) ? live.crc_err : ((d.crc_err !== undefined) ? d.crc_err : 0);
 
         if (document.getElementById('dash-rx-count')) document.getElementById('dash-rx-count').textContent = rxVal;
         if (document.getElementById('dash-tx-count')) document.getElementById('dash-tx-count').textContent = txVal;
@@ -3017,10 +3145,23 @@
 
             // Extract Node ID
             let nodeGuess = '--';
-            if (decoded && decoded.data && decoded.data.node_id) {
+            if (p.node_id) {
+              nodeGuess = p.node_id;
+            } else if (decoded && decoded.data && decoded.data.node_id) {
               nodeGuess = decoded.data.node_id;
             } else if (hex.length >= 4) {
               nodeGuess = hex.substring(0, 4);
+            }
+
+            // Multi-gateway reception join pill & breakdown
+            const gwCount = p.gateways_count || (p.gateways ? p.gateways.length : 1);
+            let gwBadge = '';
+            let gwBreakdown = '';
+            if (p.gateways && p.gateways.length > 0) {
+              gwBreakdown = p.gateways.map(g => `${g.gateway_id} (${g.gateway_name || 'GW'}): ${g.rssi} dBm, SNR ${g.snr} dB`).join(' | ');
+            }
+            if (gwCount > 1) {
+              gwBadge = `<span class="pill pill-cyan" title="Joined from ${gwCount} Concentrators: ${safeEsc(gwBreakdown)}" style="font-size: 0.65rem; padding: 1px 5px; font-weight: 700; cursor: help; border-color: #38bdf8; background: #e0f2fe; color: #0284c7; white-space: nowrap;">📡 ${gwCount} GWs</span>`;
             }
 
             const rssiVal = p.rssic || p.rssi || 0;
@@ -3038,9 +3179,14 @@
                 <td style="font-family: monospace; font-size: 0.8rem; color: #64748b; font-weight: 500;">${p.time || '--'}</td>
                 <td style="font-weight: 700; color: #0f172a; font-size: 0.85rem;">${p.freq || '--'}</td>
                 <td><span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-family: monospace;">${p.datr || 'SF7'}</span></td>
-                <td><span style="background: ${rssiBg}; color: ${rssiColor}; font-weight: 700; font-size: 0.8rem; padding: 2px 6px; border-radius: 4px;">${rssiVal} dBm</span></td>
+                <td><span style="background: ${rssiBg}; color: ${rssiColor}; font-weight: 700; font-size: 0.8rem; padding: 2px 6px; border-radius: 4px;" title="${gwBreakdown ? safeEsc(gwBreakdown) : ''}">${rssiVal} dBm</span></td>
                 <td style="font-size: 0.8rem; color: #64748b; font-weight: 600;">${p.snr !== undefined ? p.snr + ' dB' : '--'}</td>
-                <td><span style="background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 800; font-size: 0.82rem; padding: 2px 8px; border-radius: 4px; font-family: monospace; letter-spacing: 0.5px;">${nodeGuess}</span></td>
+                <td>
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 800; font-size: 0.82rem; padding: 2px 8px; border-radius: 4px; font-family: monospace; letter-spacing: 0.5px;">${nodeGuess}</span>
+                    ${gwBadge}
+                  </div>
+                </td>
                 <td style="font-family: monospace; font-size: 0.78rem; color: #334155; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${hex}">${hex}</td>
                 <td style="color: #0f766e; font-weight: 600; font-size: 0.8rem; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${safeEsc(summary)}">${safeEsc(summary)}</td>
                 <td>
@@ -3193,17 +3339,17 @@
       const modal = document.getElementById('modal-node');
       modal.style.display = 'flex';
       if (nid) {
-        const node = g_nodes.find(n => n.node_id === nid);
+        const node = g_nodes.find(n => n.node_id === nid) || {};
         document.getElementById('modal-node-title').textContent = 'Edit Node: ' + nid;
         document.getElementById('node-id-input').value = nid;
         document.getElementById('node-id-input').readOnly = true;
-        document.getElementById('node-name-input').value = node?.name || '';
-        document.getElementById('node-class-input').value = (node?.node_class || 'A').toUpperCase();
-        document.getElementById('node-model-input').value = node?.model || 'generic';
-        document.getElementById('node-group-input').value = node?.group_name || 'Default';
-        document.getElementById('node-pwr-input').value = node?.default_tx_power || 27;
-        document.getElementById('node-configured-chk').checked = !!node?.is_configured;
-        document.getElementById('node-ha-chk').checked = !!node?.ha_enabled;
+        document.getElementById('node-name-input').value = node.name || '';
+        document.getElementById('node-class-input').value = (node.node_class || 'A').toUpperCase();
+        document.getElementById('node-model-input').value = node.model || 'generic';
+        document.getElementById('node-group-input').value = node.group_name || 'Default';
+        document.getElementById('node-pwr-input').value = (node.default_tx_power !== undefined) ? node.default_tx_power : 27;
+        document.getElementById('node-configured-chk').checked = Boolean(node.is_configured);
+        document.getElementById('node-ha-chk').checked = Boolean(node.ha_enabled);
       } else {
         document.getElementById('modal-node-title').textContent = 'Add LoRa Node';
         document.getElementById('node-id-input').value = '';
@@ -3512,19 +3658,19 @@
     function openLinkModal(lid = null) {
       document.getElementById('modal-link').style.display = 'flex';
       if (lid) {
-        const r = g_links.find(x => x.link_id === lid);
+        const r = g_links.find(x => x.link_id === lid) || {};
         document.getElementById('modal-link-title').textContent = 'Edit Automation Rule #' + lid;
         document.getElementById('link-id-input').value = lid;
-        document.getElementById('link-name-input').value = r?.name || '';
-        document.getElementById('link-src-input').value = r?.source_node || '';
-        document.getElementById('link-field-input').value = r?.trigger_field || 'temperature';
-        document.getElementById('link-op-select').value = r?.operator || '>';
-        document.getElementById('link-thresh-input').value = r?.threshold_val ?? 30.0;
-        document.getElementById('link-target-input').value = r?.target_node || '';
-        document.getElementById('link-payload-input').value = r?.action_payload || '0101';
-        document.getElementById('link-delay-input').value = r?.turnaround_delay_ms ?? 1000;
-        document.getElementById('link-cooldown-input').value = r?.cooldown_sec ?? 60;
-        document.getElementById('link-enabled-chk').checked = r?.enabled !== 0;
+        document.getElementById('link-name-input').value = r.name || '';
+        document.getElementById('link-src-input').value = r.source_node || '';
+        document.getElementById('link-field-input').value = r.trigger_field || 'temperature';
+        document.getElementById('link-op-select').value = r.operator || '>';
+        document.getElementById('link-thresh-input').value = (r.threshold_val !== undefined) ? r.threshold_val : 30.0;
+        document.getElementById('link-target-input').value = r.target_node || '';
+        document.getElementById('link-payload-input').value = r.action_payload || '0101';
+        document.getElementById('link-delay-input').value = (r.turnaround_delay_ms !== undefined) ? r.turnaround_delay_ms : 1000;
+        document.getElementById('link-cooldown-input').value = (r.cooldown_sec !== undefined) ? r.cooldown_sec : 60;
+        document.getElementById('link-enabled-chk').checked = r.enabled !== 0;
       } else {
         document.getElementById('modal-link-title').textContent = 'Create Automation Rule';
         document.getElementById('link-id-input').value = '';
@@ -4422,6 +4568,7 @@ window.onload = function() {
     loadEnrolledNodes();
     loadSchemes();
     loadRecentPackets();
+    if (typeof loadUdpStreamConfig === 'function') loadUdpStreamConfig();
 
     var urlParams = new URLSearchParams(window.location.search);
     var hexParam = urlParams.get('hex');
@@ -6131,7 +6278,10 @@ function createSchemeFromCurrentHex() {
               <div class="flow-node-card ${isOnline ? 'state-active' : 'state-muted'} ${isSelected ? 'selected' : ''}" id="${cardId}" onclick="inspectConcentrator('${gw.gateway_id}')" style="padding: 0.85rem; border-width: 2px;">
                 <div class="flow-node-header">
                   <span class="flow-node-title" style="font-size: 0.86rem; font-weight: 800;">${icon} ${gw.name}</span>
-                  <span class="flow-node-badge ${badgeColor}">${gw.status}</span>
+                  <div style="display: flex; gap: 4px; align-items: center;">
+                    <button class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); openGatewayConfigModal('${gw.gateway_id}')" title="Configure Concentrator Hardware & RF" style="padding: 1px 6px; font-size: 0.68rem;">⚙️ Config</button>
+                    <span class="flow-node-badge ${badgeColor}">${gw.status}</span>
+                  </div>
                 </div>
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: 3px;">
                   <span style="font-family: var(--font-mono); font-size: 0.72rem; font-weight: 800; color: #1e40af; background: #dbeafe; padding: 2px 6px; border-radius: 4px;">ID: ${gw.gateway_id}</span>
@@ -6178,9 +6328,12 @@ function createSchemeFromCurrentHex() {
                     </div>
                   </div>
                 </div>
-                <div style="text-align: right;">
-                  <div style="font-weight: 800; font-size: 0.95rem; color: #0284c7;">${gw.rx_count || 0} RX</div>
-                  <div style="font-size: 0.72rem; color: #15803d; font-weight: 700;">${nodeCount} Heard Node${nodeCount === 1 ? '' : 's'}</div>
+                <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                  <div>
+                    <span style="font-weight: 800; font-size: 0.95rem; color: #0284c7;">${gw.rx_count || 0} RX</span>
+                    <span style="font-size: 0.72rem; color: #15803d; font-weight: 700; margin-left: 6px;">${nodeCount} Heard Node${nodeCount === 1 ? '' : 's'}</span>
+                  </div>
+                  <button class="btn btn-secondary btn-xs" onclick="event.stopPropagation(); openGatewayConfigModal('${gw.gateway_id}')" style="padding: 2px 7px; font-size: 0.68rem; background: #f8fafc;" title="Push Remote RF Settings">⚙️ Remote Config</button>
                 </div>
               </div>
             `;
@@ -6512,6 +6665,7 @@ function createSchemeFromCurrentHex() {
 
         <!-- Action Buttons -->
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="btn btn-primary btn-sm" onclick="openGatewayConfigModal('${gw.gateway_id}')" style="font-size: 0.75rem;">⚙️ Remote RF Configuration</button>
           <button class="btn btn-secondary btn-sm" onclick="simulateSatelliteUplink(event, '${gw.gateway_id}')" style="font-size: 0.75rem;">🧪 Inject Test Uplink</button>
           ${!isMain ? `<button class="btn btn-secondary btn-sm" onclick="pingSatelliteGateway('${gw.ip}')" style="font-size: 0.75rem;">📶 Ping Satellite IP</button>` : ''}
           ${!isMain ? `<button class="btn btn-secondary btn-sm" onclick="deleteSatelliteGateway('${gw.gateway_id}')" style="font-size: 0.75rem; color: #dc2626;">🗑️ Remove Satellite</button>` : ''}
@@ -6654,6 +6808,19 @@ function createSchemeFromCurrentHex() {
 
       panel.style.display = 'block';
 
+      function getElText(id, defVal) {
+        const el = document.getElementById(id);
+        return el ? el.textContent : defVal;
+      }
+      function getElClass(id, defVal) {
+        const el = document.getElementById(id);
+        return el ? el.className : defVal;
+      }
+      function isElChecked(id) {
+        const el = document.getElementById(id);
+        return Boolean(el && el.checked);
+      }
+
       const details = {
         crc: {
           icon: '🛡️',
@@ -6672,15 +6839,15 @@ function createSchemeFromCurrentHex() {
         whitelist: {
           icon: '🔐',
           title: 'Strict Enrollment Whitelist Gate',
-          badge: document.getElementById('badge-flow-whitelist')?.textContent || 'STRICT',
-          badgeClass: document.getElementById('badge-flow-whitelist')?.className || 'badge-green',
+          badge: getElText('badge-flow-whitelist', 'STRICT'),
+          badgeClass: getElClass('badge-flow-whitelist', 'badge-green'),
           subtitle: 'Protects the MQTT broker and SQLite database from rogue and unverified nodes',
           html: `
             <p>Determines whether overheard packets from unauthorized or unknown LoRa nodes are admitted to the decoder pipeline or dropped.</p>
             <div style="display: flex; gap: 10px; align-items: center; margin: 10px 0; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
               <div><strong>Filter Unregistered Nodes:</strong></div>
               <label class="switch" style="margin: 0;">
-                <input type="checkbox" ${document.getElementById('toggle-flow-filter_unregistered_nodes')?.checked ? 'checked' : ''} onchange="togglePipelineFeature('filter_unregistered_nodes', this.checked); updatePipelineGraph();">
+                <input type="checkbox" ${isElChecked('toggle-flow-filter_unregistered_nodes') ? 'checked' : ''} onchange="togglePipelineFeature('filter_unregistered_nodes', this.checked); updatePipelineGraph();">
                 <span class="slider"></span>
               </label>
               <span style="font-size: 0.8rem; color: #64748b;">(Toggle dynamically reconfigures live filtering)</span>
@@ -6691,15 +6858,15 @@ function createSchemeFromCurrentHex() {
         decoders: {
           icon: '🧩',
           title: 'Multi-Scheme Payload Decoding Engine',
-          badge: document.getElementById('badge-flow-decoders')?.textContent || 'ACTIVE',
-          badgeClass: document.getElementById('badge-flow-decoders')?.className || 'badge-green',
+          badge: getElText('badge-flow-decoders', 'ACTIVE'),
+          badgeClass: getElClass('badge-flow-decoders', 'badge-green'),
           subtitle: 'Transforms raw binary LoRa frames into structured sensor telemetry',
           html: `
             <p>Executes multi-scheme matching (by Prefix, Node ID, or Port) across 6 built-in and user-defined schemes (Node CAFE, Cayenne LPP, TLV, Field Slicers, TTN JS Sandbox).</p>
             <div style="display: flex; gap: 10px; align-items: center; margin: 10px 0; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
               <div><strong>Payload Decoding Engine:</strong></div>
               <label class="switch" style="margin: 0;">
-                <input type="checkbox" ${document.getElementById('toggle-flow-decoding_enabled')?.checked ? 'checked' : ''} onchange="togglePipelineFeature('decoding_enabled', this.checked); updatePipelineGraph();">
+                <input type="checkbox" ${isElChecked('toggle-flow-decoding_enabled') ? 'checked' : ''} onchange="togglePipelineFeature('decoding_enabled', this.checked); updatePipelineGraph();">
                 <span class="slider"></span>
               </label>
               <span style="font-size: 0.8rem; color: #64748b;">(When disabled, outputs raw hex passthrough)</span>
@@ -6710,8 +6877,8 @@ function createSchemeFromCurrentHex() {
         sqlite: {
           icon: '🗄️',
           title: 'SQLite Packet Store & Telemetry Database',
-          badge: document.getElementById('badge-flow-sqlite')?.textContent || 'ACTIVE',
-          badgeClass: document.getElementById('badge-flow-sqlite')?.className || 'badge-purple',
+          badge: getElText('badge-flow-sqlite', 'ACTIVE'),
+          badgeClass: getElClass('badge-flow-sqlite', 'badge-purple'),
           subtitle: 'Dual-tier storage architecture for historical analysis and fast RAM indexing',
           html: `
             <p>Stores all ingested RF packets, RSSI, SNR, frequency, raw hex, and decoded telemetry.</p>
@@ -6721,7 +6888,7 @@ function createSchemeFromCurrentHex() {
             </ul>
             <div style="display: flex; gap: 10px; align-items: center; margin: 10px 0;">
               <label class="switch" style="margin: 0;">
-                <input type="checkbox" ${document.getElementById('toggle-flow-sqlite_logging_enabled')?.checked ? 'checked' : ''} onchange="togglePipelineFeature('sqlite_logging_enabled', this.checked); updatePipelineGraph();">
+                <input type="checkbox" ${isElChecked('toggle-flow-sqlite_logging_enabled') ? 'checked' : ''} onchange="togglePipelineFeature('sqlite_logging_enabled', this.checked); updatePipelineGraph();">
                 <span class="slider"></span>
               </label>
               <span style="font-size: 0.8rem; color: #64748b;">Toggle SQLite Persistence</span>
@@ -6731,8 +6898,8 @@ function createSchemeFromCurrentHex() {
         linking: {
           icon: '⚡',
           title: 'Edge Rule Automation & Device Linking',
-          badge: document.getElementById('badge-flow-linking')?.textContent || 'ACTIVE',
-          badgeClass: document.getElementById('badge-flow-linking')?.className || 'badge-pink',
+          badge: getElText('badge-flow-linking', 'ACTIVE'),
+          badgeClass: getElClass('badge-flow-linking', 'badge-pink'),
           subtitle: 'Direct peer-to-peer sensor-to-actuator control at the gateway edge',
           html: `
             <p>Evaluates configured trigger rules on decoded telemetry fields. When conditions are met (e.g. <code>temperature &gt; 30°C</code>), dispatches an immediate downlink command to the target actuator node without relying on internet or external home automation.</p>
@@ -6744,8 +6911,8 @@ function createSchemeFromCurrentHex() {
         ha: {
           icon: '🏠',
           title: 'Home Assistant MQTT Telemetry & Concentrator Feeds',
-          badge: document.getElementById('badge-flow-ha')?.textContent || 'STREAMING',
-          badgeClass: document.getElementById('badge-flow-ha')?.className || 'badge-green',
+          badge: getElText('badge-flow-ha', 'STREAMING'),
+          badgeClass: getElClass('badge-flow-ha', 'badge-green'),
           subtitle: 'Multi-Gateway Feeds with Embedded Node Telemetries',
           html: `
             <p>Every concentrator (Main + Satellites) reports with its Gateway ID containing the telemetries of all overheard nodes.</p>
@@ -6794,6 +6961,238 @@ function createSchemeFromCurrentHex() {
       badge.className = 'flow-node-badge ' + (d.badgeClass || 'badge-green');
       subtitle.textContent = d.subtitle;
       body.innerHTML = d.html;
+    }
+
+    // =========================================================================
+    // REMOTE GATEWAY HARDWARE & RF CONFIGURATION (IN-PROCESS SX1302 RELOAD)
+    // =========================================================================
+    function openGatewayConfigModal(gid) {
+      const modal = document.getElementById('modal-gateway-config');
+      if (!modal) return;
+      gid = gid || window.g_main_eui || '0016C001F1500B48';
+      document.getElementById('gw-cfg-id').value = gid;
+      document.getElementById('gw-cfg-title').textContent = `Gateway [${gid}] Configuration`;
+      
+      const fb = document.getElementById('gw-cfg-feedback');
+      if (fb) {
+        fb.style.display = 'none';
+        fb.textContent = '';
+      }
+      
+      modal.style.display = 'flex';
+      queryGatewayActiveConfig(gid);
+    }
+
+    function closeGatewayConfigModal() {
+      const modal = document.getElementById('modal-gateway-config');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function queryGatewayActiveConfig(targetGid) {
+      const gid = targetGid || document.getElementById('gw-cfg-id').value;
+      const fb = document.getElementById('gw-cfg-feedback');
+      if (fb) {
+        fb.style.display = 'block';
+        fb.style.background = '#eff6ff';
+        fb.style.color = '#1e40af';
+        fb.style.border = '1px solid #bfdbfe';
+        fb.textContent = '⏳ Querying gateway concentrator daemon over UDP...';
+      }
+
+      try {
+        const res = await fetch(`/api/lora/gateways/${gid}/config`);
+        const d = await res.json();
+        if (d.success && d.config) {
+          const cfg = d.config;
+          if (cfg.rf0_freq) document.getElementById('gw-cfg-rf0').value = (cfg.rf0_freq / 1e6).toFixed(3);
+          if (cfg.rf1_freq) document.getElementById('gw-cfg-rf1').value = (cfg.rf1_freq / 1e6).toFixed(3);
+          if (cfg.sync_word) document.getElementById('gw-cfg-sync').value = cfg.sync_word.toLowerCase();
+          if (cfg.tx_power !== undefined) document.getElementById('gw-cfg-txpwr').value = cfg.tx_power;
+          
+          document.getElementById('gw-cfg-ip').value = d.ip;
+          document.getElementById('gw-cfg-port').value = d.port;
+          document.getElementById('gw-cfg-ident').textContent = `${gid} (${d.ip}:${d.port})`;
+          const pDisp = document.getElementById('gw-cfg-port-display');
+          if (pDisp) pDisp.textContent = `${d.ip}:${d.port}`;
+
+          if (fb) {
+            fb.style.background = '#f0fdf4';
+            fb.style.color = '#15803d';
+            fb.style.border = '1px solid #bbf7d0';
+            fb.textContent = `✓ Connected to daemon | HAL: ${cfg.hal_version || 'v2.1'} | Uptime: ${cfg.uptime_s || '--'}s | RX: ${cfg.rx || 0} pkts`;
+          }
+        } else {
+          if (fb) {
+            fb.style.background = '#fef2f2';
+            fb.style.color = '#b91c1c';
+            fb.style.border = '1px solid #fecaca';
+            fb.textContent = d.error || 'Failed to query gateway daemon';
+          }
+        }
+      } catch (e) {
+        if (fb) {
+          fb.style.background = '#fef2f2';
+          fb.style.color = '#b91c1c';
+          fb.style.border = '1px solid #fecaca';
+          fb.textContent = 'Connection error: ' + e;
+        }
+      }
+    }
+
+    async function pushGatewayConfig() {
+      const gid = document.getElementById('gw-cfg-id').value;
+      const rf0 = parseFloat(document.getElementById('gw-cfg-rf0').value);
+      const rf1 = parseFloat(document.getElementById('gw-cfg-rf1').value);
+      const sync = document.getElementById('gw-cfg-sync').value;
+      const txpwr = parseInt(document.getElementById('gw-cfg-txpwr').value);
+      const btn = document.getElementById('btn-push-gw-cfg');
+      const fb = document.getElementById('gw-cfg-feedback');
+
+      if (!gid) {
+        showToast('Missing Gateway ID', 'error');
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Restarting SX1302 (~4s)...';
+      }
+      if (fb) {
+        fb.style.display = 'block';
+        fb.style.background = '#fffbeb';
+        fb.style.color = '#b45309';
+        fb.style.border = '1px solid #fde68a';
+        fb.textContent = '⚡ In-process hardware re-init dispatched. Halting & restarting SX1302 radios...';
+      }
+
+      try {
+        const res = await fetch(`/api/lora/gateways/${gid}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rf0_freq: rf0,
+            rf1_freq: rf1,
+            sync_word: sync,
+            tx_power: txpwr
+          })
+        });
+        const d = await res.json();
+        if (d.success) {
+          showToast('SX1302 reconfigured and restarted successfully!', 'success');
+          if (fb) {
+            fb.style.background = '#f0fdf4';
+            fb.style.color = '#15803d';
+            fb.style.border = '1px solid #bbf7d0';
+            fb.textContent = `✓ ACK received: ${d.ack ? d.ack.message : d.message}`;
+          }
+          if (typeof updatePipelineGraph === 'function') updatePipelineGraph(true);
+          if (typeof loadConcentratorConfig === 'function') loadConcentratorConfig();
+        } else {
+          showToast(d.error || 'Reconfiguration failed', 'error');
+          if (fb) {
+            fb.style.background = '#fef2f2';
+            fb.style.color = '#b91c1c';
+            fb.style.border = '1px solid #fecaca';
+            fb.textContent = d.error || 'Reconfiguration failed';
+          }
+        }
+      } catch (e) {
+        showToast('Push error: ' + e, 'error');
+        if (fb) {
+          fb.style.background = '#fef2f2';
+          fb.style.color = '#b91c1c';
+          fb.style.border = '1px solid #fecaca';
+          fb.textContent = 'Error: ' + e;
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '📡 Push Settings to Concentrator';
+        }
+      }
+    }
+
+    // =========================================================================
+    // CUSTOM UDP JSON TELEMETRY STREAM CONTROLLER
+    // =========================================================================
+    async function loadUdpStreamConfig() {
+      try {
+        const res = await fetch('/api/lora/udp_stream');
+        const d = await res.json();
+        if (d.success && d.udp_stream) {
+          const u = d.udp_stream;
+          const ipEl = document.getElementById('udp-stream-ip');
+          const portEl = document.getElementById('udp-stream-port');
+          const bcastEl = document.getElementById('udp-stream-bcast');
+          const enEl = document.getElementById('udp-stream-enabled');
+          const badge = document.getElementById('udp-stream-status-badge');
+
+          if (ipEl && u.dest_ip) ipEl.value = u.dest_ip;
+          if (portEl && u.dest_port) portEl.value = u.dest_port;
+          if (bcastEl && u.broadcast !== undefined) bcastEl.value = String(Boolean(u.broadcast));
+          if (enEl) enEl.checked = Boolean(u.enabled);
+
+          if (badge) {
+            badge.className = u.enabled ? 'badge badge-green' : 'badge badge-gray';
+            badge.textContent = u.enabled ? 'STREAMING ACTIVE' : 'DISABLED';
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load UDP stream config:', e);
+      }
+    }
+
+    async function saveUdpStreamConfig() {
+      const ip = (document.getElementById('udp-stream-ip').value || '').trim();
+      const port = parseInt(document.getElementById('udp-stream-port').value || '9999');
+      const bcast = document.getElementById('udp-stream-bcast').value === 'true';
+      const enabled = document.getElementById('udp-stream-enabled').checked;
+
+      if (!ip) {
+        showToast('Please enter a destination IP', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/lora/udp_stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: enabled,
+            dest_ip: ip,
+            dest_port: port,
+            broadcast: bcast
+          })
+        });
+        const d = await res.json();
+        if (d.success) {
+          showToast(d.message || 'UDP stream settings saved!', 'success');
+          const badge = document.getElementById('udp-stream-status-badge');
+          if (badge) {
+            badge.className = enabled ? 'badge badge-green' : 'badge badge-gray';
+            badge.textContent = enabled ? 'STREAMING ACTIVE' : 'DISABLED';
+          }
+        } else {
+          showToast(d.error || 'Failed to save UDP stream config', 'error');
+        }
+      } catch (e) {
+        showToast('Error saving UDP stream: ' + e, 'error');
+      }
+    }
+
+    async function testUdpStream() {
+      showToast('Sending test JSON UDP datagram...', 'info');
+      try {
+        const res = await fetch('/api/lora/udp_stream/test', { method: 'POST' });
+        const d = await res.json();
+        if (d.success) {
+          showToast(d.message || 'Test packet dispatched successfully!', 'success');
+        } else {
+          showToast(d.error || 'Test datagram failed', 'error');
+        }
+      } catch (e) {
+        showToast('UDP test error: ' + e, 'error');
+      }
     }
 
 </script>

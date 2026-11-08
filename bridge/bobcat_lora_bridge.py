@@ -15,6 +15,7 @@ import struct
 import sqlite3
 import threading
 import traceback
+import collections
 from datetime import datetime
 
 CONFIG_PATH = "/etc/lora/config.json"
@@ -169,6 +170,50 @@ class ConcentratorTracker:
                     gw["protocol"] = protocol
         self.save_cache()
 
+    def update_gateway_status(self, gw_id, stat, ip, port):
+        with self.lock:
+            now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            is_main = (gw_id == self.main_eui or ip == "127.0.0.1")
+            actual_id = self.main_eui if is_main else gw_id
+
+            if actual_id not in self.concentrators:
+                self.concentrators[actual_id] = {
+                    "gateway_id": actual_id,
+                    "name": stat.get("name") or ("Bobcat Main Concentrator" if is_main else f"Satellite Gateway ({ip})"),
+                    "type": "main" if is_main else "satellite",
+                    "ip": ip,
+                    "port": port,
+                    "protocol": "Local SX1302 SPI" if is_main else "JSON UDP 5555",
+                    "status": "ONLINE",
+                    "last_seen": now_str,
+                    "uptime_s": stat.get("uptime_s", 0),
+                    "rx_count": stat.get("rx", 0),
+                    "crc_err": stat.get("crc_err", 0),
+                    "temp_c": stat.get("temp_c", 30.0),
+                    "nodes": {}
+                }
+            gw = self.concentrators[actual_id]
+            gw["status"] = "ONLINE"
+            gw["last_seen"] = now_str
+            gw["uptime_s"] = stat.get("uptime_s", gw.get("uptime_s", 0))
+            if "rx" in stat and stat["rx"] >= gw["rx_count"]:
+                gw["rx_count"] = stat["rx"]
+            if "crc_err" in stat:
+                gw["crc_err"] = stat["crc_err"]
+            if "temp_c" in stat:
+                gw["temp_c"] = stat["temp_c"]
+            if "port_down" in stat:
+                gw["port_down"] = stat["port_down"]
+            gw["config"] = {
+                "sync_word": stat.get("sync_word", "private"),
+                "rf0_freq": stat.get("rf0_freq", 867500000),
+                "rf1_freq": stat.get("rf1_freq", 868500000),
+                "tx_power": stat.get("tx_power", 27),
+                "hal_version": stat.get("hal_version", "2.1.0"),
+                "port_down": stat.get("port_down", 5556)
+            }
+        self.save_cache()
+
     def record_uplink(self, gw_id, name, ip, port, protocol, node_id, telemetry_payload, raw_hex=""):
         with self.lock:
             now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -241,6 +286,91 @@ class ConcentratorTracker:
 
 
 g_tracker = ConcentratorTracker()
+
+# -----------------------------------------------------------------------------
+# Live Rolling Packets Buffer & TTN Multi-Gateway Deduplication Engine
+# -----------------------------------------------------------------------------
+g_live_packets = collections.deque(maxlen=60)
+
+def push_live_joined_packet(pkt_dict):
+    g_live_packets.appendleft(pkt_dict)
+    try:
+        tmp_path = PACKETS_JSON + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(list(g_live_packets), f, indent=2)
+        os.replace(tmp_path, PACKETS_JSON)
+    except Exception as e:
+        pass
+
+
+class TTNDeduplicator:
+    def __init__(self, window_s=0.15, on_joined_callback=None):
+        self.window_s = window_s  # 150 ms deduplication window
+        self.callback = on_joined_callback
+        self.lock = threading.Lock()
+        self.active_packets = {}
+        self.running = True
+        self.flush_thread = threading.Thread(target=self._flush_loop, daemon=True)
+        self.flush_thread.start()
+
+    def ingest_packet(self, raw_bytes, raw_hex, freq, datr, rssi, snr, gw_id, gw_name, gw_ip, gw_port, protocol, raw_pkt):
+        now = time.time()
+        # Dedup key: payload hex + rounded frequency + datarate
+        key = f"{raw_hex}_{round(float(freq), 1)}_{datr}"
+
+        gw_entry = {
+            "gateway_id": gw_id,
+            "gateway_name": gw_name,
+            "gateway_ip": gw_ip,
+            "gateway_port": gw_port,
+            "protocol": protocol,
+            "rssi": float(rssi),
+            "snr": float(snr),
+            "freq": float(freq),
+            "datr": str(datr),
+            "tmst": raw_pkt.get("tmst", 0),
+            "time": raw_pkt.get("time", datetime.utcnow().isoformat() + "Z")
+        }
+
+        with self.lock:
+            if key not in self.active_packets:
+                self.active_packets[key] = {
+                    "key": key,
+                    "first_seen": now,
+                    "raw_bytes": raw_bytes,
+                    "raw_hex": raw_hex,
+                    "freq": float(freq),
+                    "datr": str(datr),
+                    "gateways": [gw_entry],
+                    "best_gateway": gw_entry,
+                    "raw_pkt": raw_pkt
+                }
+            else:
+                entry = self.active_packets[key]
+                existing_gw_ids = [g["gateway_id"] for g in entry["gateways"]]
+                if gw_id not in existing_gw_ids:
+                    entry["gateways"].append(gw_entry)
+                curr_best = entry["best_gateway"]
+                if float(snr) > curr_best["snr"] or (float(snr) == curr_best["snr"] and float(rssi) > curr_best["rssi"]):
+                    entry["best_gateway"] = gw_entry
+                print(f"[TTN-DEDUP] Overheard duplicate packet from Gateway [{gw_id}] (RSSI {rssi} dBm, SNR {snr} dB). Joined! (Total gateways: {len(entry['gateways'])})")
+
+    def _flush_loop(self):
+        while self.running:
+            time.sleep(0.025)
+            now = time.time()
+            to_flush = []
+            with self.lock:
+                expired = [k for k, v in self.active_packets.items() if now - v["first_seen"] >= self.window_s]
+                for k in expired:
+                    to_flush.append(self.active_packets.pop(k))
+
+            for entry in to_flush:
+                if self.callback:
+                    try:
+                        self.callback(entry)
+                    except Exception as e:
+                        print(f"[DEDUP-ERR] Error processing joined packet: {e}")
 
 
 # -----------------------------------------------------------------------------
@@ -1209,6 +1339,128 @@ def raw_lora_watchdog_thread():
 # -----------------------------------------------------------------------------
 # Main Ingestion UDP Loop (Dual-Port: 5555 JSON & 1700 Semtech Forwarders)
 # -----------------------------------------------------------------------------
+g_mqtt_supervisor = None
+
+
+def on_joined_packet(entry):
+    raw_bytes = entry["raw_bytes"]
+    raw_hex = entry["raw_hex"]
+    gateways = entry["gateways"]
+    best_gw = entry["best_gateway"]
+    freq = entry["freq"]
+    datr = entry["datr"]
+    pkt = entry["raw_pkt"]
+
+    cfg = load_config()
+    pipeline = cfg.get("pipeline", {})
+    dec_enabled = pipeline.get("decoding_enabled", True)
+    ha_telemetry_enabled = pipeline.get("ha_telemetry_enabled", True)
+    sqlite_logging_enabled = pipeline.get("sqlite_logging_enabled", True)
+    linking_enabled = pipeline.get("linking_enabled", True)
+    filter_unregistered = pipeline.get("filter_unregistered_nodes", False)
+
+    # 1. Multi-Scheme Decoder Engine
+    schemes, global_rule = load_decoders()
+    scheme_id, scheme_name, decoded = execute_decoder(raw_bytes, raw_hex, schemes, dec_enabled=dec_enabled)
+
+    # 2. Extract Node ID
+    node_id = extract_node_id(raw_bytes, raw_hex, decoded, schemes, global_rule)
+
+    # 3. Strict Registered Node Filter
+    if filter_unregistered and not is_node_registered(node_id):
+        print(f"[GATE-DROP] Node [{node_id}] rejected by unregistered filter")
+        return
+
+    # Attach RF & Multi-Gateway Metadata
+    telemetry_payload = dict(decoded)
+    telemetry_payload["rssi"] = best_gw["rssi"]
+    telemetry_payload["snr"] = best_gw["snr"]
+    telemetry_payload["freq"] = freq
+    telemetry_payload["datr"] = datr
+    telemetry_payload["hex"] = raw_hex
+    telemetry_payload["gateway_id"] = best_gw["gateway_id"]
+    telemetry_payload["gateway_name"] = best_gw["gateway_name"]
+    telemetry_payload["gateway_ip"] = best_gw["gateway_ip"]
+    telemetry_payload["gateways_count"] = len(gateways)
+    telemetry_payload["deduplicated"] = len(gateways) > 1
+    telemetry_payload["gateways"] = gateways
+    telemetry_payload["last_seen"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    # 4. Record into Concentrator Tracker for all receiving gateways
+    for gw in gateways:
+        gw_spec = dict(telemetry_payload)
+        gw_spec["rssi"] = gw["rssi"]
+        gw_spec["snr"] = gw["snr"]
+        gw_spec["gateway_id"] = gw["gateway_id"]
+        gw_spec["gateway_name"] = gw["gateway_name"]
+        gw_spec["gateway_ip"] = gw["gateway_ip"]
+        g_tracker.record_uplink(
+            gw["gateway_id"], gw["gateway_name"], gw["gateway_ip"], gw["gateway_port"], gw["protocol"],
+            node_id, gw_spec, raw_hex=raw_hex
+        )
+
+    print(f"[TTN-JOINED] Node [{node_id}] | Gateways: {len(gateways)} | Best: [{best_gw['gateway_id']}] ({best_gw['rssi']} dBm, SNR {best_gw['snr']} dB) | Scheme: {scheme_name}")
+    if decoded:
+        print(f"             Decoded: {decoded}")
+
+    # 5. Database Logging
+    if sqlite_logging_enabled:
+        record_to_databases(node_id, pkt, raw_hex, decoded)
+
+    # 6. Push to Live Packets for Web UI
+    push_live_joined_packet({
+        "time": datetime.utcnow().strftime("%H:%M:%S"),
+        "freq": freq,
+        "datr": datr,
+        "rssi": best_gw["rssi"],
+        "snr": best_gw["snr"],
+        "hex": raw_hex,
+        "size": len(raw_bytes),
+        "node_id": node_id,
+        "decoded": decoded,
+        "deduplicated": len(gateways) > 1,
+        "gateways_count": len(gateways),
+        "best_gateway": best_gw,
+        "gateways": gateways
+    })
+
+    # 7. Custom UDP JSON Output Stream
+    udp_cfg = cfg.get("udp_stream", {"enabled": True, "dest_ip": "192.168.1.13", "dest_port": 9999})
+    if udp_cfg.get("enabled", True):
+        dest_ip = udp_cfg.get("dest_ip", "192.168.1.13")
+        dest_port = int(udp_cfg.get("dest_port", 9999))
+        is_bcast = bool(udp_cfg.get("broadcast", False))
+        telemetry_event = {
+            "event": "uplink_joined",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "node_id": node_id,
+            "deduplicated": len(gateways) > 1,
+            "gateways_count": len(gateways),
+            "best_gateway": best_gw,
+            "gateways": gateways,
+            "raw_hex": raw_hex,
+            "telemetry": decoded
+        }
+        try:
+            u_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            if is_bcast:
+                u_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            u_sock.sendto(json.dumps(telemetry_event).encode("utf-8"), (dest_ip, dest_port))
+            u_sock.close()
+        except Exception as e:
+            print(f"[UDP-STREAM-ERR] Failed emitting to {dest_ip}:{dest_port}: {e}")
+
+    # 8. Home Assistant MQTT Telemetry (if enabled)
+    if ha_telemetry_enabled and g_mqtt_supervisor:
+        for gw in gateways:
+            g_mqtt_supervisor.publish_node_telemetry(node_id, telemetry_payload, gw_id=gw["gateway_id"])
+            g_mqtt_supervisor.publish_concentrator_state(gw["gateway_id"])
+
+    # 9. Edge Device Linking Rules
+    if linking_enabled:
+        evaluate_linking_rules(node_id, decoded)
+
+
 def main():
     print("============================================================")
     print(f"Bobcat LoRa Bridge & Ingestion Daemon Starting (UDP :{PORT_UP} & :{PORT_SEMTECH})")
@@ -1217,8 +1469,12 @@ def main():
     os.system("/usr/local/bin/lora_db_init.sh >/dev/null 2>&1")
     threading.Thread(target=raw_lora_watchdog_thread, daemon=True).start()
 
+    global g_mqtt_supervisor
     mqtt_super = MqttBridgeSupervisor(tracker=g_tracker)
     mqtt_super.start()
+    g_mqtt_supervisor = mqtt_super
+
+    g_deduplicator = TTNDeduplicator(window_s=0.15, on_joined_callback=on_joined_packet)
 
     # 1. Standard Raw JSON UDP socket (Local SX1302 + JSON satellites)
     sock_5555 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -1298,6 +1554,14 @@ def main():
                     except Exception:
                         continue
 
+                    # Check for gateway self-identification & settings packet
+                    if isinstance(msg, dict) and (msg.get("msg_type") == "gateway_status" or "gateway_status" in msg):
+                        stat = msg.get("gateway_status") or msg
+                        gw_id = stat.get("gateway_id") or stat.get("eui") or (g_tracker.main_eui if sender_ip == "127.0.0.1" else f"SAT_{sender_ip.replace('.', '_')}")
+                        g_tracker.update_gateway_status(gw_id, stat, sender_ip, sender_port)
+                        print(f"[STATUS-IN] Gateway [{gw_id}]: Uptime {stat.get('uptime_s', 0)}s, RF0 {stat.get('rf0_freq', 0)/1e6:.1f}MHz, RF1 {stat.get('rf1_freq', 0)/1e6:.1f}MHz, Sync: {stat.get('sync_word', 'private')}, Temp: {stat.get('temp_c', 0.0)}C")
+                        continue
+
                     if sender_ip == "127.0.0.1":
                         sender_gw_id = g_tracker.main_eui
                         sender_gw_name = "Bobcat Main Concentrator"
@@ -1306,19 +1570,6 @@ def main():
                         sender_gw_id = msg.get("gateway_id") or msg.get("eui") or f"SAT_{sender_ip.replace('.', '_')}"
                         sender_gw_name = f"Satellite Gateway ({sender_ip})"
                         sender_protocol = "JSON UDP 5555"
-
-                # Check decoders reload
-                if time.time() - last_reload > 3:
-                    schemes, global_rule = load_decoders()
-                    last_reload = time.time()
-
-                cfg = load_config()
-                pipeline = cfg.get("pipeline", {})
-                dec_enabled = pipeline.get("decoding_enabled", True)
-                ha_telemetry_enabled = pipeline.get("ha_telemetry_enabled", True)
-                sqlite_logging_enabled = pipeline.get("sqlite_logging_enabled", True)
-                linking_enabled = pipeline.get("linking_enabled", True)
-                filter_unregistered = pipeline.get("filter_unregistered_nodes", False)
 
                 rxpk_list = msg.get("rxpk", [])
                 for pkt in rxpk_list:
@@ -1338,58 +1589,25 @@ def main():
                     except Exception:
                         continue
 
-                    # 2. Multi-Scheme Decoder Engine (Feature Toggle: decoding_enabled)
-                    scheme_id, scheme_name, decoded = execute_decoder(raw_bytes, raw_hex, schemes, dec_enabled=dec_enabled)
+                    freq_val = float(pkt.get("freq", 868.1))
+                    datr_val = str(pkt.get("datr", "SF7BW125"))
+                    rssi_val = float(pkt.get("rssic", pkt.get("rssi", -100.0)))
+                    snr_val = float(pkt.get("lsnr", pkt.get("snr", 0.0)))
 
-                    # 3. Extract Node ID
-                    node_id = extract_node_id(raw_bytes, raw_hex, decoded, schemes, global_rule)
-
-                    # 4. Strict Registered Node Filter (Feature Toggle: filter_unregistered_nodes)
-                    if filter_unregistered and not is_node_registered(node_id):
-                        print(f"[GATE-DROP] Gateway [{sender_gw_id}]: Node [{node_id}] rejected by unregistered filter")
-                        continue
-
-                    # Attach RF & Gateway Metadata to decoded payload
-                    telemetry_payload = dict(decoded)
-                    telemetry_payload["rssi"] = pkt.get("rssic", pkt.get("rssi", -100.0))
-                    telemetry_payload["snr"] = pkt.get("lsnr", pkt.get("snr", 0.0))
-                    telemetry_payload["freq"] = pkt.get("freq", 868.1)
-                    telemetry_payload["datr"] = pkt.get("datr", "SF7BW125")
-                    telemetry_payload["hex"] = raw_hex
-                    telemetry_payload["gateway_id"] = sender_gw_id
-                    telemetry_payload["gateway_name"] = sender_gw_name
-                    telemetry_payload["gateway_ip"] = sender_ip
-                    telemetry_payload["last_seen"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-                    # 5. Record into Concentrator Tracker (Embeds node telemetry inside this gateway!)
-                    actual_gw_id, actual_name, _ = g_tracker.record_uplink(
-                        sender_gw_id, sender_gw_name, sender_ip, sender_port, sender_protocol,
-                        node_id, telemetry_payload, raw_hex=raw_hex
+                    g_deduplicator.ingest_packet(
+                        raw_bytes=raw_bytes,
+                        raw_hex=raw_hex,
+                        freq=freq_val,
+                        datr=datr_val,
+                        rssi=rssi_val,
+                        snr=snr_val,
+                        gw_id=sender_gw_id,
+                        gw_name=sender_gw_name,
+                        gw_ip=sender_ip,
+                        gw_port=sender_port,
+                        protocol=sender_protocol,
+                        raw_pkt=pkt
                     )
-
-                    print(f"[UPLINK] Concentrator [{actual_gw_id}] heard Node [{node_id}] | Scheme: {scheme_name} | RSSI: {telemetry_payload['rssi']} dBm | Hex: {raw_hex}")
-                    print(f"         Decoded: {decoded}")
-
-                    # 6. Database Logging (Feature Toggle: sqlite_logging_enabled)
-                    if sqlite_logging_enabled:
-                        record_to_databases(node_id, pkt, raw_hex, decoded)
-                    else:
-                        print(f"[DB-SKIP] SQLite persistence disabled by toggle for [{node_id}]")
-
-                    # 7. Home Assistant MQTT Telemetry (Every gateway reports with its ID & embedded nodes!)
-                    if ha_telemetry_enabled:
-                        # Publishes node telemetry (tagged with gateway_id) to lora/<node_id>/state and lora/gateways/<gw_id>/nodes/<node_id>/state
-                        mqtt_super.publish_node_telemetry(node_id, telemetry_payload, gw_id=actual_gw_id)
-                        # Publishes the gateway state with EMBEDDED NODE TELEMETRIES to lora/gateways/<gw_id>/state
-                        mqtt_super.publish_concentrator_state(actual_gw_id)
-                    else:
-                        print(f"[MQTT-SKIP] HA Telemetry disabled by toggle for [{node_id}]")
-
-                    # 8. Edge Device Linking Rules (Feature Toggle: linking_enabled)
-                    if linking_enabled:
-                        evaluate_linking_rules(node_id, decoded)
-                    else:
-                        print(f"[LINK-SKIP] Edge linking disabled by toggle for [{node_id}]")
 
         except KeyboardInterrupt:
             print("[BRIDGE] Exiting on SIGINT.")

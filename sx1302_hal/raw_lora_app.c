@@ -502,6 +502,8 @@ static time_t   g_start_time;
 static uint8_t  g_sync_word   = 0x12;
 static uint32_t g_rf0_freq    = 0;
 static uint32_t g_rf1_freq    = 0;
+static float    g_temperature_c = 0.0f;
+static bool     g_temp_valid    = false;
 
 static pthread_mutex_t stats_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t hal_mutex   = PTHREAD_MUTEX_INITIALIZER;
@@ -679,6 +681,51 @@ static void send_uplink(const void *buf, size_t len) {
     pthread_mutex_unlock(&sock_mutex);
 }
 
+static void send_gateway_status_json(void) {
+    char json_status[1200];
+    uint32_t uptime_s = (uint32_t)(time(NULL) - g_start_time);
+    pthread_mutex_lock(&stats_mutex);
+    uint32_t rx = stat_rx_count;
+    uint32_t tx = stat_tx_count;
+    uint32_t crc = stat_crc_err;
+    uint32_t tx_err = stat_tx_err;
+    pthread_mutex_unlock(&stats_mutex);
+
+    int len = snprintf(json_status, sizeof(json_status),
+        "{\"msg_type\":\"gateway_status\","
+        "\"gateway_status\":{"
+        "\"eui\":\"%016llX\","
+        "\"gateway_id\":\"%016llX\","
+        "\"hal_version\":\"%s\","
+        "\"uptime_s\":%u,"
+        "\"sync_word\":\"%s\","
+        "\"rf0_freq\":%u,"
+        "\"rf1_freq\":%u,"
+        "\"tx_power\":%d,"
+        "\"rx\":%u,\"tx\":%u,\"crc_err\":%u,\"tx_err\":%u,"
+        "\"temp_c\":%.1f,"
+        "\"target_ip\":\"%s\","
+        "\"port_up\":%u,"
+        "\"port_down\":%u"
+        "}}",
+        (unsigned long long)g_gateway_eui,
+        (unsigned long long)g_gateway_eui,
+        lgw_version_info(),
+        uptime_s,
+        (g_sync_word == 0x34) ? "public" : "private",
+        g_rf0_freq, g_rf1_freq,
+        g_cfg.tx_default_power,
+        rx, tx, crc, tx_err,
+        g_temperature_c,
+        g_cfg.target_ip,
+        (unsigned)g_cfg.port_up,
+        (unsigned)g_cfg.port_down);
+
+    if (len > 0) {
+        send_uplink(json_status, (size_t)len);
+    }
+}
+
 static int configure_and_start_sx1302(void) {
     struct lgw_conf_board_s  boardconf;
     struct lgw_conf_rxrf_s   rfconf;
@@ -803,8 +850,6 @@ static rx_hist_entry_t g_rx_hist[RX_HIST_MAX];
 static int             g_rx_hist_head  = 0;
 static int             g_rx_hist_count = 0;
 static pthread_mutex_t rx_hist_mutex   = PTHREAD_MUTEX_INITIALIZER;
-static float           g_temperature_c = 0.0f;
-static bool            g_temp_valid    = false;
 
 static void record_rx_packet(const struct lgw_pkt_rx_s *p, const char *hms,
                              const char *datr_str, const char *codr_str,
@@ -1049,6 +1094,73 @@ static void *thread_tx_recv(void *arg) {
         memset(&txpkt, 0, sizeof(txpkt));
         JSON_Value *val;
 
+        // --- REMOTE CENTRAL SERVER CONTROL COMMANDS ---
+        const char *cmd = json_object_get_string(obj, "cmd");
+        if (cmd) {
+            if (strcmp(cmd, "get_config") == 0) {
+                char rsp[1024];
+                snprintf(rsp, sizeof(rsp),
+                    "{\"msg_type\":\"config_resp\",\"gateway_eui\":\"%016llX\",\"rf0_freq\":%u,\"rf1_freq\":%u,\"sync_word\":\"%s\",\"tx_power\":%d,\"target_ip\":\"%s\",\"port_up\":%u,\"port_down\":%u}",
+                    (unsigned long long)g_gateway_eui,
+                    g_rf0_freq, g_rf1_freq,
+                    (g_sync_word == 0x34) ? "public" : "private",
+                    g_cfg.tx_default_power,
+                    g_cfg.target_ip, g_cfg.port_up, g_cfg.port_down);
+                sendto(sock_down, rsp, strlen(rsp), 0, (struct sockaddr *)&src_addr, src_len);
+                json_value_free(root_val);
+                continue;
+            } else if (strcmp(cmd, "set_config") == 0) {
+                JSON_Object *cfg_in = json_object_get_object(obj, "config");
+                if (cfg_in) {
+                    JSON_Value *fval = json_parse_file(CONFIG_PATH);
+                    if (!fval) fval = json_value_init_object();
+                    JSON_Object *fobj = json_value_get_object(fval);
+
+                    JSON_Value *v;
+                    const char *s;
+                    if ((v = json_object_get_value(cfg_in, "rf0_freq")) && json_value_get_type(v) == JSONNumber)
+                        json_object_set_number(fobj, "rf0_freq", json_value_get_number(v));
+                    if ((v = json_object_get_value(cfg_in, "rf1_freq")) && json_value_get_type(v) == JSONNumber)
+                        json_object_set_number(fobj, "rf1_freq", json_value_get_number(v));
+                    if ((s = json_object_get_string(cfg_in, "sync_word")))
+                        json_object_set_string(fobj, "sync_word", s);
+                    if ((v = json_object_get_value(cfg_in, "tx_default_power")) && json_value_get_type(v) == JSONNumber)
+                        json_object_set_number(fobj, "tx_default_power", json_value_get_number(v));
+                    if ((v = json_object_get_value(cfg_in, "tx_default_freq")) && json_value_get_type(v) == JSONNumber)
+                        json_object_set_number(fobj, "tx_default_freq", json_value_get_number(v));
+                    if ((s = json_object_get_string(cfg_in, "target_ip")))
+                        json_object_set_string(fobj, "target_ip", s);
+                    if ((v = json_object_get_value(cfg_in, "port_up")) && json_value_get_type(v) == JSONNumber)
+                        json_object_set_number(fobj, "port_up", json_value_get_number(v));
+
+                    json_serialize_to_file_pretty(fval, CONFIG_PATH);
+                    json_value_free(fval);
+
+                    printf("[CONFIG-IN] Remote configuration saved. Reinitializing SX1302 in-process...\n");
+                    pthread_mutex_lock(&hal_mutex);
+                    lgw_stop();
+                    usleep(200000);
+                    load_config(CONFIG_PATH);
+                    int r = configure_and_start_sx1302();
+                    pthread_mutex_unlock(&hal_mutex);
+
+                    char ack[512];
+                    snprintf(ack, sizeof(ack),
+                        "{\"msg_type\":\"config_ack\",\"gateway_eui\":\"%016llX\",\"status\":\"%s\",\"message\":\"%s\",\"rf0_freq\":%u,\"rf1_freq\":%u,\"sync_word\":\"%s\",\"tx_power\":%d}",
+                        (unsigned long long)g_gateway_eui,
+                        (r == LGW_HAL_SUCCESS) ? "ok" : "error",
+                        (r == LGW_HAL_SUCCESS) ? "SX1302 reconfigured and restarted in-process" : "Failed to restart SX1302 HAL",
+                        g_rf0_freq, g_rf1_freq,
+                        (g_sync_word == 0x34) ? "public" : "private",
+                        g_cfg.tx_default_power);
+                    sendto(sock_down, ack, strlen(ack), 0, (struct sockaddr *)&src_addr, src_len);
+                    send_gateway_status_json();
+                }
+                json_value_free(root_val);
+                continue;
+            }
+        }
+
         // Optional TX abort command: {"abort": true, "rfch": 0}
         if ((val = json_object_get_value(obj, "abort")) &&
             json_value_get_type(val) == JSONBoolean &&
@@ -1282,6 +1394,7 @@ static void *thread_heartbeat(void *arg) {
         hb.rf1_freq       = g_rf1_freq;
 
         send_uplink(&hb, sizeof(hb));
+        send_gateway_status_json();
 
         printf("[HB] uptime=%us rx=%u tx=%u crc_err=%u tx_err=%u q=%u q_drop=%u temp=%.1fC\n",
                hb.uptime_s, hb.rx_count, hb.tx_count,
@@ -1565,6 +1678,7 @@ int main(int argc, char **argv) {
     boot.gateway_eui = g_gateway_eui;
     strncpy(boot.hal_version, lgw_version_info(), sizeof(boot.hal_version) - 1);
     send_uplink(&boot, sizeof(boot));
+    send_gateway_status_json();
 
     printf("Concentrator started. Launching threads...\n");
 

@@ -885,6 +885,180 @@ def api_lora_concentrators_simulate():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+# ==================== REMOTE GATEWAY CONFIGURATION & CONTROL ====================
+
+@app.route('/api/lora/gateways/<gateway_id>/config', methods=['GET', 'POST'])
+def api_lora_gateway_config(gateway_id):
+    concentrators_path = '/tmp/lora_concentrators.json'
+    gid = gateway_id.strip().upper()
+    main_eui = "0016C001F1500B48"
+
+    target_ip = "127.0.0.1"
+    target_port = 5556
+
+    if os.path.exists(concentrators_path):
+        try:
+            with open(concentrators_path, 'r', encoding='utf-8') as f:
+                cdata = json.load(f)
+            if gid in cdata:
+                target_ip = cdata[gid].get('ip', '127.0.0.1')
+                target_port = cdata[gid].get('config', {}).get('port_down', cdata[gid].get('port_down', 5556))
+        except:
+            pass
+
+    if request.method == 'GET':
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2.5)
+        try:
+            s.sendto(json.dumps({"cmd": "get_config"}).encode('utf-8'), (target_ip, target_port))
+            data, _ = s.recvfrom(2048)
+            cfg = json.loads(data.decode('utf-8'))
+            return jsonify({'success': True, 'config': cfg, 'ip': target_ip, 'port': target_port})
+        except Exception as e:
+            if gid == main_eui or target_ip == '127.0.0.1':
+                try:
+                    with open('/etc/lora/config.json', 'r') as f:
+                        lcfg = json.load(f)
+                    return jsonify({'success': True, 'config': {
+                        'rf0_freq': lcfg.get('rf0_freq', 867500000),
+                        'rf1_freq': lcfg.get('rf1_freq', 868500000),
+                        'sync_word': lcfg.get('sync_word', 'private'),
+                        'tx_power': lcfg.get('tx_default_power', 27)
+                    }, 'ip': target_ip, 'port': target_port})
+                except:
+                    pass
+            return jsonify({'success': False, 'error': f"Could not reach gateway daemon on {target_ip}:{target_port} ({e})"}), 504
+        finally:
+            s.close()
+
+    # POST: set_config
+    req = request.get_json(silent=True) or {}
+    new_cfg = {}
+    if 'rf0_freq' in req:
+        new_cfg['rf0_freq'] = int(float(req['rf0_freq']) * (1e6 if float(req['rf0_freq']) < 1e6 else 1))
+    if 'rf1_freq' in req:
+        new_cfg['rf1_freq'] = int(float(req['rf1_freq']) * (1e6 if float(req['rf1_freq']) < 1e6 else 1))
+    if 'sync_word' in req:
+        new_cfg['sync_word'] = str(req['sync_word']).lower()
+    if 'tx_power' in req:
+        new_cfg['tx_default_power'] = int(req['tx_power'])
+    if 'tx_default_freq' in req:
+        new_cfg['tx_default_freq'] = int(float(req['tx_default_freq']) * (1e6 if float(req['tx_default_freq']) < 1e6 else 1))
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(8.0)
+    try:
+        cmd_pkt = json.dumps({"cmd": "set_config", "config": new_cfg}).encode('utf-8')
+        s.sendto(cmd_pkt, (target_ip, target_port))
+        data, _ = s.recvfrom(2048)
+        ack = json.loads(data.decode('utf-8'))
+        return jsonify({'success': True, 'ack': ack, 'message': 'Configuration applied and SX1302 restarted in-process!'})
+    except socket.timeout:
+        return jsonify({'success': False, 'error': f"Timed out waiting for confirmation from gateway on {target_ip}:{target_port}"}), 504
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+
+@app.route('/api/lora/udp_stream', methods=['GET', 'POST'])
+def api_lora_udp_stream():
+    cfg_path = '/etc/lora/config.json'
+    cfg = {}
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+        except:
+            pass
+
+    if request.method == 'GET':
+        udp_cfg = cfg.get('udp_stream', {
+            'enabled': True,
+            'dest_ip': '192.168.1.13',
+            'dest_port': 9999,
+            'broadcast': False
+        })
+        return jsonify({'success': True, 'udp_stream': udp_cfg})
+
+    # POST
+    req = request.get_json(silent=True) or {}
+    udp_cfg = cfg.get('udp_stream', {})
+    if 'enabled' in req: udp_cfg['enabled'] = bool(req['enabled'])
+    if 'dest_ip' in req: udp_cfg['dest_ip'] = str(req['dest_ip']).strip()
+    if 'dest_port' in req: udp_cfg['dest_port'] = int(req['dest_port'])
+    if 'broadcast' in req: udp_cfg['broadcast'] = bool(req['broadcast'])
+    cfg['udp_stream'] = udp_cfg
+
+    try:
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, indent=2)
+        return jsonify({'success': True, 'message': 'UDP Stream settings saved!', 'udp_stream': udp_cfg})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/lora/udp_stream/test', methods=['POST'])
+def api_lora_udp_stream_test():
+    req = request.get_json(silent=True) or {}
+    dest_ip = req.get('dest_ip', '192.168.1.13')
+    dest_port = int(req.get('dest_port', 9999))
+    is_bcast = bool(req.get('broadcast', False))
+
+    sample_event = {
+        "event": "uplink_joined",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "node_id": "CAFE",
+        "deduplicated": True,
+        "gateways_count": 2,
+        "best_gateway": {
+            "gateway_id": "0016C001F1500B48",
+            "gateway_name": "Bobcat Main Concentrator",
+            "rssi": -34.5,
+            "snr": 8.2
+        },
+        "gateways": [
+            {
+                "gateway_id": "0016C001F1500B48",
+                "gateway_name": "Bobcat Main Concentrator",
+                "rssi": -34.5,
+                "snr": 8.2,
+                "freq": 868.5,
+                "datr": "SF12BW125"
+            },
+            {
+                "gateway_id": "A840411F49824810",
+                "gateway_name": "Satellite LPS8",
+                "rssi": -78.1,
+                "snr": -1.5,
+                "freq": 868.5,
+                "datr": "SF12BW125"
+            }
+        ],
+        "raw_hex": "CAFE96B840EB0102014A0271000000190429036701040488000000000000000000050048060095",
+        "telemetry": {
+            "node_id": "CAFE",
+            "temperature": 26.0,
+            "battery": 3.3,
+            "accel_x": 0.0,
+            "accel_y": 0.025,
+            "accel_z": 1.065,
+            "ch5_digital_in": 72,
+            "ch6_digital_in": 149
+        }
+    }
+
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if is_bcast:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.sendto(json.dumps(sample_event).encode('utf-8'), (dest_ip, dest_port))
+        s.close()
+        return jsonify({'success': True, 'message': f'Test UDP datagram sent to {dest_ip}:{dest_port}', 'payload': sample_event})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # ==================== NODES REGISTRY & MESSAGES ====================
 
 @app.route('/api/lora/nodes', methods=['GET', 'POST'])
