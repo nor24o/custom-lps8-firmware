@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 import os
 import re
 import time
@@ -516,7 +517,7 @@ def api_lora_app_config():
         if not os.path.exists(cfg_path):
             return jsonify({'error': 'Configuration file not found'}), 404
         try:
-            with open(cfg_path, 'r') as f:
+            with open(cfg_path, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
             return jsonify({'success': True, 'config': cfg})
         except Exception as e:
@@ -524,52 +525,74 @@ def api_lora_app_config():
 
     # POST - update config
     try:
-        new_cfg = request.json
+        new_cfg = request.get_json(silent=True) or {}
         if not isinstance(new_cfg, dict):
             return jsonify({'error': 'Invalid JSON configuration'}), 400
 
-        with open(cfg_path, 'w') as f:
-            json.dump(new_cfg, f, indent=4)
+        current_cfg = {}
+        if os.path.exists(cfg_path):
+            try:
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    current_cfg = json.load(f)
+            except Exception:
+                current_cfg = {}
+
+        # Merge new configuration into current config
+        for k, v in new_cfg.items():
+            if isinstance(v, dict) and isinstance(current_cfg.get(k), dict):
+                current_cfg[k].update(v)
+            else:
+                current_cfg[k] = v
+
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump(current_cfg, f, indent=4)
 
         restart = request.args.get('restart', 'false').lower() == 'true'
         if restart:
             subprocess.run(['systemctl', 'restart', 'raw-lora.service'], timeout=15)
 
-        return jsonify({'success': True, 'message': 'Configuration saved successfully!'})
+        return jsonify({'success': True, 'message': 'Configuration saved successfully!', 'config': current_cfg})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/lora/app/tx', methods=['POST'])
 def api_lora_app_tx():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     payload_hex = data.get('payload_hex', '').strip()
     payload_text = data.get('payload_text', '').strip()
     freq = float(data.get('freq', 868.1))
     sf = int(data.get('sf', 7))
     bw = int(data.get('bw', 125))
-    power = int(data.get('power', 14))
+    power = int(data.get('power', 27))
+    codr = str(data.get('codr', '4/5')).strip()
+    invert_iq = bool(data.get('invert_iq', data.get('ipol', False)))
+    rfch = int(data.get('rfch', 0))
+    preamble = int(data.get('preamble', 8))
+    target_node = str(data.get('target_node', '')).strip().upper()
 
     if payload_hex:
         try:
-            raw_bytes = bytes.fromhex(payload_hex.replace(' ', ''))
+            clean_h = payload_hex.replace(' ', '').replace('0x', '')
+            raw_bytes = bytes.fromhex(clean_h)
         except Exception as e:
             return jsonify({'error': f'Invalid hex string: {e}'}), 400
     elif payload_text:
         raw_bytes = payload_text.encode('utf-8')
     else:
-        # Default test packet (magic 0x6B 0x5A)
         raw_bytes = b'\x6B\x5A\x01\xFE\x02\x01\x01\x01'
 
     b64 = base64.b64encode(raw_bytes).decode('ascii')
     pkt = {
         "imme": True,
         "freq": freq,
-        "rfch": 0,
+        "rfch": rfch,
         "powe": power,
         "modu": "LORA",
         "datr": f"SF{sf}BW{bw}",
-        "codr": "4/5",
-        "ipol": False,
+        "codr": codr,
+        "ipol": invert_iq,
+        "prea": preamble,
+        "size": len(raw_bytes),
         "data": b64
     }
 
@@ -578,10 +601,37 @@ def api_lora_app_tx():
         s.settimeout(2.0)
         s.sendto(json.dumps(pkt).encode('utf-8'), ('127.0.0.1', 5556))
         s.close()
+
+        # LoRa Time-on-Air (ToA) Exact Physics Calculation
+        import math
+        bw_val = bw if bw > 0 else 125
+        t_sym_ms = (2 ** sf) / (bw_val * 1.0)
+        t_preamble_ms = (preamble + 4.25) * t_sym_ms
+        cr_denom = int(codr.split('/')[1]) if '/' in codr else 5
+        cr_val = cr_denom - 4
+        de = 1 if (sf >= 11 and bw_val == 125) else 0
+        num = 8 * len(raw_bytes) - 4 * sf + 28 + 16
+        den = 4 * (sf - 2 * de)
+        payload_syms = 8 + max(math.ceil(num / den) * (cr_val + 4), 0)
+        t_payload_ms = payload_syms * t_sym_ms
+        toa_ms = round(t_preamble_ms + t_payload_ms, 2)
+
+        now_str = datetime.utcnow().strftime("%H:%M:%S")
+
         return jsonify({
             'success': True,
-            'message': f'Queued {len(raw_bytes)} bytes downlink (SF{sf}, {freq} MHz, {power} dBm)',
-            'bytes_count': len(raw_bytes)
+            'message': f'Transmitted {len(raw_bytes)} bytes downlink ({target_node or "Broadcast"} @ {freq:.3f} MHz, SF{sf}, {power} dBm)',
+            'bytes_count': len(raw_bytes),
+            'payload_hex': raw_bytes.hex().upper(),
+            'freq': freq,
+            'sf': sf,
+            'bw': bw,
+            'power': power,
+            'codr': codr,
+            'invert_iq': invert_iq,
+            'toa_ms': toa_ms,
+            'target_node': target_node or 'BROADCAST',
+            'timestamp': now_str
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

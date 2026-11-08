@@ -498,6 +498,73 @@
       overflow-y: auto;
       line-height: 1.5;
     }
+
+    /* Sleek Chip Status & Pipeline Styling */
+    .chip-status {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      transition: all 0.2s ease;
+    }
+    .chip-active {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+    .chip-disabled {
+      background: #f1f5f9;
+      color: #64748b;
+      border: 1px solid #cbd5e1;
+    }
+    .chip-warning {
+      background: #fef3c7;
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+    .chip-purple {
+      background: #f3e8ff;
+      color: #7e22ce;
+      border: 1px solid #e9d5ff;
+    }
+    .freq-pill {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .freq-pill:hover {
+      background: #e2e8f0;
+      border-color: #94a3b8;
+    }
+    .preset-btn {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.45rem 0.75rem;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-size: 0.8rem;
+    }
+    .preset-btn:hover {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+    .toa-metric-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      text-align: center;
+    }
 </style>
 </head>
 <body>
@@ -559,194 +626,160 @@
         </div>
 
         
-      <!-- LoRa Pipeline Feature Toggles Card -->
-      <div class="card" style="margin-bottom: 1.5rem;">
-        <div class="card-header">
-          <div style="display: flex; align-items: center; gap: 0.6rem;">
-            <span style="font-size: 1.3rem;">⚙️</span>
+            <!-- LoRa Pipeline Feature Toggles Card (Modern Compact Control Deck) -->
+      <div class="card" style="margin-bottom: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <div class="card-header" style="padding-bottom: 0.85rem; border-bottom: 1px solid #f1f5f9;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 38px; height: 38px; border-radius: 8px; background: #e0f2fe; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+              ⚡
+            </div>
             <div>
-              <div style="font-weight: 700; font-size: 1.05rem; color: #0f172a;">LoRa Ingestion & Pipeline Feature Toggles</div>
-              <div style="font-size: 0.8rem; color: #64748b;">Control decoding, Home Assistant telemetry, discovery, SQLite logging & edge automations in real-time</div>
+              <div style="font-weight: 700; font-size: 1.05rem; color: #0f172a; display: flex; align-items: center; gap: 0.5rem;">
+                LoRa Pipeline & Feature Controls
+                <span class="pill pill-cyan" id="pipeline-status-badge" style="font-size: 0.7rem; padding: 0.2rem 0.55rem;">PIPELINE ACTIVE</span>
+              </div>
+              <div style="font-size: 0.8rem; color: #64748b;">Instant edge ingestion controls, multi-scheme decoders, HA dispatch & local rule automation</div>
             </div>
           </div>
-          <span class="pill pill-cyan" id="pipeline-status-badge">PIPELINE ACTIVE</span>
+          <div style="display: flex; gap: 0.4rem; align-items: center;">
+            <button class="btn btn-secondary btn-sm" onclick="setPipelineProfile('all_on')" title="Enable all ingestion features" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">⚡ All ON</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPipelineProfile('production')" title="Standard production HA setup" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">🛡️ Production</button>
+            <button class="btn btn-secondary btn-sm" onclick="loadPipelineConfig()" title="Refresh status" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">↻</button>
+          </div>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; padding-top: 1rem;">
           
-          <!-- Toggle 1: Decoding -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; display: flex; align-items: center; gap: 0.4rem;">
-                <span>🧩</span> Payload Decoding Engine
-              </div>
-              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                Decode Node CAFE, Cayenne LPP, TLV & Slicers. When off, raw hex passes through.
+          <!-- Toggle 1: Decoding Engine -->
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
+              <span style="font-size: 1.15rem; flex-shrink: 0;">🧩</span>
+              <div style="min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Payload Decoding Engine</div>
+                <div style="font-size: 0.73rem; color: #64748b;">Node CAFE, Cayenne LPP, TLV</div>
               </div>
             </div>
-            <label class="switch" style="margin-left: 1rem; flex-shrink: 0;">
-              <input type="checkbox" id="toggle-decoding-enabled" onchange="togglePipelineFeature('decoding_enabled', this.checked)">
-              <span class="slider"></span>
-            </label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+              <span id="badge-decoding_enabled" class="chip-status chip-active">ACTIVE</span>
+              <label class="switch">
+                <input type="checkbox" id="toggle-decoding-enabled" onchange="togglePipelineFeature('decoding_enabled', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
 
-          <!-- Toggle 2: HA Telemetry -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; display: flex; align-items: center; gap: 0.4rem;">
-                <span>🏠</span> Home Assistant Telemetry
-              </div>
-              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                Publish state and metrics to MQTT topic <code style="color: #2563eb;">lora/&lt;node_id&gt;/state</code>.
+          <!-- Toggle 2: Home Assistant Telemetry -->
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
+              <span style="font-size: 1.15rem; flex-shrink: 0;">🏠</span>
+              <div style="min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">HA MQTT Telemetry</div>
+                <div style="font-size: 0.73rem; color: #64748b;">Publish <code style="color: #2563eb; font-size: 0.7rem;">lora/&lt;node&gt;/state</code></div>
               </div>
             </div>
-            <label class="switch" style="margin-left: 1rem; flex-shrink: 0;">
-              <input type="checkbox" id="toggle-ha-telemetry-enabled" onchange="togglePipelineFeature('ha_telemetry_enabled', this.checked)">
-              <span class="slider"></span>
-            </label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+              <span id="badge-ha_telemetry_enabled" class="chip-status chip-active">ACTIVE</span>
+              <label class="switch">
+                <input type="checkbox" id="toggle-ha-telemetry-enabled" onchange="togglePipelineFeature('ha_telemetry_enabled', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
 
-          <!-- Toggle 3: HA Auto-Discovery -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; display: flex; align-items: center; gap: 0.4rem;">
-                <span>🔍</span> HA Auto-Discovery
-              </div>
-              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                Auto-register entities under <code style="color: #2563eb;">homeassistant/sensor/...</code>.
+          <!-- Toggle 3: HA Discovery -->
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
+              <span style="font-size: 1.15rem; flex-shrink: 0;">🔍</span>
+              <div style="min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">HA Auto-Discovery</div>
+                <div style="font-size: 0.73rem; color: #64748b;">Zero-config entity mapping</div>
               </div>
             </div>
-            <label class="switch" style="margin-left: 1rem; flex-shrink: 0;">
-              <input type="checkbox" id="toggle-ha-discovery-enabled" onchange="togglePipelineFeature('ha_discovery_enabled', this.checked)">
-              <span class="slider"></span>
-            </label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+              <span id="badge-ha_discovery_enabled" class="chip-status chip-active">ACTIVE</span>
+              <label class="switch">
+                <input type="checkbox" id="toggle-ha-discovery-enabled" onchange="togglePipelineFeature('ha_discovery_enabled', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
 
-          <!-- Toggle 4: Gateway Telemetry -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; display: flex; align-items: center; gap: 0.4rem;">
-                <span>📡</span> Gateway Heartbeat & Stats
-              </div>
-              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                Publish SX1302 temp, uptime and stats to <code style="color: #2563eb;">lora/gateway/state</code>.
+          <!-- Toggle 4: Gateway Heartbeat -->
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
+              <span style="font-size: 1.15rem; flex-shrink: 0;">📡</span>
+              <div style="min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Gateway Heartbeat</div>
+                <div style="font-size: 0.73rem; color: #64748b;">SX1302 temp, uptime & stats</div>
               </div>
             </div>
-            <label class="switch" style="margin-left: 1rem; flex-shrink: 0;">
-              <input type="checkbox" id="toggle-ha-gateway-telemetry-enabled" onchange="togglePipelineFeature('ha_gateway_telemetry_enabled', this.checked)">
-              <span class="slider"></span>
-            </label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+              <span id="badge-ha_gateway_telemetry_enabled" class="chip-status chip-active">ACTIVE</span>
+              <label class="switch">
+                <input type="checkbox" id="toggle-ha-gateway-telemetry-enabled" onchange="togglePipelineFeature('ha_gateway_telemetry_enabled', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
 
           <!-- Toggle 5: SQLite Logging -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; display: flex; align-items: center; gap: 0.4rem;">
-                <span>💾</span> SQLite Uplink Persistence
-              </div>
-              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                Save packets in RAM DB (<code style="color: #2563eb;">lora_messages.db</code>) & node registry.
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
+              <span style="font-size: 1.15rem; flex-shrink: 0;">🗄️</span>
+              <div style="min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">SQLite Packet Store</div>
+                <div style="font-size: 0.73rem; color: #64748b;">Historical log & RSSI analytics</div>
               </div>
             </div>
-            <label class="switch" style="margin-left: 1rem; flex-shrink: 0;">
-              <input type="checkbox" id="toggle-sqlite-logging-enabled" onchange="togglePipelineFeature('sqlite_logging_enabled', this.checked)">
-              <span class="slider"></span>
-            </label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+              <span id="badge-sqlite_logging_enabled" class="chip-status chip-active">ACTIVE</span>
+              <label class="switch">
+                <input type="checkbox" id="toggle-sqlite-logging-enabled" onchange="togglePipelineFeature('sqlite_logging_enabled', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
 
-          <!-- Toggle 6: Edge Linking -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; display: flex; align-items: center; gap: 0.4rem;">
-                <span>⚡</span> Edge Linking & Automations
-              </div>
-              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                Evaluate conditional sensor trigger rules and dispatch automated downlinks.
+          <!-- Toggle 6: Edge Automation Links -->
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
+              <span style="font-size: 1.15rem; flex-shrink: 0;">⚡</span>
+              <div style="min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Edge Automation Rules</div>
+                <div style="font-size: 0.73rem; color: #64748b;">Direct sensor-to-actuator triggers</div>
               </div>
             </div>
-            <label class="switch" style="margin-left: 1rem; flex-shrink: 0;">
-              <input type="checkbox" id="toggle-linking-enabled" onchange="togglePipelineFeature('linking_enabled', this.checked)">
-              <span class="slider"></span>
-            </label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+              <span id="badge-linking_enabled" class="chip-status chip-active">ACTIVE</span>
+              <label class="switch">
+                <input type="checkbox" id="toggle-linking-enabled" onchange="togglePipelineFeature('linking_enabled', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
 
-          <!-- Toggle 7: Strict Registered Gate -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; display: flex; align-items: center; gap: 0.4rem;">
-                <span>🛡️</span> Strict Registered Nodes Gate
-              </div>
-              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                Zero auto-enrollment: ignore or drop packets from unregistered node IDs.
+          <!-- Toggle 7: Strict Enrollment Gate -->
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
+              <span style="font-size: 1.15rem; flex-shrink: 0;">🛡️</span>
+              <div style="min-width: 0;">
+                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Strict Enrollment Gate</div>
+                <div style="font-size: 0.73rem; color: #64748b;">Filter unverified rogue nodes</div>
               </div>
             </div>
-            <label class="switch" style="margin-left: 1rem; flex-shrink: 0;">
-              <input type="checkbox" id="toggle-filter-unregistered-nodes" onchange="togglePipelineFeature('filter_unregistered_nodes', this.checked)">
-              <span class="slider"></span>
-            </label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+              <span id="badge-filter_unregistered_nodes" class="chip-status chip-disabled">OFF</span>
+              <label class="switch">
+                <input type="checkbox" id="toggle-filter-unregistered-nodes" onchange="togglePipelineFeature('filter_unregistered_nodes', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
 
         </div>
       </div>
-<div class="card">
-          <div class="card-header">
-            <span class="card-title">LoRa Downlinks (TX)</span>
-            <span class="pill" id="card-tx-status">TX_FREE</span>
-          </div>
-          <div class="card-val-big" id="dash-tx-count">0</div>
-          <div class="info-row">
-            <span class="info-label">TX Power Default:</span>
-            <span class="info-value" id="dash-tx-power">27 dBm (500mW)</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Queue / Dropped:</span>
-            <span class="info-value" id="dash-q-info">0 / 0</span>
-          </div>
-        </div>
 
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Registered Nodes</span>
-            <span class="pill">SQLite</span>
-          </div>
-          <div class="card-val-big" id="dash-active-nodes">0</div>
-          <div class="info-row">
-            <span class="info-label">Home Assistant Bridge:</span>
-            <span class="info-value" id="dash-ha-status">MQTT Connected</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Active Linking Rules:</span>
-            <span class="info-value" id="dash-link-rules">0 Rules</span>
-          </div>
-        </div>
 
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Hardware Telemetry</span>
-            <span class="pill" id="card-concentrator-temp">30.0°C</span>
-          </div>
-          <div class="card-val-big" id="card-cpu-usage">--%</div>
-          <div class="progress-bar-bg">
-            <div id="cpu-bar" class="progress-bar-fill" style="width: 0%;"></div>
-          </div>
-          <div class="info-row" style="margin-top: 0.6rem;">
-            <span class="info-label">RAM / LoadAvg:</span>
-            <span class="info-value" id="card-ram-brief">-- / --</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Live Concentrator RF Spectrum & Channel Activity -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">SX1302 8-Channel Demodulator & RF Radio Activity</span>
-          <span class="pill pill-cyan">Sync: Private (0x12)</span>
-        </div>
-        <div class="grid-4" id="channel-meters-grid">
-          <!-- Populated dynamically via JS -->
-        </div>
-      </div>
-
-      <!-- Recent Packets Table with Live Decoded Preview -->
       <div class="card">
         <div class="card-header">
           <span class="card-title">Live LoRa RF Packets Received</span>
@@ -983,81 +1016,507 @@
 
     <!-- TAB 5: RF CONCENTRATOR & TX -->
     <div id="tab-lora" class="tab-content">
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Concentrator Hardware Service</span>
-            <span class="pill" id="lora-service-badge">ACTIVE</span>
+      
+      <!-- CARD 1: SX1302 Concentrator Operational Modes & RF Demodulator Plan -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding-bottom: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: #e0f2fe; display: flex; align-items: center; justify-content: center; font-size: 1.35rem;">
+              📡
+            </div>
+            <div>
+              <div style="font-weight: 700; font-size: 1.1rem; color: #0f172a; display: flex; align-items: center; gap: 0.6rem;">
+                LoRa Concentrator Operational Modes & Multi-SF Demodulation
+                <span class="pill" id="lora-service-badge" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">ACTIVE</span>
+              </div>
+              <div style="font-size: 0.8rem; color: #64748b;">Semtech SX1302 Core with Dual SX1250 Radios • SPI5 (/dev/spidev5.0) • GPIO 149 Reset</div>
+            </div>
           </div>
-          <div class="info-row">
-            <span class="info-label">Service Daemon:</span>
-            <span class="info-value">raw_lora_app (SX1302 HAL 2.1.0)</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">SPI Bus Device:</span>
-            <span class="info-value">/dev/spidev5.0 (RK3566 SPI5)</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Reset Hardware Control:</span>
-            <span class="info-value">GPIO 149 (Power Enable: GPIO 125/122)</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Antenna & RF Frontend:</span>
-            <span class="info-value">EU868 Direct Coaxial to High-Gain Antenna</span>
-          </div>
-          <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
-            <button class="btn btn-primary" onclick="restartLoraService()">↻ Restart Daemon</button>
-            <button class="btn btn-secondary" onclick="stopLoraService()">⏹ Stop</button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" onclick="restartLoraService()" title="Restart raw_lora_app daemon">↻ Restart Service</button>
+            <button class="btn btn-secondary btn-sm" onclick="stopLoraService()" title="Stop raw_lora_app">⏹ Stop</button>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Manual LoRa Packet Transmitter</span>
-            <span class="pill pill-cyan">500 mW Max Power</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Payload HEX (or leave blank for test ping)</label>
-            <input type="text" id="tx-payload" class="form-input form-mono" placeholder="6b5a01fe02010101">
-          </div>
-          <div class="grid-3">
-            <div class="form-group">
-              <label class="form-label">Frequency (MHz)</label>
-              <input type="number" id="tx-freq" class="form-input form-mono" value="868.1" step="0.1">
+        <!-- Section: Mode & Regional Presets -->
+        <div style="margin-top: 1.25rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Network Operating Sync Word</label>
+              <select id="cfg-sync-word" class="form-select form-mono">
+                <option value="private">Private Network / P2P Edge (0x1214) [Default]</option>
+                <option value="public">Public LoRaWAN Standard (0x3444) [TTN / Helium]</option>
+              </select>
+              <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px;">
+                0x1214 isolates private/edge nodes (Node CAFE) from public network traffic.
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Spreading Factor</label>
-              <select id="tx-sf" class="form-select form-mono">
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Regional Frequency Plan Preset</label>
+              <select id="cfg-band-preset" class="form-select form-mono" onchange="applyBandPreset(this.value)">
+                <option value="EU868" selected>EU868 (Europe 867.1 - 868.5 MHz) [Default]</option>
+                <option value="US915">US915 (North America 902.3 - 914.9 MHz)</option>
+                <option value="AS923">AS923 (Asia/Pacific 923.2 - 923.4 MHz)</option>
+                <option value="custom">Custom / User Defined Plan</option>
+              </select>
+              <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px;">
+                Selecting a regional preset automatically loads standard radio centers and channel offsets.
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Dual SX1250 Radio Frontends -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+            <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+              <span>📻 Dual SX1250 RF Transceiver Frontends</span>
+              <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">Dual Coaxial Intermediate Frequency Receivers</span>
+            </div>
+            <div class="grid-2">
+              <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.85rem;">
+                <div style="font-weight: 600; font-size: 0.82rem; color: #1e293b; margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+                  <span>Radio 0 (RX / TX Path)</span>
+                  <span class="chip-status chip-active">TX MASTER</span>
+                </div>
+                <div class="grid-2">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-size: 0.75rem;">Center Freq (MHz)</label>
+                    <input type="number" step="0.025" id="cfg-rf0-freq" class="form-input form-mono" value="867.500" oninput="recalculateChannelTable()">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-size: 0.75rem;">RSSI Offset (dB)</label>
+                    <input type="number" step="0.1" id="cfg-rf0-rssi" class="form-input form-mono" value="-215.4">
+                  </div>
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                  <label class="switch" style="transform: scale(0.75); transform-origin: left center;">
+                    <input type="checkbox" id="cfg-rf0-tx-enable" checked>
+                    <span class="slider"></span>
+                  </label>
+                  <span style="color: #475569;">Enable Downlink TX on Radio 0</span>
+                </div>
+              </div>
+
+              <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.85rem;">
+                <div style="font-weight: 600; font-size: 0.82rem; color: #1e293b; margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+                  <span>Radio 1 (RX Path)</span>
+                  <span class="chip-status chip-disabled">RX ONLY</span>
+                </div>
+                <div class="grid-2">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-size: 0.75rem;">Center Freq (MHz)</label>
+                    <input type="number" step="0.025" id="cfg-rf1-freq" class="form-input form-mono" value="868.500" oninput="recalculateChannelTable()">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-size: 0.75rem;">RSSI Offset (dB)</label>
+                    <input type="number" step="0.1" id="cfg-rf1-rssi" class="form-input form-mono" value="-215.4">
+                  </div>
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                  <label class="switch" style="transform: scale(0.75); transform-origin: left center;">
+                    <input type="checkbox" id="cfg-rf1-tx-enable">
+                    <span class="slider"></span>
+                  </label>
+                  <span style="color: #475569;">Enable Downlink TX on Radio 1</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: 8-Channel Multi-SF Receiver Demodulation Matrix -->
+          <div style="margin-bottom: 1.25rem;">
+            <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+              <span>🎛️ 8-Channel Multi-SF Demodulation Matrix (SX1302 Baseband)</span>
+              <span style="font-size: 0.75rem; color: #2563eb; font-family: var(--font-mono);">Simultaneous SF7 - SF12 @ 125 kHz BW</span>
+            </div>
+            <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <table class="data-table" style="margin: 0; font-size: 0.8rem;">
+                <thead>
+                  <tr>
+                    <th style="width: 70px;">Channel</th>
+                    <th style="width: 140px;">Radio Frontend</th>
+                    <th style="width: 130px;">IF Offset (kHz)</th>
+                    <th>Actual RF Frequency</th>
+                    <th>Demodulator Capability</th>
+                  </tr>
+                </thead>
+                <tbody id="cfg-channel-matrix-tbody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Section: Extra High-Speed LoRa & FSK Demodulator Channels -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+            <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; margin-bottom: 0.75rem;">
+              ⚡ Standalone High-Speed LoRa & FSK Demodulators
+            </div>
+            <div class="grid-2">
+              <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.85rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <span style="font-weight: 600; font-size: 0.82rem;">Standard LoRa (High-Speed)</span>
+                  <label class="switch" style="transform: scale(0.75); transform-origin: right center;">
+                    <input type="checkbox" id="cfg-lora-std-enable">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div class="grid-3" style="gap: 0.5rem;">
+                  <div>
+                    <label class="form-label" style="font-size: 0.72rem;">Radio</label>
+                    <select id="cfg-lora-std-radio" class="form-select form-mono" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                      <option value="0">Radio 0</option>
+                      <option value="1" selected>Radio 1</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size: 0.72rem;">IF (kHz)</label>
+                    <input type="number" id="cfg-lora-std-if" class="form-input form-mono" value="-200" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size: 0.72rem;">Spreading Factor</label>
+                    <select id="cfg-lora-std-sf" class="form-select form-mono" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                      <option value="7" selected>SF7 (250 kHz)</option>
+                      <option value="8">SF8</option>
+                      <option value="9">SF9</option>
+                      <option value="10">SF10</option>
+                      <option value="11">SF11</option>
+                      <option value="12">SF12</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.85rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <span style="font-weight: 600; font-size: 0.82rem;">FSK Modulated Channel</span>
+                  <label class="switch" style="transform: scale(0.75); transform-origin: right center;">
+                    <input type="checkbox" id="cfg-fsk-enable">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div class="grid-3" style="gap: 0.5rem;">
+                  <div>
+                    <label class="form-label" style="font-size: 0.72rem;">Radio</label>
+                    <select id="cfg-fsk-radio" class="form-select form-mono" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                      <option value="0">Radio 0</option>
+                      <option value="1" selected>Radio 1</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size: 0.72rem;">IF (kHz)</label>
+                    <input type="number" id="cfg-fsk-if" class="form-input form-mono" value="300" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size: 0.72rem;">Datarate (bps)</label>
+                    <input type="number" id="cfg-fsk-dr" class="form-input form-mono" value="50000" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; align-items: center; justify-content: flex-end;">
+            <span id="concentrator-save-msg" style="font-size: 0.8rem; color: #15803d; font-weight: 600;"></span>
+            <button class="btn btn-secondary" onclick="saveConcentratorConfig(false)">💾 Save Configuration</button>
+            <button class="btn btn-primary" onclick="saveConcentratorConfig(true)">💾 Save & Restart Service</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 2: TX (Transmitter) Radio Calibration & Default Tuning -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding-bottom: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: #fef3c7; display: flex; align-items: center; justify-content: center; font-size: 1.35rem;">
+              📻
+            </div>
+            <div>
+              <div style="font-weight: 700; font-size: 1.1rem; color: #0f172a; display: flex; align-items: center; gap: 0.6rem;">
+                Transmitter (TX) Defaults & Radio Calibration
+                <span class="pill pill-cyan" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">PA BOOST UP TO 27 dBm / 500 mW</span>
+              </div>
+              <div style="font-size: 0.8rem; color: #64748b;">Configure hardware transmitter defaults, frequency presets, coding rate & polarity</div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveTxDefaultsConfig()">💾 Save TX Defaults</button>
+        </div>
+
+        <div style="margin-top: 1.25rem;">
+          <div class="grid-3" style="gap: 1rem; margin-bottom: 1rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Default Frequency (MHz)</label>
+              <input type="number" step="0.025" id="tx-def-freq" class="form-input form-mono" value="868.100">
+              <div style="display: flex; gap: 0.35rem; margin-top: 6px; flex-wrap: wrap;">
+                <span class="freq-pill" onclick="setTxDefFreq(868.100)">868.1</span>
+                <span class="freq-pill" onclick="setTxDefFreq(868.300)">868.3</span>
+                <span class="freq-pill" onclick="setTxDefFreq(868.500)">868.5</span>
+                <span class="freq-pill" onclick="setTxDefFreq(867.500)">867.5</span>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Default Power (dBm)</label>
+              <select id="tx-def-power" class="form-select form-mono">
+                <option value="27" selected>27 dBm (500 mW - PA Boost Active)</option>
+                <option value="26">26 dBm (400 mW)</option>
+                <option value="25">25 dBm (316 mW)</option>
+                <option value="24">24 dBm (250 mW)</option>
+                <option value="23">23 dBm (200 mW)</option>
+                <option value="22">22 dBm (158 mW)</option>
+                <option value="20">20 dBm (100 mW - Standard)</option>
+                <option value="17">17 dBm (50 mW)</option>
+                <option value="14">14 dBm (25 mW - Low Power)</option>
+                <option value="12">12 dBm (16 mW - Minimal)</option>
+              </select>
+              <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px;">Hardware PA lookup table (tx_gain_lut) calibrated.</div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Default Spreading Factor</label>
+              <select id="tx-def-sf" class="form-select form-mono">
+                <option value="7" selected>SF7 (Fastest / Shortest Airtime)</option>
+                <option value="8">SF8</option>
+                <option value="9">SF9</option>
+                <option value="10">SF10</option>
+                <option value="11">SF11</option>
+                <option value="12">SF12 (Longest Range / Max Sensitivity)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid-4" style="gap: 1rem; margin-bottom: 1.25rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Bandwidth (kHz)</label>
+              <select id="tx-def-bw" class="form-select form-mono">
+                <option value="125" selected>125 kHz (Standard)</option>
+                <option value="250">250 kHz (High Speed)</option>
+                <option value="500">500 kHz (Wideband)</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Coding Rate</label>
+              <select id="tx-def-codr" class="form-select form-mono">
+                <option value="4/5" selected>4/5 (Standard FEC)</option>
+                <option value="4/6">4/6</option>
+                <option value="4/7">4/7</option>
+                <option value="4/8">4/8 (Max Error Correction)</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Invert IQ / Polarity</label>
+              <select id="tx-def-invert" class="form-select form-mono">
+                <option value="false" selected>Normal (P2P / Node-to-Gateway)</option>
+                <option value="true">Inverted (Standard LoRaWAN Downlink)</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Preamble Length</label>
+              <input type="number" id="tx-def-preamble" class="form-input form-mono" value="8" min="6" max="65535">
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 0.85rem;">
+            <div style="font-size: 0.78rem; color: #64748b;">
+              Radio Channel Path: <strong>Radio 0 (rfch=0)</strong> • TX Free Timeout: <strong>2000 ms</strong>
+            </div>
+            <span id="tx-defaults-save-msg" style="font-size: 0.8rem; color: #15803d; font-weight: 600;"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 3: Interactive TX Downlink Studio & Real-Time Console -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding-bottom: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: #ecfdf5; display: flex; align-items: center; justify-content: center; font-size: 1.35rem;">
+              ⚡
+            </div>
+            <div>
+              <div style="font-weight: 700; font-size: 1.1rem; color: #0f172a; display: flex; align-items: center; gap: 0.6rem;">
+                Interactive TX Downlink Studio & Time-on-Air Physics Calculator
+                <span class="pill pill-cyan" id="studio-tx-status" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">READY TO TRANSMIT</span>
+              </div>
+              <div style="font-size: 0.8rem; color: #64748b;">Transmit custom HEX payloads, text beacons, or actuator trigger commands to field nodes</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 1.25rem;">
+          <!-- Top Row: Destination Node & Transmission Preset Buttons -->
+          <div style="display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 1rem; margin-bottom: 1rem; align-items: end;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-weight: 600;">Destination Target Node</label>
+              <select id="studio-target-node" class="form-select form-mono">
+                <option value="BROADCAST">BROADCAST (All Nodes)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="form-label" style="font-weight: 600;">Actuator Command Presets</label>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="preset-btn" onclick="applyTxPreset('0101', 'Relay 1 ON')">
+                  🔌 <strong>Relay 1 ON</strong> <code style="font-size: 0.7rem; color: #2563eb;">0101</code>
+                </button>
+                <button type="button" class="preset-btn" onclick="applyTxPreset('0100', 'Relay 1 OFF')">
+                  🔌 <strong>Relay 1 OFF</strong> <code style="font-size: 0.7rem; color: #2563eb;">0100</code>
+                </button>
+                <button type="button" class="preset-btn" onclick="applyTxPreset('0F00', 'Node Reboot')">
+                  🔄 <strong>Reboot</strong> <code style="font-size: 0.7rem; color: #2563eb;">0F00</code>
+                </button>
+                <button type="button" class="preset-btn" onclick="applyTxPreset('0200', 'Time Sync Beacon')">
+                  ⏱️ <strong>Time Sync</strong> <code style="font-size: 0.7rem; color: #2563eb;">0200</code>
+                </button>
+                <button type="button" class="preset-btn" onclick="applyTxPreset('6b5a01fe02010101', 'Ping Probe')">
+                  💓 <strong>Ping Probe</strong> <code style="font-size: 0.7rem; color: #2563eb;">6B5A...</code>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payload Input Mode Tabs & Input Box -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <div style="display: flex; gap: 0.5rem;">
+                <button type="button" id="tx-mode-hex-btn" class="btn btn-primary btn-sm" onclick="setStudioInputMode('hex')">HEX Bytes</button>
+                <button type="button" id="tx-mode-text-btn" class="btn btn-secondary btn-sm" onclick="setStudioInputMode('text')">ASCII Plain Text</button>
+              </div>
+              <span id="tx-payload-len-badge" style="font-size: 0.75rem; color: #64748b; font-family: var(--font-mono);">8 bytes</span>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <input type="text" id="studio-payload-input" class="form-input form-mono" placeholder="Enter hex bytes (e.g. 6B5A01FE02010101 or 0101)" value="6b5a01fe02010101" oninput="onStudioPayloadInput()" style="font-size: 0.95rem; font-weight: 600; letter-spacing: 0.05em;">
+            </div>
+          </div>
+
+          <!-- Live LoRa Physics Time-on-Air (ToA) Gauge -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+            <div class="toa-metric-box">
+              <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Time-on-Air (ToA)</div>
+              <div id="metric-toa" style="font-size: 1.35rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 2px;">41.22 ms</div>
+              <div style="font-size: 0.68rem; color: #94a3b8;">Total RF Duration</div>
+            </div>
+
+            <div class="toa-metric-box">
+              <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Symbol Duration</div>
+              <div id="metric-tsym" style="font-size: 1.35rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 2px;">1.02 ms</div>
+              <div style="font-size: 0.68rem; color: #94a3b8;">Ts = 2^SF / BW</div>
+            </div>
+
+            <div class="toa-metric-box">
+              <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Preamble Time</div>
+              <div id="metric-tpreamble" style="font-size: 1.35rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 2px;">12.54 ms</div>
+              <div style="font-size: 0.68rem; color: #94a3b8;">(8 + 4.25) × Ts</div>
+            </div>
+
+            <div class="toa-metric-box">
+              <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Payload Symbols</div>
+              <div id="metric-symcount" style="font-size: 1.35rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 2px;">28 sym</div>
+              <div style="font-size: 0.68rem; color: #94a3b8;">Explicit Header + CR</div>
+            </div>
+
+            <div class="toa-metric-box">
+              <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Duty-Cycle Impact</div>
+              <div id="metric-duty" style="font-size: 1.35rem; font-weight: 800; color: #16a34a; font-family: var(--font-mono); margin-top: 2px;">0.04%</div>
+              <div style="font-size: 0.68rem; color: #94a3b8;">EU868 Limit: &lt;1.0%</div>
+            </div>
+          </div>
+
+          <!-- Studio RF Override Controls for this transmission -->
+          <div class="grid-4" style="gap: 0.75rem; margin-bottom: 1.25rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.75rem;">TX Frequency (MHz)</label>
+              <input type="number" step="0.025" id="studio-tx-freq" class="form-input form-mono" value="868.100" oninput="calculateStudioToA()">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.75rem;">Spreading Factor</label>
+              <select id="studio-tx-sf" class="form-select form-mono" onchange="calculateStudioToA()">
                 <option value="7" selected>SF7 (Fastest)</option>
                 <option value="8">SF8</option>
                 <option value="9">SF9</option>
                 <option value="10">SF10</option>
                 <option value="11">SF11</option>
-                <option value="12">SF12 (Longest Range)</option>
+                <option value="12">SF12</option>
               </select>
             </div>
-            <div class="form-group">
-              <label class="form-label">Power (dBm)</label>
-              <select id="tx-pwr" class="form-select form-mono">
-                <option value="27" selected>27 dBm (500 mW)</option>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.75rem;">Output Power (dBm)</label>
+              <select id="studio-tx-power" class="form-select form-mono">
+                <option value="27" selected>27 dBm (500 mW Max Boost)</option>
+                <option value="24">24 dBm (250 mW)</option>
                 <option value="20">20 dBm (100 mW)</option>
                 <option value="14">14 dBm (25 mW)</option>
               </select>
             </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.75rem;">Polarity / Invert IQ</label>
+              <select id="studio-tx-iq" class="form-select form-mono">
+                <option value="false" selected>Normal IQ (P2P / Nodes)</option>
+                <option value="true">Inverted IQ (LoRaWAN Gateway)</option>
+              </select>
+            </div>
           </div>
-          <button class="btn btn-primary" style="width: 100%;" onclick="sendManualTxPacket()">📡 Transmit LoRa Downlink</button>
+
+          <!-- Transmit Action Button -->
+          <button class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.6rem;" onclick="executeStudioTx()">
+            <span>📡</span> Transmit LoRa RF Packet Now
+          </button>
+
+          <!-- In-Page Live Result Banner -->
+          <div id="studio-tx-result-box" style="display: none; margin-top: 1rem; border-radius: 8px; padding: 1rem; font-size: 0.88rem;"></div>
+
+          <!-- Recent Transmission History Log Table -->
+          <div style="margin-top: 1.5rem;">
+            <div style="font-weight: 600; font-size: 0.88rem; color: #0f172a; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+              <span>📜 Recent Downlink Transmission History</span>
+              <button class="btn btn-secondary btn-sm" onclick="clearTxHistory()" style="font-size: 0.72rem; padding: 0.2rem 0.5rem;">Clear History</button>
+            </div>
+            <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <table class="data-table" style="margin: 0; font-size: 0.8rem;">
+                <thead>
+                  <tr>
+                    <th style="width: 85px;">Time</th>
+                    <th style="width: 110px;">Destination</th>
+                    <th style="width: 140px;">RF Parameters</th>
+                    <th style="width: 80px;">Size</th>
+                    <th style="width: 90px;">Time-on-Air</th>
+                    <th>Payload HEX</th>
+                    <th style="width: 90px;">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="studio-tx-history-tbody">
+                  <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.25rem;">No downlinks transmitted in this session yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Live Service Journal -->
+      <!-- CARD 4: Systemd Service Journal Logs -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">Concentrator Systemd Journal Logs</span>
-          <button class="btn btn-secondary btn-sm" onclick="refreshLoraLogs()">↻ Refresh</button>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span>📋</span>
+            <span class="card-title">SX1302 Concentrator Systemd Journal Logs</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <select id="lora-journal-lines" class="form-select form-mono" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onchange="refreshLoraLogs()">
+              <option value="50">Last 50 lines</option>
+              <option value="100" selected>Last 100 lines</option>
+              <option value="200">Last 200 lines</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="refreshLoraLogs()">↻ Refresh</button>
+          </div>
         </div>
         <pre id="lora-journal-pre" class="console-log" style="height: 220px;"></pre>
       </div>
+
     </div>
+
 
     <!-- TAB 6: NETWORKING -->
     <div id="tab-networking" class="tab-content">
@@ -2364,7 +2823,9 @@
 
     async function refreshLoraLogs() {
       try {
-        const res = await fetch('/api/lora/app/logs?lines=40');
+        const linesEl = document.getElementById('lora-journal-lines');
+        const lines = linesEl ? linesEl.value : '100';
+        const res = await fetch(`/api/lora/app/logs?lines=${lines}`);
         const d = await res.json();
         const pre = document.getElementById('lora-journal-pre');
         if (pre) {
@@ -2523,8 +2984,19 @@
       };
       for (const [key, elementId] of Object.entries(mapping)) {
         const el = document.getElementById(elementId);
+        const badge = document.getElementById(`badge-${key}`);
         if (el && pipeline[key] !== undefined) {
-          el.checked = Boolean(pipeline[key]);
+          const isChecked = Boolean(pipeline[key]);
+          el.checked = isChecked;
+          if (badge) {
+            if (key === 'filter_unregistered_nodes') {
+              badge.textContent = isChecked ? 'STRICT' : 'OPEN';
+              badge.className = isChecked ? 'chip-status chip-warning' : 'chip-status chip-disabled';
+            } else {
+              badge.textContent = isChecked ? 'ACTIVE' : 'OFF';
+              badge.className = isChecked ? 'chip-status chip-active' : 'chip-status chip-disabled';
+            }
+          }
         }
       }
     }
@@ -2574,6 +3046,522 @@
     document.addEventListener('DOMContentLoaded', function() {
       loadPipelineConfig();
     });
-</script>
+
+    // -------------------------------------------------------------------------
+    // Concentrator Operating Modes & TX Downlink Studio Controller
+    // -------------------------------------------------------------------------
+    let g_studio_mode = 'hex';
+    let g_tx_history = [];
+
+    async function loadConcentratorConfig() {
+      try {
+        const res = await fetch('/api/lora/app/config');
+        const data = await res.json();
+        if (!data.success || !data.config) return;
+        const cfg = data.config;
+
+        const syncWordEl = document.getElementById('cfg-sync-word');
+        if (syncWordEl && cfg.sync_word) syncWordEl.value = cfg.sync_word;
+
+        if (cfg.rf0_freq !== undefined) document.getElementById('cfg-rf0-freq').value = (cfg.rf0_freq / 1e6).toFixed(3);
+        if (cfg.rf0_rssi_offset !== undefined) document.getElementById('cfg-rf0-rssi').value = cfg.rf0_rssi_offset;
+        if (cfg.rf0_tx_enable !== undefined) document.getElementById('cfg-rf0-tx-enable').checked = Boolean(cfg.rf0_tx_enable);
+
+        if (cfg.rf1_freq !== undefined) document.getElementById('cfg-rf1-freq').value = (cfg.rf1_freq / 1e6).toFixed(3);
+        if (cfg.rf1_rssi_offset !== undefined) document.getElementById('cfg-rf1-rssi').value = cfg.rf1_rssi_offset;
+        if (cfg.rf1_tx_enable !== undefined) document.getElementById('cfg-rf1-tx-enable').checked = Boolean(cfg.rf1_tx_enable);
+
+        renderChannelMatrix(cfg.chan_if || [-400000, -200000, 0, 200000, 400000, -400000, -200000, 0], cfg.chan_radio || [0, 0, 0, 0, 0, 1, 1, 1]);
+
+        if (cfg.chan_lora_std_enable !== undefined) document.getElementById('cfg-lora-std-enable').checked = Boolean(cfg.chan_lora_std_enable);
+        if (cfg.chan_lora_std_radio !== undefined) document.getElementById('cfg-lora-std-radio').value = cfg.chan_lora_std_radio;
+        if (cfg.chan_lora_std_if !== undefined) document.getElementById('cfg-lora-std-if').value = Math.round(cfg.chan_lora_std_if / 1000);
+        if (cfg.chan_lora_std_sf !== undefined) document.getElementById('cfg-lora-std-sf').value = cfg.chan_lora_std_sf;
+
+        if (cfg.chan_fsk_enable !== undefined) document.getElementById('cfg-fsk-enable').checked = Boolean(cfg.chan_fsk_enable);
+        if (cfg.chan_fsk_radio !== undefined) document.getElementById('cfg-fsk-radio').value = cfg.chan_fsk_radio;
+        if (cfg.chan_fsk_if !== undefined) document.getElementById('cfg-fsk-if').value = Math.round(cfg.chan_fsk_if / 1000);
+        if (cfg.chan_fsk_datarate !== undefined) document.getElementById('cfg-fsk-dr').value = cfg.chan_fsk_datarate;
+
+        if (cfg.tx_default_freq !== undefined) {
+          const freqMhz = (cfg.tx_default_freq / 1e6).toFixed(3);
+          document.getElementById('tx-def-freq').value = freqMhz;
+          document.getElementById('studio-tx-freq').value = freqMhz;
+        }
+        if (cfg.tx_default_power !== undefined) {
+          document.getElementById('tx-def-power').value = cfg.tx_default_power;
+          document.getElementById('studio-tx-power').value = cfg.tx_default_power;
+        }
+        if (cfg.tx_default_sf !== undefined) {
+          document.getElementById('tx-def-sf').value = cfg.tx_default_sf;
+          document.getElementById('studio-tx-sf').value = cfg.tx_default_sf;
+        }
+        if (cfg.tx_default_bandwidth !== undefined) document.getElementById('tx-def-bw').value = cfg.tx_default_bandwidth;
+        if (cfg.tx_default_coderate !== undefined) document.getElementById('tx-def-codr').value = cfg.tx_default_coderate;
+        if (cfg.tx_default_invert !== undefined) {
+          document.getElementById('tx-def-invert').value = String(Boolean(cfg.tx_default_invert));
+          document.getElementById('studio-tx-iq').value = String(Boolean(cfg.tx_default_invert));
+        }
+        if (cfg.tx_default_preamble !== undefined) document.getElementById('tx-def-preamble').value = cfg.tx_default_preamble;
+
+        calculateStudioToA();
+      } catch (err) {
+        console.error('Error loading concentrator config:', err);
+      }
+    }
+
+    function renderChannelMatrix(chan_if, chan_radio) {
+      const tbody = document.getElementById('cfg-channel-matrix-tbody');
+      if (!tbody) return;
+      const rf0 = parseFloat(document.getElementById('cfg-rf0-freq').value) || 867.5;
+      const rf1 = parseFloat(document.getElementById('cfg-rf1-freq').value) || 868.5;
+
+      let html = '';
+      for (let i = 0; i < 8; i++) {
+        const radio = chan_radio[i] !== undefined ? chan_radio[i] : (i < 5 ? 0 : 1);
+        const if_khz = chan_if[i] !== undefined ? Math.round(chan_if[i] / 1000) : 0;
+        const center_rf = radio === 0 ? rf0 : rf1;
+        const calc_mhz = (center_rf + (if_khz / 1000.0)).toFixed(3);
+
+        html += `<tr>
+          <td style="font-weight: 700; font-family: var(--font-mono); color: #0f172a;">CH ${i}</td>
+          <td>
+            <select id="cfg-chan-radio-${i}" class="form-select form-mono" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onchange="recalculateChannelTable()">
+              <option value="0" ${radio === 0 ? 'selected' : ''}>Radio 0</option>
+              <option value="1" ${radio === 1 ? 'selected' : ''}>Radio 1</option>
+            </select>
+          </td>
+          <td>
+            <input type="number" id="cfg-chan-if-${i}" class="form-input form-mono" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" value="${if_khz}" oninput="recalculateChannelTable()">
+          </td>
+          <td>
+            <span id="cfg-chan-mhz-${i}" style="font-family: var(--font-mono); font-weight: 700; color: #2563eb;">${calc_mhz} MHz</span>
+          </td>
+          <td>
+            <span class="chip-status chip-active" style="font-size: 0.65rem;">Multi-SF SF7..SF12 (125 kHz)</span>
+          </td>
+        </tr>`;
+      }
+      tbody.innerHTML = html;
+    }
+
+    function recalculateChannelTable() {
+      const rf0 = parseFloat(document.getElementById('cfg-rf0-freq').value) || 867.5;
+      const rf1 = parseFloat(document.getElementById('cfg-rf1-freq').value) || 868.5;
+
+      for (let i = 0; i < 8; i++) {
+        const rEl = document.getElementById(`cfg-chan-radio-${i}`);
+        const ifEl = document.getElementById(`cfg-chan-if-${i}`);
+        const mhzEl = document.getElementById(`cfg-chan-mhz-${i}`);
+        if (rEl && ifEl && mhzEl) {
+          const radio = parseInt(rEl.value) || 0;
+          const if_khz = parseFloat(ifEl.value) || 0;
+          const center_rf = radio === 0 ? rf0 : rf1;
+          const calc_mhz = (center_rf + (if_khz / 1000.0)).toFixed(3);
+          mhzEl.textContent = `${calc_mhz} MHz`;
+        }
+      }
+    }
+
+    function applyBandPreset(preset) {
+      if (preset === 'EU868') {
+        document.getElementById('cfg-rf0-freq').value = '867.500';
+        document.getElementById('cfg-rf1-freq').value = '868.500';
+        const ifs = [-400000, -200000, 0, 200000, 400000, -400000, -200000, 0];
+        const radios = [0, 0, 0, 0, 0, 1, 1, 1];
+        renderChannelMatrix(ifs, radios);
+        setTxDefFreq(868.100);
+      } else if (preset === 'US915') {
+        document.getElementById('cfg-rf0-freq').value = '902.700';
+        document.getElementById('cfg-rf1-freq').value = '903.700';
+        const ifs = [-400000, -200000, 0, 200000, 400000, -400000, -200000, 0];
+        const radios = [0, 0, 0, 0, 0, 1, 1, 1];
+        renderChannelMatrix(ifs, radios);
+        setTxDefFreq(903.000);
+      } else if (preset === 'AS923') {
+        document.getElementById('cfg-rf0-freq').value = '923.200';
+        document.getElementById('cfg-rf1-freq').value = '923.400';
+        const ifs = [-100000, 100000, 0, 200000, 400000, -100000, 100000, 0];
+        const radios = [0, 0, 0, 0, 0, 1, 1, 1];
+        renderChannelMatrix(ifs, radios);
+        setTxDefFreq(923.200);
+      }
+      recalculateChannelTable();
+    }
+
+    async function saveConcentratorConfig(restart) {
+      const msgEl = document.getElementById('concentrator-save-msg');
+      if (msgEl) msgEl.textContent = 'Saving configuration...';
+
+      const chan_if = [];
+      const chan_radio = [];
+      for (let i = 0; i < 8; i++) {
+        const rEl = document.getElementById(`cfg-chan-radio-${i}`);
+        const ifEl = document.getElementById(`cfg-chan-if-${i}`);
+        chan_radio.push(rEl ? parseInt(rEl.value) : (i < 5 ? 0 : 1));
+        chan_if.push(ifEl ? Math.round(parseFloat(ifEl.value) * 1000) : 0);
+      }
+
+      const payload = {
+        sync_word: document.getElementById('cfg-sync-word').value,
+        rf0_freq: Math.round(parseFloat(document.getElementById('cfg-rf0-freq').value) * 1e6),
+        rf0_rssi_offset: parseFloat(document.getElementById('cfg-rf0-rssi').value),
+        rf0_tx_enable: document.getElementById('cfg-rf0-tx-enable').checked,
+        rf1_freq: Math.round(parseFloat(document.getElementById('cfg-rf1-freq').value) * 1e6),
+        rf1_rssi_offset: parseFloat(document.getElementById('cfg-rf1-rssi').value),
+        rf1_tx_enable: document.getElementById('cfg-rf1-tx-enable').checked,
+        chan_if: chan_if,
+        chan_radio: chan_radio,
+        chan_lora_std_enable: document.getElementById('cfg-lora-std-enable').checked,
+        chan_lora_std_radio: parseInt(document.getElementById('cfg-lora-std-radio').value),
+        chan_lora_std_if: Math.round(parseFloat(document.getElementById('cfg-lora-std-if').value) * 1000),
+        chan_lora_std_sf: parseInt(document.getElementById('cfg-lora-std-sf').value),
+        chan_fsk_enable: document.getElementById('cfg-fsk-enable').checked,
+        chan_fsk_radio: parseInt(document.getElementById('cfg-fsk-radio').value),
+        chan_fsk_if: Math.round(parseFloat(document.getElementById('cfg-fsk-if').value) * 1000),
+        chan_fsk_datarate: parseInt(document.getElementById('cfg-fsk-dr').value)
+      };
+
+      try {
+        const res = await fetch(`/api/lora/app/config?restart=${restart ? 'true' : 'false'}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        if (d.success) {
+          if (msgEl) {
+            msgEl.textContent = restart ? 'Saved & restarted service!' : 'Saved successfully!';
+            msgEl.style.color = '#15803d';
+            setTimeout(() => { msgEl.textContent = ''; }, 3500);
+          }
+          refreshLoraLogs();
+        } else {
+          if (msgEl) {
+            msgEl.textContent = 'Error: ' + (d.error || 'Failed to save');
+            msgEl.style.color = '#dc2626';
+          }
+        }
+      } catch (err) {
+        if (msgEl) {
+          msgEl.textContent = 'Network error: ' + err;
+          msgEl.style.color = '#dc2626';
+        }
+      }
+    }
+
+    async function saveTxDefaultsConfig() {
+      const msgEl = document.getElementById('tx-defaults-save-msg');
+      if (msgEl) msgEl.textContent = 'Saving TX defaults...';
+
+      const payload = {
+        tx_default_freq: Math.round(parseFloat(document.getElementById('tx-def-freq').value) * 1e6),
+        tx_default_power: parseInt(document.getElementById('tx-def-power').value),
+        tx_default_sf: parseInt(document.getElementById('tx-def-sf').value),
+        tx_default_bandwidth: parseInt(document.getElementById('tx-def-bw').value),
+        tx_default_coderate: document.getElementById('tx-def-codr').value,
+        tx_default_invert: document.getElementById('tx-def-invert').value === 'true',
+        tx_default_preamble: parseInt(document.getElementById('tx-def-preamble').value) || 8
+      };
+
+      try {
+        const res = await fetch('/api/lora/app/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        if (d.success) {
+          if (msgEl) {
+            msgEl.textContent = 'TX defaults saved!';
+            msgEl.style.color = '#15803d';
+            setTimeout(() => { msgEl.textContent = ''; }, 3500);
+          }
+        } else {
+          if (msgEl) {
+            msgEl.textContent = 'Error: ' + (d.error || 'Save failed');
+            msgEl.style.color = '#dc2626';
+          }
+        }
+      } catch (err) {
+        if (msgEl) {
+          msgEl.textContent = 'Network error: ' + err;
+          msgEl.style.color = '#dc2626';
+        }
+      }
+    }
+
+    function setTxDefFreq(freqMhz) {
+      document.getElementById('tx-def-freq').value = freqMhz.toFixed(3);
+      document.getElementById('studio-tx-freq').value = freqMhz.toFixed(3);
+      calculateStudioToA();
+    }
+
+    function setStudioInputMode(mode) {
+      g_studio_mode = mode;
+      const hexBtn = document.getElementById('tx-mode-hex-btn');
+      const txtBtn = document.getElementById('tx-mode-text-btn');
+      const inp = document.getElementById('studio-payload-input');
+
+      if (mode === 'hex') {
+        hexBtn.className = 'btn btn-primary btn-sm';
+        txtBtn.className = 'btn btn-secondary btn-sm';
+        inp.placeholder = 'Enter hex bytes (e.g. 6B5A01FE02010101 or 0101)';
+      } else {
+        txtBtn.className = 'btn btn-primary btn-sm';
+        hexBtn.className = 'btn btn-secondary btn-sm';
+        inp.placeholder = 'Enter ASCII text to transmit (e.g. PING or TEST)';
+      }
+      onStudioPayloadInput();
+    }
+
+    function applyTxPreset(hexStr, name) {
+      setStudioInputMode('hex');
+      const inp = document.getElementById('studio-payload-input');
+      inp.value = hexStr;
+      onStudioPayloadInput();
+    }
+
+    function getStudioPayloadBytes() {
+      const inp = document.getElementById('studio-payload-input');
+      const val = inp ? inp.value.trim() : '';
+      if (!val) return [];
+
+      if (g_studio_mode === 'text') {
+        return Array.from(new TextEncoder().encode(val));
+      } else {
+        const clean = val.replace(/\s+/g, '').replace(/^0x/i, '');
+        const bytes = [];
+        for (let i = 0; i < clean.length; i += 2) {
+          const b = parseInt(clean.substr(i, 2), 16);
+          if (!isNaN(b)) bytes.push(b);
+        }
+        return bytes;
+      }
+    }
+
+    function onStudioPayloadInput() {
+      const bytes = getStudioPayloadBytes();
+      const badge = document.getElementById('tx-payload-len-badge');
+      if (badge) badge.textContent = `${bytes.length} bytes`;
+      calculateStudioToA();
+    }
+
+    function calculateStudioToA() {
+      const sf = parseInt(document.getElementById('studio-tx-sf').value) || 7;
+      const bw = 125;
+      const t_sym_ms = Math.pow(2, sf) / (bw * 1.0);
+      const n_preamble = 8;
+      const t_preamble_ms = (n_preamble + 4.25) * t_sym_ms;
+
+      const bytes = getStudioPayloadBytes();
+      const pl_len = Math.max(bytes.length, 1);
+      const cr = 1;
+      const de = (sf >= 11 && bw === 125) ? 1 : 0;
+      const num = 8 * pl_len - 4 * sf + 28 + 16;
+      const den = 4 * (sf - 2 * de);
+      const payload_syms = 8 + Math.max(Math.ceil(num / den) * (cr + 4), 0);
+      const t_payload_ms = payload_syms * t_sym_ms;
+      const total_toa_ms = t_preamble_ms + t_payload_ms;
+
+      document.getElementById('metric-toa').textContent = `${total_toa_ms.toFixed(2)} ms`;
+      document.getElementById('metric-tsym').textContent = `${t_sym_ms.toFixed(2)} ms`;
+      document.getElementById('metric-tpreamble').textContent = `${t_preamble_ms.toFixed(2)} ms`;
+      document.getElementById('metric-symcount').textContent = `${payload_syms} sym`;
+
+      const duty_pct = Math.min((total_toa_ms / 1000.0) / 36.0, 100).toFixed(2);
+      const dutyEl = document.getElementById('metric-duty');
+      dutyEl.textContent = `${duty_pct}%`;
+      dutyEl.style.color = parseFloat(duty_pct) < 1.0 ? '#16a34a' : '#dc2626';
+    }
+
+    async function executeStudioTx() {
+      const statusBadge = document.getElementById('studio-tx-status');
+      const resultBox = document.getElementById('studio-tx-result-box');
+      const inpVal = document.getElementById('studio-payload-input').value.trim();
+      const targetNode = document.getElementById('studio-target-node').value;
+
+      const freq = parseFloat(document.getElementById('studio-tx-freq').value) || 868.1;
+      const sf = parseInt(document.getElementById('studio-tx-sf').value) || 7;
+      const power = parseInt(document.getElementById('studio-tx-power').value) || 27;
+      const invertIq = document.getElementById('studio-tx-iq').value === 'true';
+
+      const payload = {
+        freq: freq,
+        sf: sf,
+        bw: 125,
+        power: power,
+        invert_iq: invertIq,
+        target_node: targetNode
+      };
+
+      if (g_studio_mode === 'text') {
+        payload.payload_text = inpVal;
+      } else {
+        payload.payload_hex = inpVal;
+      }
+
+      if (statusBadge) {
+        statusBadge.textContent = 'TRANSMITTING...';
+        statusBadge.className = 'pill pill-cyan';
+      }
+
+      try {
+        const res = await fetch('/api/lora/app/tx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+
+        if (d.success) {
+          if (statusBadge) {
+            statusBadge.textContent = 'TRANSMITTED OK';
+            statusBadge.className = 'pill pill-cyan';
+            setTimeout(() => { statusBadge.textContent = 'READY TO TRANSMIT'; }, 3000);
+          }
+
+          if (resultBox) {
+            resultBox.style.display = 'block';
+            resultBox.style.background = '#f0fdf4';
+            resultBox.style.border = '1px solid #bbf7d0';
+            resultBox.style.color = '#166534';
+            resultBox.innerHTML = `
+              <div style="font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 0.5rem;">
+                <span>✅</span> LoRa RF Packet Transmitted Successfully!
+              </div>
+              <div style="font-size: 0.8rem; line-height: 1.5; color: #15803d;">
+                Target: <strong>${d.target_node}</strong> &bull; Frequency: <strong>${d.freq.toFixed(3)} MHz</strong> &bull;
+                SF: <strong>SF${d.sf}</strong> &bull; Output Power: <strong>${d.power} dBm (PA Boost)</strong> &bull;
+                Time-on-Air: <strong>${d.toa_ms} ms</strong> &bull; Size: <strong>${d.bytes_count} bytes</strong>
+              </div>
+              <div style="margin-top: 6px; font-family: var(--font-mono); font-size: 0.78rem; background: #ffffff; padding: 0.35rem 0.6rem; border-radius: 4px; border: 1px solid #dcfce7; word-break: break-all;">
+                HEX: ${d.payload_hex}
+              </div>
+            `;
+          }
+
+          addTxHistoryEntry({
+            time: d.timestamp,
+            target: d.target_node,
+            rf: `${d.freq.toFixed(3)} MHz, SF${d.sf}, ${d.power}dBm`,
+            size: `${d.bytes_count} B`,
+            toa: `${d.toa_ms} ms`,
+            hex: d.payload_hex,
+            status: 'DELIVERED'
+          });
+
+          refreshLoraLogs();
+        } else {
+          if (statusBadge) {
+            statusBadge.textContent = 'TX ERROR';
+            statusBadge.className = 'pill';
+            statusBadge.style.color = '#dc2626';
+          }
+          if (resultBox) {
+            resultBox.style.display = 'block';
+            resultBox.style.background = '#fef2f2';
+            resultBox.style.border = '1px solid #fecaca';
+            resultBox.style.color = '#991b1b';
+            resultBox.innerHTML = `<strong>TX Failed:</strong> ${d.error || 'Unknown error'}`;
+          }
+        }
+      } catch (err) {
+        if (statusBadge) {
+          statusBadge.textContent = 'NETWORK ERROR';
+        }
+        if (resultBox) {
+          resultBox.style.display = 'block';
+          resultBox.style.background = '#fef2f2';
+          resultBox.style.border = '1px solid #fecaca';
+          resultBox.style.color = '#991b1b';
+          resultBox.innerHTML = `<strong>Network Error:</strong> ${err}`;
+        }
+      }
+    }
+
+    function addTxHistoryEntry(item) {
+      g_tx_history.unshift(item);
+      if (g_tx_history.length > 20) g_tx_history.pop();
+      renderTxHistory();
+    }
+
+    function renderTxHistory() {
+      const tbody = document.getElementById('studio-tx-history-tbody');
+      if (!tbody) return;
+      if (!g_tx_history.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.25rem;">No downlinks transmitted in this session yet.</td></tr>';
+        return;
+      }
+      let html = '';
+      g_tx_history.forEach(h => {
+        html += `<tr>
+          <td style="font-family: var(--font-mono); font-size: 0.75rem; color: #64748b;">${h.time}</td>
+          <td style="font-weight: 700; font-family: var(--font-mono); color: #0f172a;">${h.target}</td>
+          <td style="font-size: 0.75rem; font-family: var(--font-mono);">${h.rf}</td>
+          <td style="font-family: var(--font-mono); font-size: 0.75rem;">${h.size}</td>
+          <td style="font-family: var(--font-mono); font-weight: 600; color: #0284c7; font-size: 0.75rem;">${h.toa}</td>
+          <td style="font-family: var(--font-mono); font-size: 0.75rem; color: #475569; word-break: break-all;">${h.hex}</td>
+          <td><span class="chip-status chip-active">${h.status}</span></td>
+        </tr>`;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function clearTxHistory() {
+      g_tx_history = [];
+      renderTxHistory();
+    }
+
+    function setPipelineProfile(profile) {
+      const badge = document.getElementById('pipeline-status-badge');
+      if (badge) badge.textContent = 'UPDATING...';
+
+      let payload = {};
+      if (profile === 'all_on') {
+        payload = {
+          decoding_enabled: true,
+          ha_telemetry_enabled: true,
+          ha_discovery_enabled: true,
+          ha_gateway_telemetry_enabled: true,
+          sqlite_logging_enabled: true,
+          linking_enabled: true,
+          filter_unregistered_nodes: false
+        };
+      } else if (profile === 'production') {
+        payload = {
+          decoding_enabled: true,
+          ha_telemetry_enabled: true,
+          ha_discovery_enabled: true,
+          ha_gateway_telemetry_enabled: true,
+          sqlite_logging_enabled: true,
+          linking_enabled: true,
+          filter_unregistered_nodes: true
+        };
+      }
+
+      fetch('/api/lora/pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (badge) {
+          badge.textContent = 'PROFILE SAVED';
+          setTimeout(() => { badge.textContent = 'PIPELINE ACTIVE'; }, 2000);
+        }
+        if (data && data.pipeline) {
+          updatePipelineSwitches(data.pipeline);
+        }
+      })
+      .catch(err => console.error('Error applying pipeline profile:', err));
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      loadConcentratorConfig();
+    });
+  </script>
+  </div>
 </body>
 </html>
