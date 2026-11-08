@@ -114,10 +114,10 @@
     }
 
     .container {
-      max-width: 1280px;
-      width: 100%;
+      max-width: 1540px;
+      width: 96%;
       margin: 0 auto;
-      padding: 1.75rem 2rem;
+      padding: 1.25rem 1.5rem;
       flex: 1;
     }
 
@@ -608,7 +608,10 @@
 
     <!-- TAB 1: DASHBOARD -->
     <div id="tab-dashboard" class="tab-content active">
-      <div class="grid-4">
+      
+      <!-- ROW 1: 4 TOP TELEMETRY STAT CARDS -->
+      <div class="grid-4" style="margin-bottom: 1.25rem;">
+        <!-- Card 1: RX Uplinks -->
         <div class="card">
           <div class="card-header">
             <span class="card-title">LoRa Uplinks (RX)</span>
@@ -625,20 +628,87 @@
           </div>
         </div>
 
-        
-            <!-- LoRa Pipeline Feature Toggles Card (Modern Compact Control Deck) -->
-      <div class="card" style="margin-bottom: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-        <div class="card-header" style="padding-bottom: 0.85rem; border-bottom: 1px solid #f1f5f9;">
+        <!-- Card 2: TX Downlinks -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">LoRa Downlinks (TX)</span>
+            <span class="pill" id="card-tx-status">TX_FREE</span>
+          </div>
+          <div class="card-val-big" id="dash-tx-count">0</div>
+          <div class="info-row">
+            <span class="info-label">TX Power Default:</span>
+            <span class="info-value" id="dash-tx-power">27 dBm (500mW)</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Queue / Dropped:</span>
+            <span class="info-value" id="dash-q-info">0 / 0</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Registered Nodes -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Registered Nodes</span>
+            <span class="pill">SQLite</span>
+          </div>
+          <div class="card-val-big" id="dash-active-nodes">0</div>
+          <div class="info-row">
+            <span class="info-label">Home Assistant Bridge:</span>
+            <span class="info-value" id="dash-ha-status">MQTT Connected</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Active Linking Rules:</span>
+            <span class="info-value" id="dash-link-rules">0 Rules</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Hardware Telemetry -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Hardware Telemetry</span>
+            <span class="pill" id="card-concentrator-temp">30.0°C</span>
+          </div>
+          <div class="card-val-big" id="card-cpu-usage">--%</div>
+          <div class="progress-bar-bg">
+            <div id="cpu-bar" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+          <div class="info-row" style="margin-top: 0.6rem;">
+            <span class="info-label">RAM / LoadAvg:</span>
+            <span class="info-value" id="card-ram-brief">-- / --</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 2: SX1302 8-Channel Demodulator & RF Spectrum Activity -->
+      <div class="card" style="margin-bottom: 1.25rem;">
+        <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding-bottom: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 1.2rem;">🎛️</span>
+            <div>
+              <span class="card-title" style="font-size: 0.95rem;">SX1302 8-Channel Multi-SF Spectrum & Demodulator Activity</span>
+              <div style="font-size: 0.75rem; color: #64748b;">Dual SX1250 Radios (867.5 & 868.5 MHz) • Parallel Multi-SF (SF7..SF12 Demodulators)</div>
+            </div>
+          </div>
+          <span class="pill pill-cyan" style="font-size: 0.72rem;">Sync: Private (0x1214)</span>
+        </div>
+        <div class="grid-4" id="channel-meters-grid" style="padding-top: 0.85rem; gap: 0.75rem;">
+          <!-- Populated dynamically via JS renderChannelMeters -->
+        </div>
+      </div>
+
+      <!-- ROW 3: FULL-WIDTH COMPACT PIPELINE CONTROLS -->
+      <div class="card" style="margin-bottom: 1.25rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <div class="card-header" style="padding-bottom: 0.75rem; border-bottom: 1px solid #f1f5f9;">
           <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 38px; height: 38px; border-radius: 8px; background: #e0f2fe; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+            <div style="width: 36px; height: 36px; border-radius: 8px; background: #e0f2fe; display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
               ⚡
             </div>
             <div>
-              <div style="font-weight: 700; font-size: 1.05rem; color: #0f172a; display: flex; align-items: center; gap: 0.5rem;">
+              <div style="font-weight: 700; font-size: 1rem; color: #0f172a; display: flex; align-items: center; gap: 0.5rem;">
                 LoRa Pipeline & Feature Controls
-                <span class="pill pill-cyan" id="pipeline-status-badge" style="font-size: 0.7rem; padding: 0.2rem 0.55rem;">PIPELINE ACTIVE</span>
+                <span class="pill pill-cyan" id="pipeline-status-badge" style="font-size: 0.68rem; padding: 0.15rem 0.5rem;">PIPELINE ACTIVE</span>
               </div>
-              <div style="font-size: 0.8rem; color: #64748b;">Instant edge ingestion controls, multi-scheme decoders, HA dispatch & local rule automation</div>
+              <div style="font-size: 0.78rem; color: #64748b;">Instant edge ingestion controls, multi-scheme decoders, HA dispatch & local rule automation</div>
             </div>
           </div>
           <div style="display: flex; gap: 0.4rem; align-items: center;">
@@ -648,20 +718,20 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; padding-top: 1rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.65rem; padding-top: 0.85rem;">
           
           <!-- Toggle 1: Decoding Engine -->
-          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-              <span style="font-size: 1.15rem; flex-shrink: 0;">🧩</span>
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.55rem; min-width: 0;">
+              <span style="font-size: 1.1rem; flex-shrink: 0;">🧩</span>
               <div style="min-width: 0;">
-                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Payload Decoding Engine</div>
-                <div style="font-size: 0.73rem; color: #64748b;">Node CAFE, Cayenne LPP, TLV</div>
+                <div style="font-weight: 600; font-size: 0.84rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Payload Decoding</div>
+                <div style="font-size: 0.72rem; color: #64748b;">Node CAFE, Cayenne, TLV</div>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.4rem;">
               <span id="badge-decoding_enabled" class="chip-status chip-active">ACTIVE</span>
-              <label class="switch">
+              <label class="switch" style="transform: scale(0.85); transform-origin: right center;">
                 <input type="checkbox" id="toggle-decoding-enabled" onchange="togglePipelineFeature('decoding_enabled', this.checked)">
                 <span class="slider"></span>
               </label>
@@ -669,17 +739,17 @@
           </div>
 
           <!-- Toggle 2: Home Assistant Telemetry -->
-          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-              <span style="font-size: 1.15rem; flex-shrink: 0;">🏠</span>
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.55rem; min-width: 0;">
+              <span style="font-size: 1.1rem; flex-shrink: 0;">🏠</span>
               <div style="min-width: 0;">
-                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">HA MQTT Telemetry</div>
-                <div style="font-size: 0.73rem; color: #64748b;">Publish <code style="color: #2563eb; font-size: 0.7rem;">lora/&lt;node&gt;/state</code></div>
+                <div style="font-weight: 600; font-size: 0.84rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">HA Telemetry</div>
+                <div style="font-size: 0.72rem; color: #64748b;">MQTT lora/&lt;node&gt;/state</div>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.4rem;">
               <span id="badge-ha_telemetry_enabled" class="chip-status chip-active">ACTIVE</span>
-              <label class="switch">
+              <label class="switch" style="transform: scale(0.85); transform-origin: right center;">
                 <input type="checkbox" id="toggle-ha-telemetry-enabled" onchange="togglePipelineFeature('ha_telemetry_enabled', this.checked)">
                 <span class="slider"></span>
               </label>
@@ -687,17 +757,17 @@
           </div>
 
           <!-- Toggle 3: HA Discovery -->
-          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-              <span style="font-size: 1.15rem; flex-shrink: 0;">🔍</span>
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.55rem; min-width: 0;">
+              <span style="font-size: 1.1rem; flex-shrink: 0;">🔍</span>
               <div style="min-width: 0;">
-                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">HA Auto-Discovery</div>
-                <div style="font-size: 0.73rem; color: #64748b;">Zero-config entity mapping</div>
+                <div style="font-weight: 600; font-size: 0.84rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">HA Auto-Discovery</div>
+                <div style="font-size: 0.72rem; color: #64748b;">Zero-config entity mapping</div>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.4rem;">
               <span id="badge-ha_discovery_enabled" class="chip-status chip-active">ACTIVE</span>
-              <label class="switch">
+              <label class="switch" style="transform: scale(0.85); transform-origin: right center;">
                 <input type="checkbox" id="toggle-ha-discovery-enabled" onchange="togglePipelineFeature('ha_discovery_enabled', this.checked)">
                 <span class="slider"></span>
               </label>
@@ -705,17 +775,17 @@
           </div>
 
           <!-- Toggle 4: Gateway Heartbeat -->
-          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-              <span style="font-size: 1.15rem; flex-shrink: 0;">📡</span>
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.55rem; min-width: 0;">
+              <span style="font-size: 1.1rem; flex-shrink: 0;">📡</span>
               <div style="min-width: 0;">
-                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Gateway Heartbeat</div>
-                <div style="font-size: 0.73rem; color: #64748b;">SX1302 temp, uptime & stats</div>
+                <div style="font-weight: 600; font-size: 0.84rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Gateway Heartbeat</div>
+                <div style="font-size: 0.72rem; color: #64748b;">SX1302 temp & stats</div>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.4rem;">
               <span id="badge-ha_gateway_telemetry_enabled" class="chip-status chip-active">ACTIVE</span>
-              <label class="switch">
+              <label class="switch" style="transform: scale(0.85); transform-origin: right center;">
                 <input type="checkbox" id="toggle-ha-gateway-telemetry-enabled" onchange="togglePipelineFeature('ha_gateway_telemetry_enabled', this.checked)">
                 <span class="slider"></span>
               </label>
@@ -723,17 +793,17 @@
           </div>
 
           <!-- Toggle 5: SQLite Logging -->
-          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-              <span style="font-size: 1.15rem; flex-shrink: 0;">🗄️</span>
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.55rem; min-width: 0;">
+              <span style="font-size: 1.1rem; flex-shrink: 0;">🗄️</span>
               <div style="min-width: 0;">
-                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">SQLite Packet Store</div>
-                <div style="font-size: 0.73rem; color: #64748b;">Historical log & RSSI analytics</div>
+                <div style="font-weight: 600; font-size: 0.84rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">SQLite Packet Store</div>
+                <div style="font-size: 0.72rem; color: #64748b;">Historical log & analytics</div>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.4rem;">
               <span id="badge-sqlite_logging_enabled" class="chip-status chip-active">ACTIVE</span>
-              <label class="switch">
+              <label class="switch" style="transform: scale(0.85); transform-origin: right center;">
                 <input type="checkbox" id="toggle-sqlite-logging-enabled" onchange="togglePipelineFeature('sqlite_logging_enabled', this.checked)">
                 <span class="slider"></span>
               </label>
@@ -741,17 +811,17 @@
           </div>
 
           <!-- Toggle 6: Edge Automation Links -->
-          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-              <span style="font-size: 1.15rem; flex-shrink: 0;">⚡</span>
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.55rem; min-width: 0;">
+              <span style="font-size: 1.1rem; flex-shrink: 0;">⚡</span>
               <div style="min-width: 0;">
-                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Edge Automation Rules</div>
-                <div style="font-size: 0.73rem; color: #64748b;">Direct sensor-to-actuator triggers</div>
+                <div style="font-weight: 600; font-size: 0.84rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Edge Automation</div>
+                <div style="font-size: 0.72rem; color: #64748b;">Sensor-to-actuator rules</div>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.4rem;">
               <span id="badge-linking_enabled" class="chip-status chip-active">ACTIVE</span>
-              <label class="switch">
+              <label class="switch" style="transform: scale(0.85); transform-origin: right center;">
                 <input type="checkbox" id="toggle-linking-enabled" onchange="togglePipelineFeature('linking_enabled', this.checked)">
                 <span class="slider"></span>
               </label>
@@ -759,17 +829,17 @@
           </div>
 
           <!-- Toggle 7: Strict Enrollment Gate -->
-          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-              <span style="font-size: 1.15rem; flex-shrink: 0;">🛡️</span>
+          <div class="pipeline-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.55rem; min-width: 0;">
+              <span style="font-size: 1.1rem; flex-shrink: 0;">🛡️</span>
               <div style="min-width: 0;">
-                <div style="font-weight: 600; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Strict Enrollment Gate</div>
-                <div style="font-size: 0.73rem; color: #64748b;">Filter unverified rogue nodes</div>
+                <div style="font-weight: 600; font-size: 0.84rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Strict Enrollment Gate</div>
+                <div style="font-size: 0.72rem; color: #64748b;">Drop unverified nodes</div>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.4rem;">
               <span id="badge-filter_unregistered_nodes" class="chip-status chip-disabled">OFF</span>
-              <label class="switch">
+              <label class="switch" style="transform: scale(0.85); transform-origin: right center;">
                 <input type="checkbox" id="toggle-filter-unregistered-nodes" onchange="togglePipelineFeature('filter_unregistered_nodes', this.checked)">
                 <span class="slider"></span>
               </label>
@@ -779,25 +849,31 @@
         </div>
       </div>
 
-
+      <!-- ROW 4: FULL-WIDTH LIVE PACKETS TABLE -->
       <div class="card">
-        <div class="card-header">
-          <span class="card-title">Live LoRa RF Packets Received</span>
+        <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding-bottom: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 1.2rem;">📡</span>
+            <div>
+              <span class="card-title" style="font-size: 0.95rem;">Live LoRa RF Packets Received</span>
+              <div style="font-size: 0.75rem; color: #64748b;">Real-time packet ingestion stream with decoded payload preview</div>
+            </div>
+          </div>
           <button class="btn btn-secondary btn-sm" onclick="loadRecentPackets()">↻ Refresh Packets</button>
         </div>
-        <div class="table-responsive">
+        <div class="table-responsive" style="margin-top: 0.5rem;">
           <table class="data-table">
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Freq (MHz)</th>
-                <th>Data Rate</th>
-                <th>RSSI</th>
-                <th>SNR</th>
-                <th>Node ID</th>
+                <th style="width: 85px;">Time</th>
+                <th style="width: 100px;">Freq (MHz)</th>
+                <th style="width: 90px;">Data Rate</th>
+                <th style="width: 85px;">RSSI</th>
+                <th style="width: 75px;">SNR</th>
+                <th style="width: 90px;">Node ID</th>
                 <th>Payload (HEX)</th>
                 <th>Decoded Preview</th>
-                <th>Actions</th>
+                <th style="width: 90px;">Actions</th>
               </tr>
             </thead>
             <tbody id="dash-packets-tbody">
@@ -807,6 +883,7 @@
         </div>
       </div>
     </div>
+
 
     <!-- TAB 2: DECODERS & WORKBENCH -->
     <div id="tab-decoders" class="tab-content">
@@ -2060,16 +2137,19 @@
       if (!grid) return;
       const freqs = ['867.1', '867.3', '867.5', '867.7', '867.9', '868.1', '868.3', '868.5'];
       let html = '';
+      const counts = Object.values(detects);
+      const maxHits = counts.length ? Math.max(...counts, 1) : 1;
       for (let ch = 0; ch < 8; ch++) {
         const count = detects[ch] || 0;
+        const pct = Math.min(Math.round((count / maxHits) * 100), 100);
         html += `
-          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.6rem 0.8rem;">
-            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.25rem;">
-              <span style="color: var(--text-muted); font-family: var(--font-mono);">CH${ch} (${freqs[ch]} MHz)</span>
-              <strong style="color: var(--primary); font-family: var(--font-mono);">${count} hits</strong>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.6rem 0.8rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.35rem; align-items: center;">
+              <span style="color: #475569; font-family: var(--font-mono); font-weight: 600;">CH${ch} (${freqs[ch]} MHz)</span>
+              <strong style="color: #2563eb; font-family: var(--font-mono);">${count} hits</strong>
             </div>
-            <div class="progress-bar-bg" style="height: 5px; margin-top: 0.2rem;">
-              <div class="progress-bar-fill" style="width: ${Math.min(count * 10, 100)}%;"></div>
+            <div class="progress-bar-bg" style="height: 6px; background: #e2e8f0; border-radius: 3px;">
+              <div class="progress-bar-fill" style="width: ${pct}%; height: 100%; background: #2563eb; border-radius: 3px;"></div>
             </div>
           </div>
         `;
@@ -3562,6 +3642,5 @@
       loadConcentratorConfig();
     });
   </script>
-  </div>
 </body>
 </html>
