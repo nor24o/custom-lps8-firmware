@@ -16,15 +16,19 @@ import sqlite3
 import threading
 import traceback
 import collections
-from datetime import datetime
+from datetime import datetime, timezone
+from packet_profiles import identify_packet
+from decoder_js import run_script
 
 CONFIG_PATH = "/etc/lora/config.json"
 DECODERS_PATH = "/etc/lora/decoders.json"
 SATELLITES_PATH = "/etc/lora/satellites.json"
+PROFILES_PATH = "/etc/lora/packet_profiles.json"
 CONCENTRATORS_JSON = "/tmp/lora_concentrators.json"
 DB_NODES_PATH = "/etc/lora/nodes.db"
 DB_RAM_PATH = "/tmp/lora_messages.db"
 PACKETS_JSON = "/tmp/lora_packets.json"
+UNKNOWN_JSON = "/dev/shm/lora_unknown.json"
 
 PORT_UP = 5555
 PORT_SEMTECH = 1700
@@ -100,6 +104,11 @@ class ConcentratorTracker:
                         with self.lock:
                             for s in sats:
                                 gid = s.get("gateway_id")
+                                if gid in self.concentrators and gid != self.main_eui:
+                                    gateway = self.concentrators[gid]
+                                    for field in ('name', 'ip', 'protocol'):
+                                        if s.get(field):
+                                            gateway[field] = s[field]
                                 if gid and gid not in self.concentrators:
                                     self.concentrators[gid] = {
                                         "gateway_id": gid,
@@ -277,7 +286,7 @@ class ConcentratorTracker:
             for gid, gw in self.concentrators.items():
                 if gw["type"] == "satellite" and gw.get("last_seen") and gw["last_seen"] != "--":
                     try:
-                        t = datetime.strptime(gw["last_seen"], "%Y-%m-%d %H:%M:%S").timestamp()
+                        t = datetime.strptime(gw["last_seen"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
                         if (now_ts - t) > 120:
                             gw["status"] = "STANDBY"
                     except Exception:
@@ -291,6 +300,32 @@ g_tracker = ConcentratorTracker()
 # Live Rolling Packets Buffer & TTN Multi-Gateway Deduplication Engine
 # -----------------------------------------------------------------------------
 g_live_packets = collections.deque(maxlen=60)
+g_stream_seq = 0
+g_stream_seq_lock = threading.Lock()
+g_stream_id = "%s-%X" % (os.getpid(), int(time.time()))
+g_udp_stream_sock = None
+g_udp_stream_lock = threading.Lock()
+
+
+def next_stream_seq():
+    """Return a process-local monotonic sequence for emitted joined events."""
+    global g_stream_seq
+    with g_stream_seq_lock:
+        g_stream_seq = (g_stream_seq + 1) & 0xFFFFFFFF
+        return g_stream_seq
+
+
+def emit_udp_json(payload, dest_ip, dest_port, broadcast=False):
+    """Emit one compact JSON datagram using a reusable socket."""
+    global g_udp_stream_sock
+    encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    with g_udp_stream_lock:
+        if g_udp_stream_sock is None:
+            g_udp_stream_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            g_udp_stream_sock.setblocking(False)
+        if broadcast:
+            g_udp_stream_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        g_udp_stream_sock.sendto(encoded, (dest_ip, int(dest_port)))
 
 def push_live_joined_packet(pkt_dict):
     g_live_packets.appendleft(pkt_dict)
@@ -314,9 +349,25 @@ class TTNDeduplicator:
         self.flush_thread.start()
 
     def ingest_packet(self, raw_bytes, raw_hex, freq, datr, rssi, snr, gw_id, gw_name, gw_ip, gw_port, protocol, raw_pkt):
-        now = time.time()
-        # Dedup key: payload hex + rounded frequency + datarate
-        key = f"{raw_hex}_{round(float(freq), 1)}_{datr}"
+        now = time.monotonic()
+        freq_hz = int(round(float(freq) * 1000000.0))
+        modu = str(raw_pkt.get("modu", "LORA")).upper()
+        size = int(raw_pkt.get("size", len(raw_bytes)))
+        # Do not round MHz to one decimal: that can merge adjacent 100 kHz
+        # channels. The payload and RF tuple are the packet identity here.
+        key = f"{raw_hex}:{freq_hz}:{modu}:{datr}:{size}"
+        correlated = False
+        settings = load_config().get('pipeline', {})
+        self.window_s = max(0.025, min(5.0, float(settings.get('dedup_window_ms', 150)) / 1000.0))
+        if settings.get('join_frequency_repeats', True):
+            try:
+                with open(PROFILES_PATH, encoding='utf-8') as f:
+                    identity = identify_packet(raw_bytes, json.load(f).get('profiles', []))
+                if identity and identity.get('counter') is not None:
+                    key = f"{identity['device_id']}:{identity['counter']}:{raw_hex}"
+                    correlated = True
+            except (OSError, ValueError, TypeError):
+                pass
 
         gw_entry = {
             "gateway_id": gw_id,
@@ -331,8 +382,26 @@ class TTNDeduplicator:
             "tmst": raw_pkt.get("tmst", 0),
             "time": raw_pkt.get("time", datetime.utcnow().isoformat() + "Z")
         }
+        if raw_pkt.get("_ingress_seq") is not None:
+            gw_entry["ingress_seq"] = raw_pkt.get("_ingress_seq")
 
         with self.lock:
+            if not correlated:
+                candidates = [(k, v) for k, v in self.active_packets.items()
+                              if (k == key or k.startswith(key + ':rx:'))]
+                matched_key = None
+                for candidate_key, candidate in reversed(candidates):
+                    prior = next((g for g in candidate['gateways'] if g['gateway_id'] == gw_id and g['freq'] == float(freq)), None)
+                    if prior is None or (raw_pkt.get('tmst') is not None and prior.get('tmst') == raw_pkt.get('tmst')):
+                        matched_key = candidate_key
+                        break
+                if matched_key is not None:
+                    key = matched_key
+                elif candidates:
+                    key += ':rx:' + str(time.monotonic_ns())
+            if len(self.active_packets) >= 4096 and key not in self.active_packets:
+                print('[DEDUP-DROP] Pending reception capacity exceeded')
+                return
             if key not in self.active_packets:
                 self.active_packets[key] = {
                     "key": key,
@@ -347,18 +416,29 @@ class TTNDeduplicator:
                 }
             else:
                 entry = self.active_packets[key]
-                existing_gw_ids = [g["gateway_id"] for g in entry["gateways"]]
-                if gw_id not in existing_gw_ids:
+                existing_gw_ids = [(g["gateway_id"], g['freq']) for g in entry["gateways"]]
+                reception_id = (gw_id, float(freq))
+                if reception_id not in existing_gw_ids:
                     entry["gateways"].append(gw_entry)
+                    print(f"[TTN-DEDUP] Overheard duplicate packet from Gateway [{gw_id}] (RSSI {rssi} dBm, SNR {snr} dB). Joined! (Total gateways: {len(entry['gateways'])})")
+                else:
+                    index = existing_gw_ids.index(reception_id)
+                    previous = entry["gateways"][index]
+                    if (gw_entry["snr"], gw_entry["rssi"]) > (previous["snr"], previous["rssi"]):
+                        entry["gateways"][index] = gw_entry
+                    else:
+                        gw_entry = previous
                 curr_best = entry["best_gateway"]
                 if float(snr) > curr_best["snr"] or (float(snr) == curr_best["snr"] and float(rssi) > curr_best["rssi"]):
                     entry["best_gateway"] = gw_entry
-                print(f"[TTN-DEDUP] Overheard duplicate packet from Gateway [{gw_id}] (RSSI {rssi} dBm, SNR {snr} dB). Joined! (Total gateways: {len(entry['gateways'])})")
+                    entry['raw_pkt'] = raw_pkt
+                    entry['freq'] = float(freq)
+                    entry['datr'] = str(datr)
 
     def _flush_loop(self):
         while self.running:
             time.sleep(0.025)
-            now = time.time()
+            now = time.monotonic()
             to_flush = []
             with self.lock:
                 expired = [k for k, v in self.active_packets.items() if now - v["first_seen"] >= self.window_s]
@@ -508,6 +588,11 @@ def decode_fields_slicer(raw_bytes, fields):
 
         if off >= n:
             continue
+        if off < 0 or flen < 1:
+            continue
+        if ftype == 'bool':
+            out[name] = bool(raw_bytes[off])
+            continue
 
         if ftype == "hex":
             end = min(off + flen, n)
@@ -540,6 +625,18 @@ def decode_fields_slicer(raw_bytes, fields):
                 val = struct.unpack(">I", raw_bytes[off:off + 4])[0]
             elif ftype == "uint32_le":
                 val = struct.unpack("<I", raw_bytes[off:off + 4])[0]
+            elif ftype == 'int32_be':
+                val = struct.unpack('>i', raw_bytes[off:off + 4])[0]
+            elif ftype in ('int24_be', 'uint24_be'):
+                if off + 3 > n:
+                    continue
+                val = int.from_bytes(raw_bytes[off:off + 3], 'big', signed=ftype=='int24_be')
+            elif ftype == 'int32_le':
+                val = struct.unpack('<i', raw_bytes[off:off + 4])[0]
+            elif ftype == 'float32_be':
+                val = struct.unpack('>f', raw_bytes[off:off + 4])[0]
+            elif ftype == 'float32_le':
+                val = struct.unpack('<f', raw_bytes[off:off + 4])[0]
             computed = round((val * scale) + add, 3)
             out[name] = computed
             if unit:
@@ -582,7 +679,7 @@ def decode_aa0c(raw_bytes, hex_str):
     }
 
 
-def execute_decoder(raw_bytes, hex_str, schemes, dec_enabled=True):
+def execute_decoder(raw_bytes, hex_str, schemes, dec_enabled=True, packet=None):
     clean_hex = hex_str.lower()
     if not dec_enabled:
         return "raw_disabled", "Raw Passthrough (Decoding Disabled)", {"hex": hex_str, "raw_hex": hex_str, "decoding": False}
@@ -606,20 +703,34 @@ def execute_decoder(raw_bytes, hex_str, schemes, dec_enabled=True):
                 matched = (len(raw_bytes) == int(m_val))
             except ValueError:
                 pass
+        elif m_type == 'regex':
+            try:
+                matched = run_script('return new RegExp(' + json.dumps(m_val) + ', "i").test(hex);', raw_bytes, hex_str, condition=True)
+            except ValueError:
+                matched = False
         elif m_type == "condition":
             if s_id == "scheme_ascii_ping":
                 matched = is_printable_ascii(raw_bytes)
             elif s_id == "scheme_2b_node_tlv":
                 matched = (len(raw_bytes) >= 4)
             else:
-                matched = True
+                try:
+                    matched = run_script(s.get('matchCondition', ''), raw_bytes, hex_str, packet, condition=True)
+                except ValueError:
+                    matched = False
         elif m_type == "default":
             matched = True
 
         if matched:
             name = s.get("name", s_id)
+            if s_type == 'js':
+                return s_id, name, run_script(s.get('jsCode', ''), raw_bytes, hex_str, packet)
+            if s_type == 'fields':
+                return s_id, name, decode_fields_slicer(raw_bytes, s.get('fields', []))
+            if s_type == 'ascii':
+                return s_id, name, {'text': raw_bytes.decode('ascii', errors='replace')}
             # 1. Node CAFE special handling (Multi-Sensor LPP)
-            if s_id == "scheme_node_cafe" or clean_hex.startswith("cafe"):
+            if s_id == "scheme_node_cafe" and s_type == 'cayenne_lpp':
                 res = {}
                 if len(raw_bytes) >= 6:
                     res["node_id"] = raw_bytes[0:2].hex().upper()
@@ -647,9 +758,9 @@ def execute_decoder(raw_bytes, hex_str, schemes, dec_enabled=True):
                 return s_id, name, res
 
             # 3. AA0B / AA0C
-            if s_id == "scheme_aa0b" or clean_hex.startswith("aa0b"):
+            if s_id == "scheme_aa0b" and s_type == 'js':
                 return s_id, name, decode_aa0b(raw_bytes, hex_str)
-            if s_id == "scheme_aa0c" or clean_hex.startswith("aa0c"):
+            if s_id == "scheme_aa0c" and s_type == 'js':
                 return s_id, name, decode_aa0c(raw_bytes, hex_str)
 
             # 4. ASCII
@@ -722,8 +833,9 @@ def is_node_registered(node_id):
         row = cur.fetchone()
         con.close()
         return bool(row and row[0] == 1)
-    except Exception:
-        return True
+    except Exception as e:
+        print(f"[GATE-ERR] Cannot check enrollment: {e}")
+        return False
 
 
 def record_to_databases(node_id, pkt, raw_hex, decoded_dict):
@@ -779,7 +891,16 @@ def record_to_databases(node_id, pkt, raw_hex, decoded_dict):
 # -----------------------------------------------------------------------------
 # LoRa Downlink Dispatcher (UDP 5556)
 # -----------------------------------------------------------------------------
-def dispatch_lora_downlink(target_node, payload_hex_or_str, power_dbm=27, datr="SF7BW125", freq_mhz=868.1):
+def dispatch_lora_downlink(target_node, payload_hex_or_str, power_dbm=None, datr=None, freq_mhz=None):
+    cfg = load_config()
+    target_node = next((canonical for canonical, alias in cfg.get('device_aliases', {}).items() if alias == target_node), target_node)
+    rules = cfg.get('downlinks', {})
+    rx = dict(rules.get('defaults', {}))
+    rx.update(rules.get('types', {}).get(target_node.split('-')[0], {}))
+    rx.update(rules.get('devices', {}).get(target_node, {}))
+    power_dbm = power_dbm if power_dbm is not None else rx.get('power', cfg.get('tx_default_power', 14))
+    datr = datr or 'SF%dBW125' % rx.get('sf', cfg.get('tx_default_sf', 7))
+    freq_mhz = freq_mhz if freq_mhz is not None else rx.get('freq', cfg.get('tx_default_freq', 868100000) / 1e6)
     payload_str = str(payload_hex_or_str).strip()
     if payload_str.upper() == "ON" or payload_str == "1":
         raw_bytes = bytes.fromhex("0101")
@@ -830,8 +951,8 @@ def evaluate_linking_rules(source_node, decoded_dict):
                    target_node, action_type, action_payload, turnaround_delay_ms, cooldown_sec,
                    last_triggered
             FROM node_links
-            WHERE enabled = 1 AND source_node = ?
-        """, (source_node,))
+            WHERE enabled = 1 AND source_node IN (?, ?)
+        """, (source_node, load_config().get('device_aliases', {}).get(source_node, source_node)))
         rules = cur_nodes.fetchall()
         con_nodes.close()
     except Exception as e:
@@ -844,8 +965,8 @@ def evaluate_linking_rules(source_node, decoded_dict):
 
         if last_trig_str:
             try:
-                last_trig_t = datetime.strptime(last_trig_str, "%Y-%m-%d %H:%M:%S").timestamp()
-                if (now - last_trig_t) < (cooldown_sec or 30):
+                last_trig_t = datetime.strptime(last_trig_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+                if (now - last_trig_t) < (cooldown_sec if cooldown_sec is not None else 30):
                     continue
             except Exception:
                 pass
@@ -872,7 +993,11 @@ def evaluate_linking_rules(source_node, decoded_dict):
         elif val_num is not None:
             if op == ">" and val_num > thresh:
                 trigger_match = True
+            elif op == '>=' and val_num >= thresh:
+                trigger_match = True
             elif op == "<" and val_num < thresh:
+                trigger_match = True
+            elif op == '<=' and val_num <= thresh:
                 trigger_match = True
             elif op == "==" and abs(val_num - thresh) < 0.001:
                 trigger_match = True
@@ -890,10 +1015,19 @@ def evaluate_linking_rules(source_node, decoded_dict):
             except Exception:
                 pass
 
-            if turnaround_ms and turnaround_ms > 0:
-                time.sleep(turnaround_ms / 1000.0)
-
-            dispatch_lora_downlink(target_node, action_payload)
+            def run_action(target=target_node, payload=action_payload, rule_id=link_id, source=src):
+                dispatched = dispatch_lora_downlink(target, payload)
+                status = 'DISPATCHED' if dispatched else 'FAILED'
+                try:
+                    with sqlite3.connect(DB_NODES_PATH, timeout=3) as audit:
+                        audit.execute('UPDATE node_links SET last_status=? WHERE link_id=?', (status, rule_id))
+                    with sqlite3.connect(DB_RAM_PATH, timeout=3) as audit:
+                        audit.execute("INSERT INTO link_execution_logs (link_id,timestamp,event_type,source_node,target_node,tx_status,details) VALUES (?,CURRENT_TIMESTAMP,'AUTOMATION',?,?,?,?)", (rule_id, source, target, status, 'Triggered by decoded telemetry'))
+                except sqlite3.Error as exc:
+                    print(f'[RULE-AUDIT-ERR] {exc}')
+            timer = threading.Timer(max(0, turnaround_ms or 0) / 1000.0, run_action)
+            timer.daemon = True
+            timer.start()
 
 
 # -----------------------------------------------------------------------------
@@ -918,7 +1052,7 @@ class MqttBridgeSupervisor(threading.Thread):
 
             host = m_cfg.get("server", "127.0.0.1")
             port = int(m_cfg.get("port", 1883))
-            user = m_cfg.get("user", "")
+            user = m_cfg.get("user", m_cfg.get("username", ""))
             passwd = m_cfg.get("password", "")
 
             try:
@@ -932,6 +1066,9 @@ class MqttBridgeSupervisor(threading.Thread):
 
                 self.client.connect(host, port, keepalive=60)
                 self.client.loop_start()
+                deadline = time.monotonic() + 5
+                while not self.connected and time.monotonic() < deadline:
+                    time.sleep(.1)
 
                 while self.connected:
                     time.sleep(10)
@@ -942,6 +1079,8 @@ class MqttBridgeSupervisor(threading.Thread):
                         self.sync_all_discovery()
 
                 self.client.loop_stop()
+                self.client.disconnect()
+                self.connected = False
             except Exception as e:
                 print(f"[MQTT-CONN-ERR] {e}")
                 time.sleep(5)
@@ -1340,16 +1479,49 @@ def raw_lora_watchdog_thread():
 # Main Ingestion UDP Loop (Dual-Port: 5555 JSON & 1700 Semtech Forwarders)
 # -----------------------------------------------------------------------------
 g_mqtt_supervisor = None
+g_unknown = collections.OrderedDict()
+
+
+def remember_unknown(node_id, identity):
+    g_unknown.pop(node_id, None)
+    g_unknown[node_id] = dict(identity, last_seen=datetime.utcnow().isoformat() + "Z")
+    while len(g_unknown) > 300:
+        evicted, _ = g_unknown.popitem(last=False)
+        with g_tracker.lock:
+            for gateway in g_tracker.concentrators.values():
+                gateway.get("nodes", {}).pop(evicted, None)
+    path = UNKNOWN_JSON
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(g_unknown, f)
+    os.replace(path + ".tmp", path)
 
 
 def on_joined_packet(entry):
     raw_bytes = entry["raw_bytes"]
     raw_hex = entry["raw_hex"]
     gateways = entry["gateways"]
+    gateway_count = len(set(g['gateway_id'] for g in gateways))
     best_gw = entry["best_gateway"]
     freq = entry["freq"]
     datr = entry["datr"]
     pkt = entry["raw_pkt"]
+
+    identity = None
+    profile_error = None
+    try:
+        with open(PROFILES_PATH, "r", encoding="utf-8") as profile_file:
+            identity = identify_packet(raw_bytes, json.load(profile_file).get("profiles", []))
+    except FileNotFoundError:
+        profile_error = "Profile configuration missing"
+    except (ValueError, TypeError, OSError) as exc:
+        profile_error = str(exc)
+    if not identity:
+        push_live_joined_packet({"time": datetime.utcnow().strftime("%H:%M:%S"),
+            "hex": raw_hex, "freq": freq, "datr": datr, "rssi": best_gw["rssi"],
+            "snr": best_gw["snr"], "gateways": gateways, "gateways_count": len(gateways),
+            "node_id": "UNRECOGNIZED", "status": "invalid" if profile_error else "unrecognized",
+            "error": profile_error, "decoded": {}, "lora_packet": {k:v for k,v in pkt.items() if not k.startswith('_')}})
+        return
 
     cfg = load_config()
     pipeline = cfg.get("pipeline", {})
@@ -1361,18 +1533,40 @@ def on_joined_packet(entry):
 
     # 1. Multi-Scheme Decoder Engine
     schemes, global_rule = load_decoders()
-    scheme_id, scheme_name, decoded = execute_decoder(raw_bytes, raw_hex, schemes, dec_enabled=dec_enabled)
+    selected = next((s for s in schemes if s.get("id") == identity.get("decoder_id")), None)
+    if selected:
+        selected = dict(selected, matchType='default')
+        dec_enabled = dec_enabled and selected.get('enabled', True)
+    try:
+        scheme_id, scheme_name, decoded = execute_decoder(raw_bytes, raw_hex, [selected] if selected else schemes, dec_enabled=dec_enabled, packet=pkt)
+    except ValueError as exc:
+        scheme_id, scheme_name, decoded = 'error', 'Decoder error', {'decode_error': str(exc), 'raw_hex': raw_hex}
 
     # 2. Extract Node ID
-    node_id = extract_node_id(raw_bytes, raw_hex, decoded, schemes, global_rule)
+    node_id = identity["device_id"]
+    registered = is_node_registered(node_id)
+    registration_status = "registered" if registered else "unknown"
+    if not registered:
+        remember_unknown(node_id, identity)
+    else:
+        g_unknown.pop(node_id, None)
 
     # 3. Strict Registered Node Filter
-    if filter_unregistered and not is_node_registered(node_id):
-        print(f"[GATE-DROP] Node [{node_id}] rejected by unregistered filter")
-        return
+    # Recognized unknown devices are intentionally forwarded with a marker.
+
+    stream_seq = next_stream_seq()
 
     # Attach RF & Multi-Gateway Metadata
     telemetry_payload = dict(decoded)
+    telemetry_payload["registration_status"] = registration_status
+    telemetry_payload["device_id"] = node_id
+    telemetry_payload['lora_packet'] = {k:v for k,v in pkt.items() if not k.startswith('_')}
+    telemetry_payload.update(event='uplink_joined', v=1, stream_id=g_stream_id,
+        seq=stream_seq, event_id=g_stream_id + '-%08X' % stream_seq,
+        timestamp=datetime.utcnow().isoformat() + 'Z', telemetry=decoded,
+        raw_hex=raw_hex, node_id=node_id, best_gateway=best_gw)
+    if identity:
+        telemetry_payload["identity"] = identity
     telemetry_payload["rssi"] = best_gw["rssi"]
     telemetry_payload["snr"] = best_gw["snr"]
     telemetry_payload["freq"] = freq
@@ -1381,7 +1575,8 @@ def on_joined_packet(entry):
     telemetry_payload["gateway_id"] = best_gw["gateway_id"]
     telemetry_payload["gateway_name"] = best_gw["gateway_name"]
     telemetry_payload["gateway_ip"] = best_gw["gateway_ip"]
-    telemetry_payload["gateways_count"] = len(gateways)
+    telemetry_payload["gateways_count"] = gateway_count
+    telemetry_payload["receptions_count"] = len(gateways)
     telemetry_payload["deduplicated"] = len(gateways) > 1
     telemetry_payload["gateways"] = gateways
     telemetry_payload["last_seen"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -1404,11 +1599,15 @@ def on_joined_packet(entry):
         print(f"             Decoded: {decoded}")
 
     # 5. Database Logging
-    if sqlite_logging_enabled:
+    if sqlite_logging_enabled and registered:
         record_to_databases(node_id, pkt, raw_hex, decoded)
 
     # 6. Push to Live Packets for Web UI
     push_live_joined_packet({
+        "v": 1,
+        "stream_id": g_stream_id,
+        "seq": stream_seq,
+        "event_id": "bridge-%08X" % stream_seq,
         "time": datetime.utcnow().strftime("%H:%M:%S"),
         "freq": freq,
         "datr": datr,
@@ -1417,9 +1616,13 @@ def on_joined_packet(entry):
         "hex": raw_hex,
         "size": len(raw_bytes),
         "node_id": node_id,
+        "identity": identity,
+        "registration_status": registration_status,
+        "lora_packet": telemetry_payload['lora_packet'],
         "decoded": decoded,
         "deduplicated": len(gateways) > 1,
-        "gateways_count": len(gateways),
+        "gateways_count": gateway_count,
+        "receptions_count": len(gateways),
         "best_gateway": best_gw,
         "gateways": gateways
     })
@@ -1431,33 +1634,46 @@ def on_joined_packet(entry):
         dest_port = int(udp_cfg.get("dest_port", 9999))
         is_bcast = bool(udp_cfg.get("broadcast", False))
         telemetry_event = {
+            "v": 1,
             "event": "uplink_joined",
+            "stream_id": g_stream_id,
+            "seq": stream_seq,
+            "event_id": g_stream_id + '-%08X' % stream_seq,
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "node_id": node_id,
+            "identity": identity,
+            "registration_status": registration_status,
             "deduplicated": len(gateways) > 1,
-            "gateways_count": len(gateways),
+            "gateways_count": gateway_count,
+            "receptions_count": len(gateways),
             "best_gateway": best_gw,
             "gateways": gateways,
             "raw_hex": raw_hex,
             "telemetry": decoded
         }
+        telemetry_event.update(telemetry_payload)
         try:
-            u_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            if is_bcast:
-                u_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            u_sock.sendto(json.dumps(telemetry_event).encode("utf-8"), (dest_ip, dest_port))
-            u_sock.close()
+            emit_udp_json(telemetry_event, dest_ip, dest_port, broadcast=is_bcast)
         except Exception as e:
             print(f"[UDP-STREAM-ERR] Failed emitting to {dest_ip}:{dest_port}: {e}")
 
     # 8. Home Assistant MQTT Telemetry (if enabled)
     if ha_telemetry_enabled and g_mqtt_supervisor:
-        for gw in gateways:
-            g_mqtt_supervisor.publish_node_telemetry(node_id, telemetry_payload, gw_id=gw["gateway_id"])
-            g_mqtt_supervisor.publish_concentrator_state(gw["gateway_id"])
+        g_mqtt_supervisor.publish_node_telemetry(node_id, telemetry_payload)
+        alias = cfg.get('device_aliases', {}).get(node_id)
+        if alias:
+            g_mqtt_supervisor.publish_node_telemetry(alias, telemetry_payload)
+        topic_root = cfg.get('mqtt', {}).get('state_prefix', 'lora')
+        for gateway_id in set(gw['gateway_id'] for gw in gateways):
+            reception = max((gw for gw in gateways if gw['gateway_id'] == gateway_id), key=lambda gw: (gw['snr'], gw['rssi']))
+            gateway_metrics = dict(telemetry_payload, gateway_id=gateway_id, rssi=reception['rssi'], snr=reception['snr'], freq=reception['freq'])
+            g_mqtt_supervisor.publish(f'{topic_root}/gateways/{gateway_id}/nodes/{node_id}/state', json.dumps(gateway_metrics), retain=True)
+            if alias:
+                g_mqtt_supervisor.publish(f'{topic_root}/gateways/{gateway_id}/nodes/{alias}/state', json.dumps(gateway_metrics), retain=True)
+            g_mqtt_supervisor.publish_concentrator_state(gateway_id)
 
     # 9. Edge Device Linking Rules
-    if linking_enabled:
+    if linking_enabled and registered:
         evaluate_linking_rules(node_id, decoded)
 
 
@@ -1475,6 +1691,8 @@ def main():
     g_mqtt_supervisor = mqtt_super
 
     g_deduplicator = TTNDeduplicator(window_s=0.15, on_joined_callback=on_joined_packet)
+    with open(UNKNOWN_JSON, 'w', encoding='utf-8') as f:
+        json.dump({}, f)
 
     # 1. Standard Raw JSON UDP socket (Local SX1302 + JSON satellites)
     sock_5555 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -1497,6 +1715,10 @@ def main():
 
     while True:
         try:
+            if time.time() - last_reload >= 5:
+                g_tracker.load_saved_satellites()
+                g_tracker.save_cache()
+                last_reload = time.time()
             read_socks = [sock_5555]
             if sock_1700:
                 read_socks.append(sock_1700)
@@ -1516,7 +1738,7 @@ def main():
                 # --- 1. Ingress Protocol Demux ---
                 if s == sock_1700:
                     # Standard Semtech Packet Forwarder protocol
-                    if len(data) < 4:
+                    if len(data) < 12 or data[0] not in (1, 2):
                         continue
                     version = data[0]
                     token = data[1:3]
@@ -1584,15 +1806,20 @@ def main():
                     if not b64_str:
                         continue
                     try:
-                        raw_bytes = base64.b64decode(b64_str)
+                        raw_bytes = base64.b64decode(b64_str, validate=True)
                         raw_hex = raw_bytes.hex().upper()
                     except Exception:
                         continue
 
                     freq_val = float(pkt.get("freq", 868.1))
                     datr_val = str(pkt.get("datr", "SF7BW125"))
-                    rssi_val = float(pkt.get("rssic", pkt.get("rssi", -100.0)))
+                    rssi_val = float(pkt.get("rssis", pkt.get("rssic", pkt.get("rssi", -100.0))))
                     snr_val = float(pkt.get("lsnr", pkt.get("snr", 0.0)))
+
+                    # Preserve the ingress envelope without changing the
+                    # Semtech rxpk fields consumed by the decoder.
+                    pkt = dict(pkt)
+                    pkt["_ingress_seq"] = msg.get("seq") if isinstance(msg, dict) else None
 
                     g_deduplicator.ingest_packet(
                         raw_bytes=raw_bytes,

@@ -171,6 +171,17 @@ query-lora-status
 send-lora-packet
 ```
 
+## Local UDP JSON protocol
+
+The versioned gateway/control/telemetry contract is documented in
+[docs/LOCAL_PROTOCOL.md](docs/LOCAL_PROTOCOL.md). A dependency-free receiver
+example is available at
+[examples/lora_udp_receiver.py](examples/lora_udp_receiver.py):
+
+```bash
+python3 examples/lora_udp_receiver.py --bind 0.0.0.0 --port 9999
+```
+
 ---
 
 ## 🌐 Web Interface Tabs

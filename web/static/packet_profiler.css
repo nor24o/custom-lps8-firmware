@@ -1,0 +1,1 @@
+.profiler-frame{display:block;width:100%;height:76vh;border:0;background:white}.modal-shell:has(.profiler-frame){width:min(1540px,calc(100vw - 20px))}.modal-shell:has(.profiler-frame) #modal-content{padding:0}

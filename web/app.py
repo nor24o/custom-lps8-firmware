@@ -8,6 +8,12 @@ import socket
 import base64
 import shutil
 import subprocess
+import uuid
+import ipaddress
+import sys
+sys.path.insert(0, '/usr/local/bin')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'bridge'))
+from packet_profiles import normalize_priorities, identify_packet
 from flask import Flask, render_template, jsonify, request
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -232,7 +238,104 @@ def query_lora_app_metrics():
 
 @app.route('/')
 def index():
+    return render_template('console.html')
+
+
+@app.route('/legacy')
+def legacy_console():
     return render_template('index.html')
+
+
+@app.route('/packet-profiler')
+def packet_profiler():
+    return render_template('index.html', standalone_profiler=True)
+
+
+@app.route('/api/lora/profiles', methods=['GET', 'POST'])
+def api_packet_profiles():
+    path = '/etc/lora/packet_profiles.json'
+    try:
+        if request.method == 'GET':
+            with open(path, encoding='utf-8') as f:
+                return jsonify(json.load(f))
+        data = request.get_json()
+        profiles = normalize_priorities(data['profiles'])
+        ids = set()
+        for profile in profiles:
+            if not profile.get('id') or profile['id'] in ids:
+                raise ValueError('Each profile needs a unique id')
+            ids.add(profile['id'])
+            type_spec = profile['type_id']
+            value = bytes.fromhex(type_spec['value'])
+            offset = type_spec.get('offset', 0)
+            if not value or not isinstance(offset, int) or not 0 <= offset <= 255:
+                raise ValueError('Invalid type ID or offset')
+            for field in ('serial_id', 'counter', 'checksum'):
+                spec = profile.get(field)
+                if spec is not None:
+                    if not isinstance(spec, dict) or type(spec.get('offset')) is not int or type(spec.get('length')) is not int:
+                        raise ValueError('Fields need integer offset and length')
+                    if spec['offset'] < 0 or not 1 <= spec['length'] <= 255 or spec['offset'] + spec['length'] > 255:
+                        raise ValueError('Field exceeds packet bounds')
+            checksum = profile.get('checksum')
+            if checksum and (checksum.get('algorithm'), checksum['length']) not in [('sum8', 1), ('crc32', 4)]:
+                raise ValueError('Supported checksums: sum8 (1 byte), crc32 (4 bytes), big-endian')
+        with open(path + '.tmp', 'w', encoding='utf-8') as f:
+            json.dump({'profiles': profiles}, f, indent=2)
+        os.replace(path + '.tmp', path)
+        return jsonify(success=True, profiles=profiles)
+    except (ValueError, KeyError, TypeError) as exc:
+        return jsonify(error=str(exc)), 400
+    except OSError as exc:
+        return jsonify(error=str(exc)), 500
+
+
+@app.route('/api/lora/profiles/test', methods=['POST'])
+def api_test_profile():
+    try:
+        data = request.get_json()
+        return jsonify(identity=identify_packet(bytes.fromhex(data['hex']), data['profiles']))
+    except (ValueError, KeyError, TypeError) as exc:
+        return jsonify(error=str(exc)), 400
+
+
+@app.route('/api/lora/unknown')
+def api_unknown_devices():
+    try:
+        with open('/dev/shm/lora_unknown.json', encoding='utf-8') as f:
+            return jsonify(devices=json.load(f), limit=300)
+    except FileNotFoundError:
+        return jsonify(devices={}, limit=300)
+
+
+@app.route('/api/lora/downlink_settings', methods=['GET', 'POST'])
+def api_downlink_settings():
+    path = '/etc/lora/config.json'
+    try:
+        with open(path, encoding='utf-8') as f:
+            cfg = json.load(f)
+        if request.method == 'GET':
+            return jsonify(downlinks=cfg.get('downlinks', {'defaults': {'freq': cfg.get('tx_default_freq', 868100000)/1e6, 'sf': cfg.get('tx_default_sf', 7), 'power': cfg.get('tx_default_power', 14)}, 'types': {}, 'devices': {}}))
+        rules = request.get_json()
+        if not isinstance(rules, dict):
+            raise ValueError('Settings must be an object')
+        entries = [rules.get('defaults', {})] + list(rules.get('types', {}).values()) + list(rules.get('devices', {}).values())
+        for entry in entries:
+            if 'sf' in entry and not 5 <= int(entry['sf']) <= 12:
+                raise ValueError('SF must be 5..12')
+            if 'freq' in entry and not 100 <= float(entry['freq']) <= 1000:
+                raise ValueError('Frequency must be MHz, between 100 and 1000')
+            if 'power' in entry and not -20 <= int(entry['power']) <= 27:
+                raise ValueError('Power must be -20..27 dBm')
+        cfg['downlinks'] = rules
+        with open(path+'.tmp', 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, indent=2)
+        os.replace(path+'.tmp', path)
+        return jsonify(success=True)
+    except (ValueError, TypeError, AttributeError) as exc:
+        return jsonify(error=str(exc)), 400
+    except OSError as exc:
+        return jsonify(error=str(exc)), 500
 
 @app.route('/api/status')
 def api_status():
@@ -495,12 +598,23 @@ def api_lora_pipeline():
                 cfg = json.load(f)
         pipeline = dict(default_pipeline)
         pipeline.update(cfg.get('pipeline', {}))
+        pipeline.setdefault('dedup_window_ms', 150)
+        pipeline.setdefault('join_frequency_repeats', True)
 
         if request.method == 'POST':
             data = request.get_json(silent=True) or {}
             for k in default_pipeline.keys():
                 if k in data:
                     pipeline[k] = bool(data[k])
+            if 'dedup_window_ms' in data:
+                window = int(data['dedup_window_ms'])
+                if not 25 <= window <= 5000:
+                    return jsonify(error='dedup_window_ms must be 25..5000'), 400
+                pipeline['dedup_window_ms'] = window
+            if 'join_frequency_repeats' in data:
+                if type(data['join_frequency_repeats']) is not bool:
+                    return jsonify(error='join_frequency_repeats must be a boolean'), 400
+                pipeline['join_frequency_repeats'] = data['join_frequency_repeats']
             cfg['pipeline'] = pipeline
             with open(cfg_path, 'w', encoding='utf-8') as f:
                 json.dump(cfg, f, indent=4)
@@ -569,6 +683,10 @@ def api_lora_app_tx():
     rfch = int(data.get('rfch', 0))
     preamble = int(data.get('preamble', 8))
     target_node = str(data.get('target_node', '')).strip().upper()
+    if not 100 <= freq <= 1000 or sf not in range(5, 13) or bw not in (125, 250, 500):
+        return jsonify(error='Invalid frequency, spreading factor or bandwidth'), 400
+    if not -20 <= power <= 27 or rfch not in (0, 1) or codr not in ('4/5', '4/6', '4/7', '4/8') or not 6 <= preamble <= 65535:
+        return jsonify(error='Invalid TX power, RF chain, coding rate or preamble'), 400
 
     if payload_hex:
         try:
@@ -580,6 +698,9 @@ def api_lora_app_tx():
         raw_bytes = payload_text.encode('utf-8')
     else:
         raw_bytes = b'\x6B\x5A\x01\xFE\x02\x01\x01\x01'
+
+    if not 1 <= len(raw_bytes) <= 255:
+        return jsonify(error='Payload must contain 1..255 bytes'), 400
 
     b64 = base64.b64encode(raw_bytes).decode('ascii')
     pkt = {
@@ -647,6 +768,21 @@ def api_lora_app_logs():
 
 
 # ==================== DECODERS & PACKETS ====================
+
+@app.route('/api/lora/decoders/test', methods=['POST'])
+def api_test_decoder():
+    try:
+        from bobcat_lora_bridge import execute_decoder
+        data = request.get_json()
+        payload = bytes.fromhex(data['hex'])
+        if not payload or len(payload) > 255:
+            raise ValueError('Payload must contain 1..255 bytes')
+        scheme = dict(data['scheme'])
+        scheme.update(enabled=True, matchType='default')
+        scheme_id, name, decoded = execute_decoder(payload, payload.hex().upper(), [scheme], packet=data.get('packet', {}))
+        return jsonify(scheme_id=scheme_id, name=name, decoded=decoded)
+    except (ValueError, KeyError, TypeError) as exc:
+        return jsonify(error=str(exc)), 400
 
 @app.route('/api/lora/decoders', methods=['GET', 'POST'])
 @app.route('/api/decoders', methods=['GET', 'POST'])
@@ -894,7 +1030,7 @@ def api_lora_gateway_config(gateway_id):
     gid = gateway_id.strip().upper()
     main_eui = "0016C001F1500B48"
 
-    target_ip = "127.0.0.1"
+    target_ip = None
     target_port = 5556
 
     if os.path.exists(concentrators_path):
@@ -902,18 +1038,24 @@ def api_lora_gateway_config(gateway_id):
             with open(concentrators_path, 'r', encoding='utf-8') as f:
                 cdata = json.load(f)
             if gid in cdata:
-                target_ip = cdata[gid].get('ip', '127.0.0.1')
+                target_ip = cdata[gid].get('ip')
                 target_port = cdata[gid].get('config', {}).get('port_down', cdata[gid].get('port_down', 5556))
         except:
             pass
+
+    if not target_ip:
+        return jsonify({'success': False, 'error': 'Gateway is not present in the fleet registry'}), 404
 
     if request.method == 'GET':
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.settimeout(2.5)
         try:
-            s.sendto(json.dumps({"cmd": "get_config"}).encode('utf-8'), (target_ip, target_port))
+            request_id = "web-" + uuid.uuid4().hex
+            s.sendto(json.dumps({"v": 1, "msg_type": "control", "cmd": "get_config", "request_id": request_id}, separators=(',', ':')).encode('utf-8'), (target_ip, target_port))
             data, _ = s.recvfrom(2048)
             cfg = json.loads(data.decode('utf-8'))
+            if cfg.get('request_id') and cfg.get('request_id') != request_id:
+                return jsonify({'success': False, 'error': 'Mismatched gateway response'}), 502
             return jsonify({'success': True, 'config': cfg, 'ip': target_ip, 'port': target_port})
         except Exception as e:
             if gid == main_eui or target_ip == '127.0.0.1':
@@ -949,10 +1091,15 @@ def api_lora_gateway_config(gateway_id):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(8.0)
     try:
-        cmd_pkt = json.dumps({"cmd": "set_config", "config": new_cfg}).encode('utf-8')
+        request_id = "web-" + uuid.uuid4().hex
+        cmd_pkt = json.dumps({"v": 1, "msg_type": "control", "cmd": "set_config", "request_id": request_id, "config": new_cfg}, separators=(',', ':')).encode('utf-8')
         s.sendto(cmd_pkt, (target_ip, target_port))
         data, _ = s.recvfrom(2048)
         ack = json.loads(data.decode('utf-8'))
+        if ack.get('request_id') and ack.get('request_id') != request_id:
+            return jsonify({'success': False, 'error': 'Mismatched gateway acknowledgement'}), 502
+        if ack.get('status') == 'error':
+            return jsonify({'success': False, 'ack': ack, 'error': ack.get('message', 'Gateway rejected configuration')}), 502
         return jsonify({'success': True, 'ack': ack, 'message': 'Configuration applied and SX1302 restarted in-process!'})
     except socket.timeout:
         return jsonify({'success': False, 'error': f"Timed out waiting for confirmation from gateway on {target_ip}:{target_port}"}), 504
@@ -985,10 +1132,21 @@ def api_lora_udp_stream():
     # POST
     req = request.get_json(silent=True) or {}
     udp_cfg = cfg.get('udp_stream', {})
-    if 'enabled' in req: udp_cfg['enabled'] = bool(req['enabled'])
-    if 'dest_ip' in req: udp_cfg['dest_ip'] = str(req['dest_ip']).strip()
-    if 'dest_port' in req: udp_cfg['dest_port'] = int(req['dest_port'])
-    if 'broadcast' in req: udp_cfg['broadcast'] = bool(req['broadcast'])
+    try:
+        if 'enabled' in req:
+            if not isinstance(req['enabled'], bool): raise ValueError('enabled must be a boolean')
+            udp_cfg['enabled'] = req['enabled']
+        if 'dest_ip' in req:
+            udp_cfg['dest_ip'] = str(ipaddress.IPv4Address(req['dest_ip'].strip()))
+        if 'dest_port' in req:
+            port = int(req['dest_port'])
+            if not 1 <= port <= 65535: raise ValueError('port must be between 1 and 65535')
+            udp_cfg['dest_port'] = port
+        if 'broadcast' in req:
+            if not isinstance(req['broadcast'], bool): raise ValueError('broadcast must be a boolean')
+            udp_cfg['broadcast'] = req['broadcast']
+    except (ValueError, TypeError, AttributeError) as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     cfg['udp_stream'] = udp_cfg
 
     try:
@@ -1002,12 +1160,25 @@ def api_lora_udp_stream():
 @app.route('/api/lora/udp_stream/test', methods=['POST'])
 def api_lora_udp_stream_test():
     req = request.get_json(silent=True) or {}
-    dest_ip = req.get('dest_ip', '192.168.1.13')
-    dest_port = int(req.get('dest_port', 9999))
-    is_bcast = bool(req.get('broadcast', False))
+    try:
+        with open('/etc/lora/config.json', 'r', encoding='utf-8') as f:
+            saved = json.load(f).get('udp_stream', {})
+    except (OSError, ValueError):
+        saved = {}
+    try:
+        dest_ip = str(ipaddress.IPv4Address(req.get('dest_ip', saved.get('dest_ip', '192.168.1.13'))))
+        dest_port = int(req.get('dest_port', saved.get('dest_port', 9999)))
+        if not 1 <= dest_port <= 65535: raise ValueError('port must be between 1 and 65535')
+        is_bcast = req.get('broadcast', saved.get('broadcast', False))
+        if not isinstance(is_bcast, bool): raise ValueError('broadcast must be a boolean')
+    except (ValueError, TypeError) as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
 
     sample_event = {
+        "v": 1,
         "event": "uplink_joined",
+        "seq": int(time.time() * 1000) & 0xFFFFFFFF,
+        "event_id": "web-test-%s" % uuid.uuid4().hex,
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "node_id": "CAFE",
         "deduplicated": True,
@@ -1053,7 +1224,7 @@ def api_lora_udp_stream_test():
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if is_bcast:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        s.sendto(json.dumps(sample_event).encode('utf-8'), (dest_ip, dest_port))
+        s.sendto(json.dumps(sample_event, separators=(',', ':')).encode('utf-8'), (dest_ip, dest_port))
         s.close()
         return jsonify({'success': True, 'message': f'Test UDP datagram sent to {dest_ip}:{dest_port}', 'payload': sample_event})
     except Exception as e:
@@ -1179,9 +1350,15 @@ def api_lora_node_downlink(node_id):
     if not cmd:
         return jsonify({'error': 'Payload is required'}), 400
 
-    power = int(data.get('power', 27))
-    sf = int(data.get('sf', 7))
-    freq = float(data.get('freq', 868.1))
+    with open('/etc/lora/config.json', encoding='utf-8') as f:
+        cfg = json.load(f)
+    rules = cfg.get('downlinks', {})
+    rx = dict(rules.get('defaults', {}))
+    rx.update(rules.get('types', {}).get(node_id.split('-')[0], {}))
+    rx.update(rules.get('devices', {}).get(node_id, {}))
+    power = int(data.get('power', rx.get('power', cfg.get('tx_default_power', 14))))
+    sf = int(data.get('sf', rx.get('sf', cfg.get('tx_default_sf', 7))))
+    freq = float(data.get('freq', rx.get('freq', cfg.get('tx_default_freq', 868100000)/1e6)))
 
     if cmd.upper() in ('ON', '1'):
         raw_bytes = bytes.fromhex('0101')
@@ -1258,6 +1435,8 @@ def api_lora_links():
 
         if not src or not target or not payload:
             return jsonify({'error': 'Source, target, and action payload are required'}), 400
+        if op not in ('>', '>=', '<', '<=', '==', '!=', 'always') or delay_ms < 0 or cooldown < 0:
+            return jsonify(error='Invalid operator, turnaround delay or cooldown'), 400
 
         con = sqlite3.connect(db_nodes, timeout=5)
         cur = con.cursor()
@@ -1313,14 +1492,9 @@ def api_lora_link_test(link_id):
         except ValueError:
             raw_bytes = payload.encode('utf-8')
 
-        pkt = {
-            "imme": True, "freq": 868.1, "rfch": 0, "powe": 27, "modu": "LORA",
-            "datr": "SF7BW125", "codr": "4/5", "ipol": False, "size": len(raw_bytes),
-            "data": base64.b64encode(raw_bytes).decode('ascii')
-        }
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.sendto(json.dumps(pkt).encode('ascii'), ('127.0.0.1', 5556))
-        s.close()
+        from bobcat_lora_bridge import dispatch_lora_downlink
+        if not dispatch_lora_downlink(target, payload):
+            return jsonify(error='Downlink dispatch failed'), 502
 
         # Log audit
         try:

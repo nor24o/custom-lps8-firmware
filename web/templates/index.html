@@ -996,6 +996,12 @@
   box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
 }
 </style>
+<script src="/static/noc_console.js" defer></script>
+{% if standalone_profiler %}
+<style>
+body{background:#fff!important;background-image:none!important}body>header,.container>.tabs{display:none!important}.container{max-width:none!important;width:100%!important;padding:10px!important;margin:0!important}.tab-content{display:none!important}#tab-decoders{display:block!important}.studio-container{max-width:none!important;padding:0!important}.studio-card{box-shadow:none!important}.profiler-context{padding:8px 12px;background:#edf3fd;border:1px solid #d2e0f5;color:#47658b;font:11px/1.5 system-ui;margin:0 0 10px;border-radius:4px}
+</style>
+{% endif %}
 </head>
 <body>
 
@@ -1619,6 +1625,7 @@
       <div id="toast-container"></div>
 
 <div class="cbi-map studio-container">
+{% if standalone_profiler %}<div class="profiler-context">Full packet profiler · Your original segmentation, auto-slicer, sample binding and scheme controls. Network type/serial identity is configured in Packet profiles; the scheme Node ID controls below affect decoder previews.</div>{% endif %}
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
         <div>
             <h2 style="margin: 0;">LoRa Payload Decoder Studio</h2>
@@ -7183,7 +7190,15 @@ function createSchemeFromCurrentHex() {
     async function testUdpStream() {
       showToast('Sending test JSON UDP datagram...', 'info');
       try {
-        const res = await fetch('/api/lora/udp_stream/test', { method: 'POST' });
+        const res = await fetch('/api/lora/udp_stream/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dest_ip: document.getElementById('udp-stream-ip').value.trim(),
+            dest_port: parseInt(document.getElementById('udp-stream-port').value, 10),
+            broadcast: document.getElementById('udp-stream-bcast').value === 'true'
+          })
+        });
         const d = await res.json();
         if (d.success) {
           showToast(d.message || 'Test packet dispatched successfully!', 'success');
@@ -7196,5 +7211,8 @@ function createSchemeFromCurrentHex() {
     }
 
 </script>
+{% if standalone_profiler %}
+<script>window.addEventListener('load',function(){switchTab('decoders');});</script>
+{% endif %}
 </body>
 </html>

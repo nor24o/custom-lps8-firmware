@@ -1,0 +1,7 @@
+{
+  "profiles": [
+    {"id": "cafe", "priority": 1, "decoder_id": "scheme_node_cafe", "type_id": {"offset": 0, "value": "CAFE"}, "serial_id": {"offset": 2, "length": 4}},
+    {"id": "legacy_aa0b", "priority": 2, "decoder_id": "scheme_aa0b", "type_id": {"offset": 0, "value": "AA0B"}, "counter": {"offset": 2, "length": 2}},
+    {"id": "legacy_aa0c", "priority": 3, "decoder_id": "scheme_aa0c", "type_id": {"offset": 0, "value": "AA0C"}, "counter": {"offset": 2, "length": 2}}
+  ]
+}

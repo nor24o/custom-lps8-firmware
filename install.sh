@@ -72,6 +72,9 @@ echo -e "${C_YELLOW}[4/8] Installing binaries and utilities to /usr/local/bin/..
 install -m 755 "${SCRIPT_DIR}/sx1302_hal/raw_lora_app" /usr/local/bin/raw_lora_app
 install -m 755 "${SCRIPT_DIR}/sx1302_hal/util_chip_id/chip_id" /usr/local/bin/chip_id
 install -m 755 "${SCRIPT_DIR}/bridge/bobcat_lora_bridge.py" /usr/local/bin/bobcat_lora_bridge.py
+install -m 644 "${SCRIPT_DIR}/bridge/packet_profiles.py" /usr/local/bin/packet_profiles.py
+install -m 644 "${SCRIPT_DIR}/bridge/decoder_js.py" /usr/local/bin/decoder_js.py
+python3 -m pip install --only-binary=:all: --target /opt/lora-python quickjs-ng==0.18.0.1
 install -m 755 "${SCRIPT_DIR}/bin/reset_lgw.sh" /usr/local/bin/reset_lgw.sh
 install -m 755 "${SCRIPT_DIR}/bin/lora_db_init.sh" /usr/local/bin/lora_db_init.sh
 install -m 755 "${SCRIPT_DIR}/bin/test-leds" /usr/local/bin/test-leds
@@ -94,6 +97,10 @@ else
     echo "       /etc/lora/decoders.json already exists; preserving existing decoders."
 fi
 
+if [ ! -f /etc/lora/packet_profiles.json ]; then
+    install -m 644 "${SCRIPT_DIR}/etc/lora/packet_profiles.json" /etc/lora/packet_profiles.json
+fi
+
 /usr/local/bin/lora_db_init.sh
 
 # 7. Install Web Management Application
@@ -101,7 +108,23 @@ echo -e "${C_YELLOW}[6/8] Installing Dark Cyberpunk Web Interface to /opt/bobcat
 mkdir -p /opt/bobcat-web/templates /opt/bobcat-web/static
 install -m 644 "${SCRIPT_DIR}/web/app.py" /opt/bobcat-web/app.py
 install -m 644 "${SCRIPT_DIR}/web/templates/index.html" /opt/bobcat-web/templates/index.html
+install -m 644 "${SCRIPT_DIR}/web/templates/console.html" /opt/bobcat-web/templates/console.html
+install -m 644 "${SCRIPT_DIR}/web/static/console.css" /opt/bobcat-web/static/console.css
+install -m 644 "${SCRIPT_DIR}/web/static/console.js" /opt/bobcat-web/static/console.js
+install -m 644 "${SCRIPT_DIR}/web/static/decoder_studio.js" /opt/bobcat-web/static/decoder_studio.js
+install -m 644 "${SCRIPT_DIR}/web/static/decoder_studio.css" /opt/bobcat-web/static/decoder_studio.css
+install -m 644 "${SCRIPT_DIR}/web/static/packet_profiler.css" /opt/bobcat-web/static/packet_profiler.css
+install -m 644 "${SCRIPT_DIR}/web/static/native_settings.css" /opt/bobcat-web/static/native_settings.css
+install -m 644 "${SCRIPT_DIR}/web/static/native_settings.js" /opt/bobcat-web/static/native_settings.js
+install -m 644 "${SCRIPT_DIR}/web/static/profile_studio.js" /opt/bobcat-web/static/profile_studio.js
+install -m 644 "${SCRIPT_DIR}/web/static/console_life.css" /opt/bobcat-web/static/console_life.css
+install -m 644 "${SCRIPT_DIR}/web/static/console_life.js" /opt/bobcat-web/static/console_life.js
+install -m 644 "${SCRIPT_DIR}/web/static/activity_ui.js" /opt/bobcat-web/static/activity_ui.js
+install -m 644 "${SCRIPT_DIR}/web/static/management_ui.js" /opt/bobcat-web/static/management_ui.js
+install -m 644 "${SCRIPT_DIR}/web/static/management_ui.css" /opt/bobcat-web/static/management_ui.css
 install -m 644 "${SCRIPT_DIR}/web/static/lora_decoder.js" /opt/bobcat-web/static/lora_decoder.js
+install -m 644 "${SCRIPT_DIR}/web/static/noc_console.css" /opt/bobcat-web/static/noc_console.css
+install -m 644 "${SCRIPT_DIR}/web/static/noc_console.js" /opt/bobcat-web/static/noc_console.js
 
 # 8. Install & Enable Systemd Services
 echo -e "${C_YELLOW}[7/8] Installing and starting systemd services...${C_RESET}"

@@ -29,6 +29,7 @@ sx1302_hal/packet_forwarder/lora_pkt_fwd
 # Temporary and log files
 *.log
 /tmp/
+.console-test-tools/
 
 # Editor and OS
 .DS_Store
