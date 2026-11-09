@@ -1,6 +1,6 @@
 #!/bin/sh
 # /usr/bin/lora_keepalive.sh
-# Persistent keepalive & health supervisor for raw_lora_app / sx1276_app
+# Keepalive for raw_lora_app. This gateway is a satellite of the LoRaHub server.
 
 LOGFILE="/var/log/lora.log"
 STOP_FLAG="/tmp/lora_manual_stop"
@@ -20,17 +20,7 @@ while true; do
         tail -n 250 "$LOGFILE" > "${LOGFILE}.tmp" && mv "${LOGFILE}.tmp" "$LOGFILE"
     fi
 
-    PID=$(pidof raw_lora_app sx1276_app lg02_pkt_fwd lg01_pkt_fwd 2>/dev/null | awk '{print $1}')
-
-    # Supervise LoRa Linking & Downlink Engine
-    if ! pgrep -f lora_linking_engine.lua >/dev/null 2>&1; then
-        [ -x /usr/bin/lora_linking_engine.lua ] && /usr/bin/lora_linking_engine.lua >> /var/log/linking_engine.log 2>&1 &
-    fi
-
-    # Supervise Home Assistant MQTT Auto-Discovery & Command Bridge
-    if ! pgrep -f lora_mqtt_bridge.lua >/dev/null 2>&1; then
-        [ -x /usr/bin/lora_mqtt_bridge.lua ] && /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &
-    fi
+    PID=$(pidof raw_lora_app 2>/dev/null | awk '{print $1}')
 
     if [ -z "$PID" ]; then
         ts=$(date '+%Y-%m-%d %H:%M:%S')
@@ -43,10 +33,6 @@ while true; do
 
         if [ -x /usr/bin/raw_lora_app ]; then
             /usr/bin/raw_lora_app >> "$LOGFILE" 2>&1 &
-        elif [ -x /usr/bin/sx1276_app ]; then
-            /usr/bin/sx1276_app -c /etc/lora/config.json >> "$LOGFILE" 2>&1 &
-        elif [ -x /usr/bin/lg02_pkt_fwd ]; then
-            /usr/bin/lg02_pkt_fwd >> "$LOGFILE" 2>&1 &
         fi
         fail_tcp_cnt=0
         sleep 5

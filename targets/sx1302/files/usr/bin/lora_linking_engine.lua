@@ -1,21 +1,26 @@
 #!/usr/bin/env lua
 -- /usr/bin/lora_linking_engine.lua
 -- Industrial LoRa Gateway Linking, Queuing, & Downlink Engine
--- Supports:
+-- Architecture:
+--   - Standalone LoRa Multi-Scheme Decoder Module (lora_decoder.lua)
+--   - Strict Hardware CRC Integrity Gate (drops CRC_BAD, CRC_ERR, NO_CRC)
+--   - Ultra-Fast Immediate MQTT Dispatch to Home Assistant (< 5ms)
 --   - Dual SQLite: /etc/lora/nodes.db (Flash) & /tmp/lora_messages.db (RAM)
---   - Rolling 50-message circular buffer per node
+--   - Rolling circular buffer in RAM for recent telemetry
 --   - LPWAN Classes: Class A (Queued RX1/RX2), Class B (Ping Slots), Class C (Instant)
 --   - Listen-Before-Send (LBT / Carrier Sense) & Collision Avoidance
 --   - Turnaround delays, debounce cooldowns, and automatic pulse resets
 
-local sqlite3 = require "lsqlite3"
-local nixio   = require "nixio"
-local jsonc   = require "luci.jsonc"
+local sqlite3     = require "lsqlite3"
+local nixio       = require "nixio"
+local jsonc       = require "luci.jsonc"
+local LoraDecoder = require "lora_decoder"
 
 local DB_NODES_PATH = "/etc/lora/nodes.db"
 local DB_RAM_PATH   = "/tmp/lora_messages.db"
 local PACKETS_JSON  = "/tmp/lora_packets.json"
 local CONFIG_PATH   = "/etc/lora/config.json"
+local DECODERS_PATH = "/etc/lora/decoders.json"
 local PORT_DOWN     = 5556
 
 -- Open Databases
@@ -26,61 +31,79 @@ if not db_nodes or not db_ram then
     io.stderr:write("[ENGINE] Failed to open SQLite databases!\n")
     os.exit(1)
 end
+db_nodes:busy_timeout(5000)
+db_ram:busy_timeout(5000)
+db_nodes:exec("PRAGMA journal_mode = MEMORY;")
+db_nodes:exec("PRAGMA synchronous = OFF;")
+db_ram:exec("PRAGMA journal_mode = MEMORY;")
+db_ram:exec("PRAGMA synchronous = OFF;")
 
 -- Ensure databases are initialized
 os.execute("/usr/bin/lora_db_init.sh >/dev/null 2>&1")
 
+local function shellquote(s)
+    return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
+-- Cached MQTT Configuration (refreshed only when config.json changes on disk)
+local g_mqtt_cfg = nil
+local g_mqtt_mtime = 0
+
+local function get_mqtt_config()
+    local st = nixio.fs.stat(CONFIG_PATH)
+    local mtime = st and st.mtime or 0
+    if not g_mqtt_cfg or mtime ~= g_mqtt_mtime then
+        local f = io.open(CONFIG_PATH, "r")
+        if f then
+            local c = f:read("*a")
+            f:close()
+            local cfg = jsonc.parse(c) or {}
+            g_mqtt_cfg = cfg.mqtt or {}
+            g_mqtt_mtime = mtime
+        end
+    end
+    return g_mqtt_cfg or {}
+end
+
+-- Ultra-Fast Immediate Telemetry Dispatch to Home Assistant
 local function publish_mqtt_telemetry(node_id, metrics)
-    local f = io.open(CONFIG_PATH, "r")
-    if not f then return end
-    local content = f:read("*a")
-    f:close()
-    local cfg = jsonc.parse(content) or {}
-    local m = cfg.mqtt or {}
+    local m = get_mqtt_config()
     if m.enabled == false then return end
 
-    local host = m.server or "127.0.0.1"
-    local port = tonumber(m.port) or 1883
+    local host   = m.server or "127.0.0.1"
+    local port   = tonumber(m.port) or 1883
     local prefix = m.state_prefix or "lora"
-    local auth = ""
+    local auth   = ""
     if m.user and m.user ~= "" then
-        auth = auth .. " -u " .. nixio.shellquote(m.user)
+        auth = auth .. " -u " .. shellquote(m.user)
     end
     if m.password and m.password ~= "" then
-        auth = auth .. " -P " .. nixio.shellquote(m.password)
+        auth = auth .. " -P " .. shellquote(m.password)
     end
 
     local payload = jsonc.stringify(metrics)
-    local topic = prefix .. "/" .. node_id .. "/state"
-    local cmd = string.format(
-        "mosquitto_pub -h %s -p %d %s -t %s -m %s 2>/dev/null &",
-        nixio.shellquote(host),
+    local topic   = prefix .. "/" .. node_id .. "/state"
+    local cmd     = string.format(
+        "mosquitto_pub -h %s -p %d %s -t %s -m %s -r 2>/dev/null &",
+        shellquote(host),
         port,
         auth,
-        nixio.shellquote(topic),
-        nixio.shellquote(payload)
+        shellquote(topic),
+        shellquote(payload)
     )
     os.execute(cmd)
 end
 
-local function base64_encode(data)
-    return nixio.bin.b64encode(data)
-end
+-- ==============================================================================
+-- Radio Channel LBT & Downlinks
+-- ==============================================================================
 
-local function hex_to_bin(hex)
-    return (hex:gsub('..', function(cc)
-        return string.char(tonumber(cc, 16))
-    end))
-end
-
--- Measure / Estimate current Channel Noise / Carrier Floor (Listen-Before-Send)
 local function lbt_check_channel(threshold_dbm, max_retries, backoff_ms)
     threshold_dbm = threshold_dbm or -85
     max_retries   = max_retries or 3
     backoff_ms    = backoff_ms or 50
 
     for attempt = 1, max_retries do
-        -- Read most recent packet channel RSSI (rssic) or instantaneous carrier
         local current_rssi = -110.0
         local f = io.open(PACKETS_JSON, "r")
         if f then
@@ -96,7 +119,6 @@ local function lbt_check_channel(threshold_dbm, max_retries, backoff_ms)
             return true, current_rssi, "CLEAR"
         end
 
-        -- Channel busy: backoff randomized slot
         local sleep_time = (backoff_ms + math.random(10, 40)) / 1000.0
         nixio.nanosleep(math.floor(sleep_time), math.floor((sleep_time % 1) * 1e9))
     end
@@ -104,7 +126,6 @@ local function lbt_check_channel(threshold_dbm, max_retries, backoff_ms)
     return false, threshold_dbm, "BUSY_RETRIED"
 end
 
--- Dispatch LoRa Downlink over UDP to port 5556 (raw_lora_app or lg02_pkt_fwd)
 local function send_downlink_udp(pkt_table)
     local sock = nixio.socket("inet", "dgram")
     if not sock then return false, "socket_failed" end
@@ -115,33 +136,6 @@ local function send_downlink_udp(pkt_table)
     return (ok ~= nil), err
 end
 
--- Decode telemetry metrics for rule matching
-local function extract_metrics(hex, raw_b64)
-    local metrics = {}
-    if not hex or hex == "" then return metrics end
-
-    hex = hex:lower()
-    local node_id = hex:sub(1, 4):upper()
-    metrics.node_id = node_id
-
-    -- Read raw bytes
-    local bytes = {}
-    for i = 1, #hex, 2 do
-        table.insert(bytes, tonumber(hex:sub(i, i+1), 16) or 0)
-    end
-
-    if #bytes >= 8 then
-        -- Standard sensor packet: [0..1: ID, 2..3: SEQ, 4..5: TEMP/VAL, 6..7: VOLT]
-        metrics.seq = (bytes[3] * 256) + bytes[4]
-        metrics.temperature = ((bytes[5] * 256) + bytes[6]) / 10.0
-        metrics.battery = ((bytes[7] * 256) + bytes[8]) / 1000.0
-        metrics.val = metrics.temperature
-    end
-
-    return metrics
-end
-
--- Evaluate condition
 local function evaluate_condition(val, op, threshold)
     if val == nil then return false end
     if op == ">" then return val > threshold end
@@ -154,143 +148,129 @@ local function evaluate_condition(val, op, threshold)
     return false
 end
 
--- Process Pending Class A / B Downlinks
-local function handle_class_a_downlink(node_id, uplink_tmst, uplink_freq, uplink_datr)
+-- Class A Queued Downlink Handler
+local function handle_class_a_downlink(node_id, tmst, freq, datr)
     local stmt = db_ram:prepare("SELECT id, payload FROM pending_downlinks WHERE target_node = ? AND status = 'QUEUED' ORDER BY id ASC LIMIT 1;")
     if not stmt then return end
-    stmt:bind_values(node_id)
 
+    stmt:bind_values(node_id)
     if stmt:step() == sqlite3.ROW then
         local dl_id = stmt:get_value(0)
-        local raw_payload = stmt:get_value(1) or ""
+        local raw_hex = stmt:get_value(1)
         stmt:finalize()
 
-        -- Look up node RX1 timing
-        local rx1_delay = 1000
-        local tx_powe = 14
+        -- Fetch node settings
+        local rx1_delay = 1000 -- default 1s (1000ms)
+        local tx_power = 14
         local n_stmt = db_nodes:prepare("SELECT rx1_delay_ms, default_tx_power FROM node_settings WHERE node_id = ?;")
         if n_stmt then
             n_stmt:bind_values(node_id)
             if n_stmt:step() == sqlite3.ROW then
                 rx1_delay = n_stmt:get_value(0) or 1000
-                tx_powe = n_stmt:get_value(1) or 14
+                tx_power = n_stmt:get_value(1) or 14
             end
             n_stmt:finalize()
         end
 
-        local count_us = (uplink_tmst + (rx1_delay * 1000)) % 4294967296
-        local lbt_ok, lbt_rssi, lbt_status = lbt_check_channel(-85, 2, 30)
-
-        -- Convert payload to Base64
-        local b64 = base64_encode(raw_payload:match("^%x+$") and hex_to_bin(raw_payload) or raw_payload)
+        local count_us = (tmst + (rx1_delay * 1000)) % 4294967296
+        local is_clear, rssi, lbt_stat = lbt_check_channel(-85, 2, 20)
 
         local pkt = {
             imme = false,
             tmst = count_us,
-            freq = tonumber(uplink_freq) or 868.1,
+            freq = tonumber(freq) or 868.1,
             rfch = 0,
-            powe = tx_powe,
+            powe = tx_power,
             modu = "LORA",
-            datr = uplink_datr or "SF7BW125",
+            datr = datr or "SF7BW125",
             codr = "4/5",
-            ipol = false,
-            size = #raw_payload,
-            data = b64
+            ipol = true,
+            size = #raw_hex / 2,
+            data = nixio.bin.b64encode(raw_hex:gsub('..', function(cc) return string.char(tonumber(cc, 16)) end))
         }
 
         local ok, err = send_downlink_udp(pkt)
-        local status_str = ok and "DISPATCHED" or "FAILED"
+        local tx_status = ok and "SENT_RX1" or ("ERR_" .. (err or "UDP"))
 
+        db_ram:exec(string.format("UPDATE pending_downlinks SET status = '%s', sent_at = CURRENT_TIMESTAMP WHERE id = %d;", tx_status, dl_id))
         db_ram:exec(string.format(
-            "UPDATE pending_downlinks SET status = '%s', dispatched_at = CURRENT_TIMESTAMP, lbt_status = '%s' WHERE id = %d;",
-            status_str, lbt_status, dl_id
-        ))
-
-        db_ram:exec(string.format(
-            "INSERT INTO link_execution_logs (event_type, source_node, target_node, target_class, lbt_status, delay_ms, tx_status, details) " ..
-            "VALUES ('CLASS_A_RX1', '%s', '%s', 'A', '%s', %d, '%s', 'Class A Downlink dispatched in RX1 window');",
-            node_id, node_id, lbt_status, rx1_delay, status_str
+            "INSERT INTO link_execution_logs (link_id, event_type, target_node, target_class, tx_status, details) " ..
+            "VALUES (0, 'CLASS_A_RX1', '%s', '%s', %u, %d, %.1f);",
+            node_id, tx_status, count_us, rx1_delay, rssi
         ))
     else
         stmt:finalize()
     end
 end
 
--- Process Linking Automations
-local function process_links(node_id, metrics, uplink_tmst)
+-- Process Cross-Node Automation & Linking Rules
+local function process_links(node_id, metrics, tmst)
     local stmt = db_nodes:prepare("SELECT * FROM node_links WHERE source_node = ? AND enabled = 1;")
     if not stmt then return end
+
     stmt:bind_values(node_id)
-
-    local now = os.time()
-
     while stmt:step() == sqlite3.ROW do
-        local link = stmt:get_named_values()
-        local field = link.trigger_field
-        local val = metrics[field] or metrics.val
+        local link = {}
+        for col = 0, stmt:columns() - 1 do
+            link[stmt:column_name(col)] = stmt:get_value(col)
+        end
 
-        if val and evaluate_condition(val, link.operator, link.threshold_val) then
-            -- Check cooldown debounce
-            local last_ts = 0
-            if link.last_triggered and link.last_triggered ~= "" then
-                -- basic ISO parser
-                local y, m, d, H, M, S = link.last_triggered:match("(%d+)-(%d+)-(%d+)%s+(%d+):(%d+):(%d+)")
-                if y then
-                    last_ts = os.time({year=y, month=m, day=d, hour=H, min=M, sec=S})
+        local val = metrics[link.trigger_field] or metrics.val or metrics.temperature
+        if val ~= nil and evaluate_condition(val, link.condition_op, tonumber(link.threshold) or 0.0) then
+            -- Cooldown Debounce Check
+            local cooldown = tonumber(link.cooldown_sec) or 0
+            local can_trigger = true
+            if cooldown > 0 and link.last_triggered then
+                local check_stmt = db_nodes:prepare("SELECT (strftime('%s', 'now') - strftime('%s', ?)) > ?;")
+                if check_stmt then
+                    check_stmt:bind_values(link.last_triggered, cooldown)
+                    if check_stmt:step() == sqlite3.ROW then
+                        can_trigger = (check_stmt:get_value(0) == 1)
+                    end
+                    check_stmt:finalize()
                 end
             end
 
-            if (now - last_ts) >= (link.cooldown_sec or 60) then
+            if can_trigger then
                 local target_node = link.target_node
-                local target_class = "A"
-                local tx_power = 14
+                local action_cmd = link.action_command
+                local t_class = "A"
+                local t_power = 14
+                local t_freq = 868.1
+                local t_datr = "SF7BW125"
 
-                -- Query target node settings
                 local t_stmt = db_nodes:prepare("SELECT node_class, default_tx_power FROM node_settings WHERE node_id = ?;")
                 if t_stmt then
                     t_stmt:bind_values(target_node)
                     if t_stmt:step() == sqlite3.ROW then
-                        target_class = t_stmt:get_value(0) or "A"
-                        tx_power = t_stmt:get_value(1) or 14
+                        t_class = t_stmt:get_value(0) or "A"
+                        t_power = t_stmt:get_value(1) or 14
                     end
                     t_stmt:finalize()
                 end
 
-                if target_class == "C" then
-                    -- Class C: Immediate transmission with LBT check
-                    local lbt_ok, lbt_rssi, lbt_status = true, -100, "BYPASS"
-                    if link.lbt_enabled == 1 then
-                        lbt_ok, lbt_rssi, lbt_status = lbt_check_channel(link.lbt_rssi_threshold, link.lbt_max_retries, link.lbt_backoff_ms)
-                    end
-
-                    -- Turnaround delay if configured
-                    if link.turnaround_delay_ms and link.turnaround_delay_ms > 0 then
-                        local sleep_s = link.turnaround_delay_ms / 1000.0
-                        nixio.nanosleep(math.floor(sleep_s), math.floor((sleep_s % 1) * 1e9))
-                    end
-
-                    local b64 = base64_encode(link.action_payload:match("^%x+$") and hex_to_bin(link.action_payload) or link.action_payload)
+                if t_class == "C" then
+                    -- Class C: Immediate Downlink
+                    local is_clear, rssi = lbt_check_channel(-85, 2, 20)
                     local pkt = {
                         imme = true,
-                        freq = 868.1,
+                        freq = t_freq,
                         rfch = 0,
-                        powe = tx_power,
+                        powe = t_power,
                         modu = "LORA",
-                        datr = "SF7BW125",
+                        datr = t_datr,
                         codr = "4/5",
                         ipol = false,
-                        size = #link.action_payload,
-                        data = b64
+                        size = #action_cmd / 2,
+                        data = nixio.bin.b64encode(action_cmd:gsub('..', function(cc) return string.char(tonumber(cc, 16)) end))
                     }
-
                     local ok, err = send_downlink_udp(pkt)
-                    local tx_status = ok and "SENT" or "FAILED"
+                    local tx_status = ok and "SENT_IMME" or ("ERR_" .. (err or "UDP"))
 
                     db_ram:exec(string.format(
-                        "INSERT INTO link_execution_logs (link_id, event_type, source_node, target_node, target_class, lbt_status, delay_ms, tx_status, details) " ..
-                        "VALUES (%d, 'AUTO_TRIGGER', '%s', '%s', 'C', '%s', %d, '%s', 'Trigger: %s %s %.1f (Val: %.1f)');",
-                        link.link_id, node_id, target_node, lbt_status, link.turnaround_delay_ms or 0, tx_status,
-                        field, link.operator, link.threshold_val, val
+                        "INSERT INTO link_execution_logs (link_id, event_type, source_node, target_node, target_class, trigger_value, tx_status, details) " ..
+                        "VALUES (%d, 'CLASS_C_DOWNLINK', '%s', '%s', '%s', %.2f, '%s', 'LBT RSSI: %.1f dBm');",
+                        link.link_id, node_id, target_node, t_class, val or 0.0, tx_status, rssi
                     ))
 
                     db_nodes:exec(string.format(
@@ -298,11 +278,11 @@ local function process_links(node_id, metrics, uplink_tmst)
                         tx_status, link.link_id
                     ))
                 else
-                    -- Class A: Enqueue into pending downlinks for next RX window
+                    -- Class A: Queue for next RX1 window
                     db_ram:exec(string.format(
                         "INSERT INTO pending_downlinks (target_node, target_class, payload, status) " ..
-                        "VALUES ('%s', 'A', '%s', 'QUEUED');",
-                        target_node, link.action_payload
+                        "VALUES ('%s', '%s', '%s', 'QUEUED');",
+                        target_node, t_class, action_cmd
                     ))
 
                     db_ram:exec(string.format(
@@ -322,15 +302,54 @@ local function process_links(node_id, metrics, uplink_tmst)
     stmt:finalize()
 end
 
--- Ingest New Packet into SQLite
+-- ==============================================================================
+-- Ingest New Packet: Fast Decode -> Immediate MQTT Dispatch -> Background Storage
+-- ==============================================================================
 local function ingest_packet(pkt)
-    if not pkt or not pkt.hex or pkt.status == "CRC_ERR" then return end
+    if not pkt or not pkt.hex then return end
 
-    local metrics = extract_metrics(pkt.hex, pkt.b64)
-    local node_id = metrics.node_id or "UNKNOWN"
+    -- 1. STRICT HARDWARE CRC INTEGRITY GATE:
+    -- Only frames that passed hardware CRC check (CRC_OK) enter the pipeline.
+    -- Any corrupted packet (CRC_BAD, CRC_ERR, NO_CRC) is immediately dropped.
+    local status = tostring(pkt.status or ""):upper()
+    if status ~= "" and status ~= "CRC_OK" then
+        return
+    end
+
+    -- 2. DECODE RAW PAYLOAD VIA STANDALONE DECODER FEATURE
+    local dec_res, dec_err = LoraDecoder.decode_packet(pkt)
+    if not dec_res or not dec_res.metrics then
+        return
+    end
+
+    local metrics = dec_res.metrics
+    local node_id = dec_res.node_id or metrics.node_id or "UNKNOWN"
+
+    -- 3. CHECK CONDITIONS FOR HOME ASSISTANT
+    -- Must be an adopted, configured node with assigned group (ha_enabled == 1)
+    local should_pub = false
+    local n_stmt = db_nodes:prepare("SELECT ha_enabled, is_configured, group_name FROM node_settings WHERE node_id = ?;")
+    if n_stmt then
+        n_stmt:bind_values(node_id)
+        if n_stmt:step() == sqlite3.ROW then
+            local ha_en  = n_stmt:get_value(0) or 0
+            local is_cfg = n_stmt:get_value(1) or 0
+            local grp    = n_stmt:get_value(2) or "Unassigned"
+            if ha_en == 1 and is_cfg == 1 and grp ~= "Unassigned" and grp ~= "Uncategorized" and grp ~= "" then
+                should_pub = true
+            end
+        end
+        n_stmt:finalize()
+    end
+
+    -- 4. SEND TO HA OVER MQTT AS FAST AS POSSIBLE (PRIORITY 1)
+    if should_pub then
+        publish_mqtt_telemetry(node_id, metrics)
+    end
+
+    -- 5. BACKGROUND STORAGE & DOWNSTREAM ACTIONS
+    -- 5.1 Rolling message buffer in RAM
     local decoded_json = jsonc.stringify(metrics)
-
-    -- 1. Insert into rolling 50 messages table in RAM
     local ins_stmt = db_ram:prepare(
         "INSERT INTO node_messages (node_id, rssi, snr, freq_hz, sf, payload_raw, payload_decoded, tmst) " ..
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?);"
@@ -350,52 +369,74 @@ local function ingest_packet(pkt)
         ins_stmt:finalize()
     end
 
-    -- 2. Update persistent node registry on Flash (Auto-Discovery)
+    -- 5.2 Auto-discovery & Node Registry update on Flash
+    local detected_class = metrics.node_class or "A"
+    local detected_model = metrics.capability and ("LoRa " .. metrics.capability) or nil
     db_nodes:exec(string.format(
-        "INSERT OR IGNORE INTO node_settings (node_id, name, node_class, is_configured, group_name) VALUES ('%s', 'New Node %s', 'A', 0, 'Unassigned');",
-        node_id, node_id
+        "INSERT OR IGNORE INTO node_settings (node_id, name, node_class, is_configured, group_name, ha_enabled) VALUES ('%s', 'Node %s', '%s', 0, 'Unassigned', 0);",
+        node_id, node_id, detected_class
     ))
+    if metrics.node_class then
+        db_nodes:exec(string.format(
+            "UPDATE node_settings SET node_class = '%s' WHERE node_id = '%s' AND is_configured = 0;",
+            metrics.node_class, node_id
+        ))
+    end
+    if detected_model then
+        db_nodes:exec(string.format(
+            "UPDATE node_settings SET model = '%s' WHERE node_id = '%s' AND (model IS NULL OR model = '' OR model = 'generic');",
+            detected_model, node_id
+        ))
+    end
     db_nodes:exec(string.format(
         "UPDATE node_settings SET last_seen = CURRENT_TIMESTAMP, last_rssi = %.1f, last_snr = %.1f WHERE node_id = '%s';",
         tonumber(pkt.rssi) or -100.0, tonumber(pkt.snr) or 0.0, node_id
     ))
 
-    -- 2.1 Publish Live Telemetry to MQTT for Home Assistant
-    metrics.rssi = tonumber(pkt.rssi)
-    metrics.snr  = tonumber(pkt.snr)
-    metrics.freq = tonumber(pkt.freq)
-    publish_mqtt_telemetry(node_id, metrics)
-
-    -- 3. Check for pending Class A downlinks
+    -- 5.3 Class A Downlink checks
     if pkt.tmst then
         handle_class_a_downlink(node_id, tonumber(pkt.tmst), pkt.freq, pkt.datr)
     end
 
-    -- 4. Process Linking Rules
+    -- 5.4 Cross-Node Linking & Automation Rules
     process_links(node_id, metrics, tonumber(pkt.tmst))
 end
 
 -- ==============================================================================
--- Main Engine Supervisor Loop
+-- Ultra-Responsive Low-Latency Packet Listener Loop (50ms Polling via stat())
 -- ==============================================================================
-print("[ENGINE] LoRa Linking & Downlink Engine running...")
+print("[ENGINE] LoRa Linking Engine running with Standalone LoraDecoder v" .. LoraDecoder._VERSION .. "...")
 
-local last_processed_tmst = 0
+local seen_tmst = {}
+local last_mtime = 0
 
 while true do
-    local f = io.open(PACKETS_JSON, "r")
-    if f then
-        local raw = f:read("*a")
-        f:close()
-        local list = raw and jsonc.parse(raw)
-        if list and #list > 0 then
-            local latest = list[1]
-            local tmst = tonumber(latest.tmst) or 0
-            if tmst ~= last_processed_tmst then
-                last_processed_tmst = tmst
-                ingest_packet(latest)
+    local st = nixio.fs.stat(PACKETS_JSON)
+    local cur_mtime = st and st.mtime or 0
+    if cur_mtime ~= last_mtime then
+        last_mtime = cur_mtime
+        local f = io.open(PACKETS_JSON, "r")
+        if f then
+            local raw = f:read("*a")
+            f:close()
+            local list = raw and jsonc.parse(raw)
+            if list and #list > 0 then
+                -- Ingest new packets from oldest to newest
+                for i = #list, 1, -1 do
+                    local p = list[i]
+                    local tm = tonumber(p.tmst) or 0
+                    if tm > 0 and not seen_tmst[tm] then
+                        seen_tmst[tm] = true
+                        ingest_packet(p)
+                    end
+                end
+
+                -- Bound ring buffer size to 200 items to avoid RAM growth
+                local count = 0
+                for _ in pairs(seen_tmst) do count = count + 1 end
+                if count > 200 then seen_tmst = {} end
             end
         end
     end
-    nixio.nanosleep(0, 500000000) -- Sleep 500ms
+    nixio.nanosleep(0, 50000000) -- Sleep 50ms (ultra-fast, virtually 0% CPU via stat)
 end

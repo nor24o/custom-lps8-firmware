@@ -8,8 +8,8 @@ function index()
     entry({"admin", "lora", "status"}, template("lora/status"), _("Realtime Status"), 10)
     entry({"admin", "lora", "diag"}, template("lora/diag"), _("Pin and GPIO Diagnostics"), 15)
     entry({"admin", "lora", "config"}, template("lora/config"), _("Settings and Config"), 20)
-    entry({"admin", "lora", "nodes"}, template("lora/nodes"), _("Node Registry & Linking"), 21)
-    entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoder"), 22)
+    entry({"admin", "lora", "nodes"}, template("lora/nodes"), _("Node Registry and Linking"), 21)
+    entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoders"), 22)
     entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout and Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
 
@@ -38,6 +38,46 @@ local function read_config_json()
     local content = f:read("*a")
     f:close()
     return jsonc.parse(content) or {}
+end
+
+local function get_recent_packets()
+    local jsonc = require "luci.jsonc"
+    local f = io.open("/tmp/lora_packets.json", "r")
+    if f then
+        local raw = f:read("*a")
+        f:close()
+        if raw and raw ~= "" then
+            local parsed = jsonc.parse(raw)
+            if parsed and type(parsed) == "table" and #parsed > 0 then
+                return parsed
+            end
+        end
+    end
+
+    local packets = {}
+    local pipe = io.popen("(cat /var/log/lora.log 2>/dev/null; logread -l 30 2>/dev/null) | grep -F '[RX]' | tail -n 25")
+    if pipe then
+        local id = 1
+        for line in pipe:lines() do
+            local time = line:match("^(%w+%s+%w+%s+%d+%s+%d+:%d+:%d+)") or ""
+            local sz, datr, freq, rssi, snr, crc = line:match("%[RX%]%s+(%d+)%s+bytes%s+|%s+([^|]+)|%s+([^|]+)|%s+RSSI%s+([^|]+)|%s+SNR%s+([^|]+)|%s+([%w_]+)")
+            if sz then
+                table.insert(packets, 1, {
+                    id = id,
+                    time = (time ~= "" and time or os.date("%H:%M:%S")),
+                    size = tonumber(sz) or 0,
+                    datr = datr:gsub("%s+", ""),
+                    freq = freq:gsub("%s*MHz%s*", ""):gsub("%s+", ""),
+                    rssi = rssi:gsub("%s*dBm%s*", ""):gsub("%s+", ""),
+                    snr = snr:gsub("%s*dB%s*", ""):gsub("%s+", ""),
+                    status = crc:gsub("%s+", "")
+                })
+                id = id + 1
+            end
+        end
+        pipe:close()
+    end
+    return packets
 end
 
 function action_status()
@@ -77,17 +117,7 @@ function action_status()
     local daemon_name = "Stopped"
     if is_running then
         uptime_str = string.format("Running (PID %d) — %ds", pid, uptime_s)
-        if sys.call("pidof raw_lora_app >/dev/null") == 0 then
-            daemon_name = "raw_lora_app (SX1302 Concentrator)"
-        elseif sys.call("pidof sx1276_app >/dev/null") == 0 then
-            daemon_name = "sx1276_app (SX1276)"
-        elseif sys.call("pidof lg02_pkt_fwd >/dev/null") == 0 then
-            daemon_name = "lg02_pkt_fwd (Dual SX1276)"
-        elseif sys.call("pidof lg01_pkt_fwd >/dev/null") == 0 then
-            daemon_name = "lg01_pkt_fwd (Single SX1276)"
-        else
-            daemon_name = "Daemon (PID " .. pid .. ")"
-        end
+        daemon_name = live.daemon or "raw_lora_app (SX1302 Concentrator)"
     end
 
     local rx_st_val = live.rx_status
@@ -130,7 +160,8 @@ function action_status()
         tx_status = live.tx_status or "TX_OFF",
         rx_status = rx_st_val,
         sf_mask = tonumber(live.sf_mask) or tonumber(cfg.sf_mask) or 255,
-        ch_detect = live.ch_detect or {0,0,0,0,0,0,0,0}
+        ch_detect = live.ch_detect or {0,0,0,0,0,0,0,0},
+        packets = get_recent_packets()
     }
 
     http.prepare_content("application/json")
@@ -179,44 +210,7 @@ end
 
 function action_packets()
     local http = require "luci.http"
-    local jsonc = require "luci.jsonc"
-    local packets = {}
-
-    local f = io.open("/tmp/lora_packets.json", "r")
-    if f then
-        local raw = f:read("*a")
-        f:close()
-        local parsed = raw and jsonc.parse(raw)
-        if parsed and type(parsed) == "table" and #parsed > 0 then
-            http.prepare_content("application/json")
-            http.write_json(parsed)
-            return
-        end
-    end
-
-    local pipe = io.popen("(cat /var/log/lora.log 2>/dev/null; logread 2>/dev/null) | grep -F '[RX]' | tail -n 30")
-    if pipe then
-        local id = 1
-        for line in pipe:lines() do
-            local time = line:match("^(%w+%s+%w+%s+%d+%s+%d+:%d+:%d+)") or ""
-            local sz, datr, freq, rssi, snr, crc = line:match("%[RX%]%s+(%d+)%s+bytes%s+|%s+([^|]+)|%s+([^|]+)|%s+RSSI%s+([^|]+)|%s+SNR%s+([^|]+)|%s+([%w_]+)")
-            if sz then
-                table.insert(packets, 1, {
-                    id = id,
-                    time = (time ~= "" and time or os.date("%H:%M:%S")),
-                    size = tonumber(sz) or 0,
-                    datr = datr:gsub("%s+", ""),
-                    freq = freq:gsub("%s*MHz%s*", ""):gsub("%s+", ""),
-                    rssi = rssi:gsub("%s*dBm%s*", ""):gsub("%s+", ""),
-                    snr = snr:gsub("%s*dB%s*", ""):gsub("%s+", ""),
-                    status = crc:gsub("%s+", "")
-                })
-                id = id + 1
-            end
-        end
-        pipe:close()
-    end
-
+    local packets = get_recent_packets()
     http.prepare_content("application/json")
     http.write_json(packets)
 end
@@ -241,6 +235,11 @@ function action_decoders()
         if f then
             f:write(jsonc.stringify(parsed, true))
             f:close()
+
+            -- Trigger immediate discovery sync with updated decoders
+            local sys = require "luci.sys"
+            sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+
             http.prepare_content("application/json")
             http.write_json({ status = "saved", count = #(parsed.schemes or {}) })
         else
@@ -258,27 +257,47 @@ function action_decoders()
         if not data then
             data = {
                 version = 1,
-                updated = "2026-11-01T18:00:00Z",
+                updated = "2026-11-06T00:00:00Z",
+                globalNodeId = {
+                    source = "offset",
+                    offset = 0,
+                    length = 2,
+                    format = "hex",
+                    prefix = ""
+                },
                 schemes = {
                     {
-                        id = "scheme_aa0b",
-                        name = "Sensor Node AA0B (Temp / Volt / Seq)",
-                        description = "Matches incoming payloads starting with AA0B header",
+                        id = "scheme_2b_node_tlv",
+                        name = "Standard 2-Byte Node ID + Device Type + TLV",
+                        description = "Standard Header: 2-Byte Node ID (bytes 0..1), 1-Byte Device Type (Class/Capability, byte 2), 1-Byte Seq (byte 3), followed by dynamic TLV sensors",
                         enabled = true,
-                        matchType = "prefix",
-                        matchValue = "aa0b",
-                        type = "js",
-                        jsCode = "// Decoder for AA0B packets (e.g. aa0b64370111084002050fac)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar temp_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    temperature: +(temp_raw / 10).toFixed(1) + \" °C\",\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+                        matchType = "condition",
+                        matchCondition = "// Match standard 4+ byte header\nreturn bytes.length >= 4;",
+                        nodeId = {
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
+                        },
+                        type = "ctv",
+                        dataOffset = 4
                     },
                     {
-                        id = "scheme_aa0c",
-                        name = "Sensor Node AA0C (Telemetry / Battery)",
-                        description = "Matches incoming payloads starting with AA0C header",
+                        id = "scheme_cayenne_lpp",
+                        name = "Cayenne LPP Standard Sensors",
+                        description = "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
                         enabled = true,
-                        matchType = "prefix",
-                        matchValue = "aa0c",
-                        type = "js",
-                        jsCode = "// Decoder for AA0C packets (e.g. aa0c6401011107c302051067)\nvar header = hex.substring(0, 4).toUpperCase();\nvar seq = (bytes[2] << 8) | bytes[3];\nvar sensor_raw = (bytes[4] << 8) | bytes[5];\nvar volt_raw = (bytes[6] << 8) | bytes[7];\n\nreturn {\n    node_type: header,\n    seq: seq,\n    sensor_val: sensor_raw,\n    battery: +(volt_raw / 1000).toFixed(2) + \" V\",\n    extra: hex.substring(16)\n};"
+                        matchType = "condition",
+                        matchCondition = "// Match Cayenne LPP channels\nreturn bytes.length >= 3 && (bytes[1] === 0x67 || bytes[1] === 0x68 || bytes[1] === 0x02 || bytes[1] === 0x01);",
+                        nodeId = {
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
+                        },
+                        type = "cayenne_lpp"
                     },
                     {
                         id = "scheme_ascii_ping",
@@ -287,15 +306,14 @@ function action_decoders()
                         enabled = true,
                         matchType = "condition",
                         matchCondition = "// Match if all bytes are printable ASCII chars\nif (bytes.length < 2) return false;\nreturn bytes.every(function(b) {\n    return (b >= 32 && b <= 126) || b === 10 || b === 13;\n});",
+                        nodeId = {
+                            source = "offset",
+                            offset = 0,
+                            length = 2,
+                            format = "hex",
+                            prefix = ""
+                        },
                         type = "ascii"
-                    },
-                    {
-                        id = "scheme_cayenne_lpp",
-                        name = "Cayenne LPP Standard Sensors",
-                        description = "Decodes standard IPSO/Cayenne LPP sensors (temp, hum, analog, GPS)",
-                        enabled = true,
-                        matchType = "default",
-                        type = "cayenne_lpp"
                     }
                 }
             }
@@ -341,23 +359,12 @@ end
 
 function action_log()
     local http = require "luci.http"
+    local pipe = io.popen("tail -n 60 /var/log/lora.log 2>/dev/null")
     local output = ""
-
-    local f = io.open("/var/log/lora.log", "r")
-    if f then
-        output = f:read("*a") or ""
-        f:close()
-    end
-
-    local pipe = io.popen("logread -l 50 2>/dev/null | grep -iE 'raw_lora_app|sx1302|sx1276|lora' | tail -n 30")
     if pipe then
-        local syslogs = pipe:read("*a") or ""
+        output = pipe:read("*a") or ""
         pipe:close()
-        if syslogs ~= "" then
-            output = output .. (output ~= "" and "\n" or "") .. syslogs
-        end
     end
-
     if output == "" then
         output = "[raw_lora_app] No log output yet."
     end
@@ -548,6 +555,9 @@ function action_nodes()
         http.write_json({ error = "Failed to open /etc/lora/nodes.db" })
         return
     end
+    db:busy_timeout(5000)
+    db:exec("PRAGMA journal_mode = MEMORY;")
+    db:exec("PRAGMA synchronous = OFF;")
 
     local method = http.getenv("REQUEST_METHOD")
     if method == "GET" then
@@ -567,6 +577,44 @@ function action_nodes()
             http.prepare_content("application/json")
             http.write_json({ error = "node_id is required" })
             return
+        end
+
+        local ha_en = tonumber(data.ha_enabled) or 0
+        if ha_en == 1 then
+            -- Strict Two-Factor Gate: Node must have a defined custom decoder in /etc/lora/decoders.json
+            local df = io.open("/etc/lora/decoders.json", "r")
+            local has_decoder = false
+            if df then
+                local dc = df:read("*a")
+                df:close()
+                local d_obj = jsonc.parse(dc)
+                if d_obj and d_obj.schemes then
+                    local nid = data.node_id:upper():gsub("%s+", "")
+                    for _, s in ipairs(d_obj.schemes) do
+                        if s.enabled ~= false and s.id ~= "scheme_2b_node_tlv" and s.id ~= "scheme_cayenne_lpp" and s.id ~= "scheme_ascii_ping" then
+                            if s.matchType == "prefix" and s.matchValue and s.matchValue ~= "" then
+                                local pfx = tostring(s.matchValue):upper():gsub("%s+", "")
+                                if nid:find("^" .. pfx) or pfx:find("^" .. nid) then
+                                    has_decoder = true
+                                    break
+                                end
+                            elseif s.name and s.name:upper():find(nid, 1, true) then
+                                has_decoder = true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            if not has_decoder then
+                db:close()
+                http.status(400, "Decoder Required")
+                http.prepare_content("application/json")
+                http.write_json({ 
+                    error = "A custom decoder scheme must be configured and tested in Decoder Studio before enrolling node '" .. data.node_id .. "' into Home Assistant." 
+                })
+                return
+            end
         end
 
         local stmt = db:prepare([[
@@ -601,7 +649,7 @@ function action_nodes()
                 tonumber(data.rx2_sf) or 9,
                 tonumber(data.ping_period_sec) or 32,
                 tonumber(data.default_tx_power) or 14,
-                tonumber(data.ha_enabled) or 1
+                ha_en
             )
             stmt:step()
             stmt:finalize()
@@ -610,7 +658,7 @@ function action_nodes()
 
         -- Re-sync Home Assistant discovery to reflect adopted / updated node
         local sys = require "luci.sys"
-        sys.call("killall lora_mqtt_bridge.lua 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+        sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
 
         http.prepare_content("application/json")
         http.write_json({ success = true, node_id = data.node_id })
@@ -678,6 +726,9 @@ function action_links()
         http.write_json({ error = "Failed to open /etc/lora/nodes.db" })
         return
     end
+    db:busy_timeout(5000)
+    db:exec("PRAGMA journal_mode = MEMORY;")
+    db:exec("PRAGMA synchronous = OFF;")
 
     local method = http.getenv("REQUEST_METHOD")
     if method == "GET" then
@@ -1040,7 +1091,7 @@ function action_mqtt()
             f:close()
         end
 
-        sys.call("killall lora_mqtt_bridge.lua 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
+        sys.call("kill -9 $(pgrep -f lora_mqtt_bridge.lua) 2>/dev/null; /usr/bin/lora_mqtt_bridge.lua >> /var/log/mqtt_bridge.log 2>&1 &")
 
         http.prepare_content("application/json")
         http.write_json({ success = true, mqtt = cfg.mqtt })

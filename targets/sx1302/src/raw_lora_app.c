@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -18,6 +20,7 @@
 #include "libtools/inc/base64.h"
 
 // --- POLYFILL FOR OPENWRT MUSL LIBC ---
+#ifndef __GLIBC__
 static void *qsort_arg = NULL;
 static int (*qsort_cmp)(const void *, const void *, void *) = NULL;
 
@@ -31,7 +34,17 @@ void qsort_r(void *base, size_t nmemb, size_t size,
     qsort_cmp = compar;
     qsort(base, nmemb, size, qsort_wrapper);
 }
+#endif
 // --------------------------------------
+
+// === BUILD IDENTITY ===
+#define ENGINE_VERSION "2.0"
+#define LINK_VERSION   2
+#if defined(__mips__)
+#define GATEWAY_MODEL  "dragino-lps8"
+#else
+#define GATEWAY_MODEL  "bobcat-300"
+#endif
 
 // === FIXED CONSTANTS (not user-configurable) ===
 #define CONFIG_PATH   "/etc/lora/config.json"
@@ -46,6 +59,7 @@ typedef struct {
     uint16_t port_down;
     uint16_t status_port;           // TCP status server port (0 = disabled)
     int      heartbeat_interval_s;
+    char     link_key[65];          // shared key with the hub; empty until paired
     // Hardware
     char     spi_path[64];
     char     reset_gpio[8];
@@ -141,6 +155,7 @@ static void load_config(const char *path) {
     g_cfg.port_down              = 5556;
     g_cfg.status_port            = 5557;
     g_cfg.heartbeat_interval_s   = 10;
+    g_cfg.link_key[0]            = '\0';
     strncpy(g_cfg.spi_path,              "/dev/spidev1.0", sizeof(g_cfg.spi_path)    - 1);
     strncpy(g_cfg.reset_gpio,            "23",             sizeof(g_cfg.reset_gpio)  - 1);
     g_cfg.pa_gpio[0]             = '\0';
@@ -238,6 +253,7 @@ static void load_config(const char *path) {
 
     // Network
     CFG_STR  ("target_ip",            g_cfg.target_ip)
+    CFG_STR  ("link_key",             g_cfg.link_key)
     CFG_U16  ("port_up",              g_cfg.port_up)
     CFG_U16  ("port_down",            g_cfg.port_down)
     CFG_U16  ("status_port",          g_cfg.status_port)
@@ -495,19 +511,27 @@ static int sock_up, sock_down;
 static struct sockaddr_in dest_addr;
 static uint64_t g_gateway_eui = 0;
 static time_t   g_start_time;
+static uint32_t g_uplink_seq = 0;
 static uint8_t  g_sync_word   = 0x12;
 static uint32_t g_rf0_freq    = 0;
 static uint32_t g_rf1_freq    = 0;
+static float    g_temperature_c = 0.0f;
+static bool     g_temp_valid    = false;
 
 static pthread_mutex_t stats_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t hal_mutex   = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t sock_mutex  = PTHREAD_MUTEX_INITIALIZER;
 static bool            g_net_ok    = true;
+static volatile int    g_consec_err = 0;
 static uint32_t stat_rx_count      = 0;
 static uint32_t stat_tx_count      = 0;
 static uint32_t stat_crc_err       = 0;
 static uint32_t stat_tx_err        = 0;
 static uint32_t stat_tx_queue_drop = 0;
+
+static uint32_t next_uplink_seq(void) {
+    return __sync_add_and_fetch(&g_uplink_seq, 1);
+}
 
 static volatile sig_atomic_t g_quit        = 0;
 static volatile sig_atomic_t g_quit_signal = 0;
@@ -516,7 +540,13 @@ static volatile int g_led_rx_blink = 0;
 static volatile int g_led_tx_blink = 0;
 
 typedef struct {
-    struct lgw_pkt_tx_s entries[TX_QUEUE_SIZE];
+    struct lgw_pkt_tx_s pkt;
+    char                id[40];     // request_id, empty when the sender wants no answer
+    struct sockaddr_in  src;
+} tx_item_t;
+
+typedef struct {
+    tx_item_t entries[TX_QUEUE_SIZE];
     int     head;
     int     count;
     pthread_mutex_t mutex;
@@ -531,7 +561,7 @@ static void txq_init(tx_queue_t *q) {
     pthread_cond_init(&q->not_empty, NULL);
 }
 
-static bool txq_push(tx_queue_t *q, const struct lgw_pkt_tx_s *pkt) {
+static bool txq_push(tx_queue_t *q, const tx_item_t *pkt) {
     pthread_mutex_lock(&q->mutex);
     if (q->count >= TX_QUEUE_SIZE) {
         pthread_mutex_unlock(&q->mutex);
@@ -545,7 +575,7 @@ static bool txq_push(tx_queue_t *q, const struct lgw_pkt_tx_s *pkt) {
     return true;
 }
 
-static bool txq_pop(tx_queue_t *q, struct lgw_pkt_tx_s *pkt) {
+static bool txq_pop(tx_queue_t *q, tx_item_t *pkt) {
     pthread_mutex_lock(&q->mutex);
     while (q->count == 0) {
         if (g_quit) {
@@ -577,6 +607,11 @@ static void sig_handler(int signo) {
 }
 
 static void reset_sx1302(void) {
+    if (access("/usr/local/bin/reset_lgw.sh", X_OK) == 0) {
+        printf("[RESET] Running /usr/local/bin/reset_lgw.sh start...\n");
+        system("/usr/local/bin/reset_lgw.sh start");
+        return;
+    }
     int  fd;
     char path[64];
     const char *gpio = g_cfg.reset_gpio;
@@ -631,6 +666,16 @@ static void send_uplink(const void *buf, size_t len) {
     if (sock_up >= 0) {
         sent = sendto(sock_up, buf, len, 0,
                       (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+#if !defined(__mips__)   // the hub runs on the Bobcat itself
+        if (dest_addr.sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
+            struct sockaddr_in loop_addr;
+            memset(&loop_addr, 0, sizeof(loop_addr));
+            loop_addr.sin_family = AF_INET;
+            loop_addr.sin_port = htons(g_cfg.port_up);
+            loop_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            sendto(sock_up, buf, len, 0, (const struct sockaddr *)&loop_addr, sizeof(loop_addr));
+        }
+#endif
     }
     if (sent < 0) {
         if (g_net_ok) {
@@ -650,15 +695,272 @@ static void send_uplink(const void *buf, size_t len) {
         g_net_ok = true;
         printf("[NET] Uplink connection to %s:%u recovered.\n",
                g_cfg.target_ip, g_cfg.port_up);
-        struct boot_pkt boot;
-        memset(&boot, 0, sizeof(boot));
-        boot.pkt_type    = PKT_TYPE_BOOT;
-        boot.gateway_eui = g_gateway_eui;
-        strncpy(boot.hal_version, lgw_version_info(), sizeof(boot.hal_version) - 1);
-        sendto(sock_up, &boot, sizeof(boot), 0,
-               (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
     }
     pthread_mutex_unlock(&sock_mutex);
+}
+
+// === GATEWAY <-> HUB LINK ===
+// Uplinks and status carry a sequence number and are acknowledged by the hub;
+// anything unacknowledged is sent again for about 12 seconds. Commands from
+// the hub are signed: "L2:<nonce>:<hmac>:<json>", where the nonce is one this
+// engine published recently, so a captured command cannot be replayed.
+
+static const uint32_t SHA_K[64] = {
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+};
+
+typedef struct {
+    uint32_t h[8];
+    uint64_t total;
+    uint8_t  buf[64];
+    size_t   n;
+} sha256_ctx;
+
+#define SHA_ROR(x, n) (((x) >> (n)) | ((x) << (32 - (n))))
+
+static void sha256_block(uint32_t *h, const uint8_t *p) {
+    uint32_t w[64];
+    for (int i = 0; i < 16; i++)
+        w[i] = ((uint32_t)p[i*4] << 24) | ((uint32_t)p[i*4+1] << 16) | ((uint32_t)p[i*4+2] << 8) | p[i*4+3];
+    for (int i = 16; i < 64; i++) {
+        uint32_t s0 = SHA_ROR(w[i-15], 7) ^ SHA_ROR(w[i-15], 18) ^ (w[i-15] >> 3);
+        uint32_t s1 = SHA_ROR(w[i-2], 17) ^ SHA_ROR(w[i-2], 19) ^ (w[i-2] >> 10);
+        w[i] = w[i-16] + s0 + w[i-7] + s1;
+    }
+    uint32_t a=h[0], b=h[1], c=h[2], d=h[3], e=h[4], f=h[5], g=h[6], hh=h[7];
+    for (int i = 0; i < 64; i++) {
+        uint32_t t1 = hh + (SHA_ROR(e,6) ^ SHA_ROR(e,11) ^ SHA_ROR(e,25)) + ((e & f) ^ (~e & g)) + SHA_K[i] + w[i];
+        uint32_t t2 = (SHA_ROR(a,2) ^ SHA_ROR(a,13) ^ SHA_ROR(a,22)) + ((a & b) ^ (a & c) ^ (b & c));
+        hh = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+    }
+    h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=d; h[4]+=e; h[5]+=f; h[6]+=g; h[7]+=hh;
+}
+
+static void sha256_init(sha256_ctx *c) {
+    static const uint32_t iv[8] = {0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19};
+    memcpy(c->h, iv, sizeof(iv));
+    c->total = 0;
+    c->n = 0;
+}
+
+static void sha256_update(sha256_ctx *c, const uint8_t *p, size_t len) {
+    c->total += len;
+    while (len) {
+        size_t k = 64 - c->n;
+        if (k > len) k = len;
+        memcpy(c->buf + c->n, p, k);
+        c->n += k; p += k; len -= k;
+        if (c->n == 64) { sha256_block(c->h, c->buf); c->n = 0; }
+    }
+}
+
+static void sha256_final(sha256_ctx *c, uint8_t out[32]) {
+    uint64_t bits = c->total * 8;
+    uint8_t  pad = 0x80, zero = 0, lenb[8];
+    sha256_update(c, &pad, 1);
+    while (c->n != 56) sha256_update(c, &zero, 1);
+    for (int i = 0; i < 8; i++) lenb[i] = (uint8_t)(bits >> (56 - 8*i));
+    sha256_update(c, lenb, 8);
+    for (int i = 0; i < 8; i++) {
+        out[i*4]   = (uint8_t)(c->h[i] >> 24);
+        out[i*4+1] = (uint8_t)(c->h[i] >> 16);
+        out[i*4+2] = (uint8_t)(c->h[i] >> 8);
+        out[i*4+3] = (uint8_t)(c->h[i]);
+    }
+}
+
+#define LINK_SLOTS     32
+#define LINK_MAX_LEN   1600
+#define LINK_MAX_TRIES 6
+
+typedef struct {
+    bool     used;
+    uint32_t seq;
+    uint16_t len;
+    uint8_t  tries;
+    uint64_t next_ms;
+    char     buf[LINK_MAX_LEN];
+} link_slot_t;
+
+static link_slot_t     g_link[LINK_SLOTS];
+static pthread_mutex_t link_mutex  = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t nonce_mutex = PTHREAD_MUTEX_INITIALIZER;
+static volatile bool   g_link_peer = false;   // the hub has acknowledged us
+static uint32_t        g_boot_id   = 0;
+static uint32_t        g_nonces[3] = {0, 0, 0};
+static const char     *g_cfg_path  = CONFIG_PATH;
+static uint32_t stat_link_acks = 0, stat_link_retx = 0, stat_link_lost = 0, stat_auth_rej = 0;
+
+static uint64_t mono_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)(ts.tv_nsec / 1000000L);
+}
+
+static uint32_t random_u32(void) {
+    uint32_t v = 0;
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        if (read(fd, &v, sizeof(v)) != sizeof(v)) v = 0;
+        close(fd);
+    }
+    return v ? v : (uint32_t)time(NULL) ^ (uint32_t)mono_ms();
+}
+
+static void nonce_rotate(void) {
+    uint32_t v = random_u32();
+    pthread_mutex_lock(&nonce_mutex);
+    g_nonces[2] = g_nonces[1];
+    g_nonces[1] = g_nonces[0];
+    g_nonces[0] = v;
+    pthread_mutex_unlock(&nonce_mutex);
+}
+
+static uint32_t nonce_current(void) {
+    pthread_mutex_lock(&nonce_mutex);
+    uint32_t v = g_nonces[0];
+    pthread_mutex_unlock(&nonce_mutex);
+    return v;
+}
+
+static bool nonce_known(uint32_t v) {
+    pthread_mutex_lock(&nonce_mutex);
+    bool ok = v != 0 && (v == g_nonces[0] || v == g_nonces[1] || v == g_nonces[2]);
+    pthread_mutex_unlock(&nonce_mutex);
+    return ok;
+}
+
+static void send_reliable(const char *buf, size_t len, uint32_t seq) {
+    send_uplink(buf, len);
+    if (len > LINK_MAX_LEN) return;
+    pthread_mutex_lock(&link_mutex);
+    link_slot_t *s = &g_link[seq % LINK_SLOTS];
+    if (s->used && g_link_peer) stat_link_lost++;
+    s->used = true;
+    s->seq = seq;
+    s->len = (uint16_t)len;
+    s->tries = 0;
+    s->next_ms = mono_ms() + 200;
+    memcpy(s->buf, buf, len);
+    pthread_mutex_unlock(&link_mutex);
+}
+
+static void *thread_link(void *arg) {
+    (void)arg;
+    char rx[256];
+    printf("[LINK] Thread started (protocol %d).\n", LINK_VERSION);
+    while (!g_quit) {
+        for (;;) {
+            pthread_mutex_lock(&sock_mutex);
+            int n = (sock_up >= 0) ? (int)recv(sock_up, rx, sizeof(rx) - 1, MSG_DONTWAIT) : -1;
+            pthread_mutex_unlock(&sock_mutex);
+            if (n <= 0) break;
+            rx[n] = '\0';
+            const char *q = strstr(rx, "\"seq\":");
+            if (!strstr(rx, "\"msg_type\":\"ack\"") || !q) continue;
+            uint32_t seq = (uint32_t)strtoul(q + 6, NULL, 10);
+            pthread_mutex_lock(&link_mutex);
+            link_slot_t *s = &g_link[seq % LINK_SLOTS];
+            if (s->used && s->seq == seq) s->used = false;
+            if (!g_link_peer) printf("[LINK] Hub is acknowledging packets.\n");
+            g_link_peer = true;
+            stat_link_acks++;
+            pthread_mutex_unlock(&link_mutex);
+        }
+        uint64_t now = mono_ms();
+        pthread_mutex_lock(&link_mutex);
+        for (int i = 0; i < LINK_SLOTS; i++) {
+            link_slot_t *s = &g_link[i];
+            if (!s->used || now < s->next_ms) continue;
+            if (!g_link_peer) { s->used = false; continue; }   // nothing acknowledges yet
+            if (s->tries >= LINK_MAX_TRIES) {
+                s->used = false;
+                stat_link_lost++;
+                continue;
+            }
+            send_uplink(s->buf, s->len);
+            s->tries++;
+            s->next_ms = now + (200ULL << s->tries);
+            stat_link_retx++;
+        }
+        pthread_mutex_unlock(&link_mutex);
+        usleep(20000);
+    }
+    printf("[LINK] Thread exiting.\n");
+    return NULL;
+}
+
+static void send_gateway_status_json(void) {
+    char json_status[1500];
+    uint32_t uptime_s = (uint32_t)(time(NULL) - g_start_time);
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    uint64_t ts_ms = (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)(ts.tv_nsec / 1000000L);
+    uint32_t seq = next_uplink_seq();
+    pthread_mutex_lock(&stats_mutex);
+    uint32_t rx = stat_rx_count;
+    uint32_t tx = stat_tx_count;
+    uint32_t crc = stat_crc_err;
+    uint32_t tx_err = stat_tx_err;
+    uint32_t q_drop = stat_tx_queue_drop;
+    pthread_mutex_unlock(&stats_mutex);
+
+    int len = snprintf(json_status, sizeof(json_status),
+        "{\"v\":%d,\"msg_type\":\"gateway_status\","
+        "\"gateway_id\":\"%016llX\",\"seq\":%u,\"boot\":%u,\"ts_ms\":%llu,"
+        "\"gateway_status\":{"
+        "\"eui\":\"%016llX\","
+        "\"gateway_id\":\"%016llX\","
+        "\"hal_version\":\"%s\","
+        "\"uptime_s\":%u,"
+        "\"sync_word\":\"%s\","
+        "\"rf0_freq\":%u,"
+        "\"rf1_freq\":%u,"
+        "\"tx_power\":%d,"
+        "\"rx\":%u,\"tx\":%u,\"crc_err\":%u,\"tx_err\":%u,"
+        "\"q_depth\":%d,\"q_drop\":%u,"
+        "\"temp_c\":%.1f,"
+        "\"target_ip\":\"%s\","
+        "\"port_up\":%u,"
+        "\"port_down\":%u,"
+        "\"status_port\":%u,"
+        "\"link\":%d,\"auth\":%s,\"nonce\":\"%08x\","
+        "\"model\":\"%s\",\"engine\":\"%s\","
+        "\"link_retx\":%u,\"link_lost\":%u,\"auth_rej\":%u"
+        "}}",
+        LINK_VERSION,
+        (unsigned long long)g_gateway_eui,
+        (unsigned)seq,
+        (unsigned)g_boot_id,
+        (unsigned long long)ts_ms,
+        (unsigned long long)g_gateway_eui,
+        (unsigned long long)g_gateway_eui,
+        lgw_version_info(),
+        uptime_s,
+        (g_sync_word == 0x34) ? "public" : "private",
+        g_rf0_freq, g_rf1_freq,
+        g_cfg.tx_default_power,
+        rx, tx, crc, tx_err,
+        txq_count(&txq), q_drop,
+        g_temperature_c,
+        g_cfg.target_ip,
+        (unsigned)g_cfg.port_up,
+        (unsigned)g_cfg.port_down,
+        (unsigned)g_cfg.status_port,
+        LINK_VERSION, g_cfg.link_key[0] ? "true" : "false", nonce_current(),
+        GATEWAY_MODEL, ENGINE_VERSION,
+        stat_link_retx, stat_link_lost, stat_auth_rej);
+
+    if (len > 0 && len < (int)sizeof(json_status)) {
+        send_reliable(json_status, (size_t)len, seq);
+    }
 }
 
 static int configure_and_start_sx1302(void) {
@@ -777,7 +1079,7 @@ typedef struct {
     uint16_t size;
     uint16_t crc;
     char     status[12];
-    char     hex[68];
+    char     hex[514];
     char     b64[360];
 } rx_hist_entry_t;
 
@@ -785,8 +1087,6 @@ static rx_hist_entry_t g_rx_hist[RX_HIST_MAX];
 static int             g_rx_hist_head  = 0;
 static int             g_rx_hist_count = 0;
 static pthread_mutex_t rx_hist_mutex   = PTHREAD_MUTEX_INITIALIZER;
-static float           g_temperature_c = 0.0f;
-static bool            g_temp_valid    = false;
 
 static void record_rx_packet(const struct lgw_pkt_rx_s *p, const char *hms,
                              const char *datr_str, const char *codr_str,
@@ -812,7 +1112,7 @@ static void record_rx_packet(const struct lgw_pkt_rx_s *p, const char *hms,
     strncpy(e->status, crc_str, sizeof(e->status) - 1);
     strncpy(e->b64, b64_str, sizeof(e->b64) - 1);
 
-    int hex_bytes = p->size > 32 ? 32 : p->size;
+    int hex_bytes = p->size > 255 ? 255 : p->size;
     for (int k = 0; k < hex_bytes; k++) {
         snprintf(e->hex + (k * 2), 3, "%02X", p->payload[k]);
     }
@@ -867,7 +1167,7 @@ static void *thread_rx_loop(void *arg) {
     struct lgw_pkt_rx_s rxpkt[16];
     char json_buf[1536];
     char b64[400];
-    int consec_err = 0;
+    g_consec_err = 0;
 
     printf("[RX] Thread started.\n");
 
@@ -877,9 +1177,9 @@ static void *thread_rx_loop(void *arg) {
         pthread_mutex_unlock(&hal_mutex);
 
         if (nb_pkt == LGW_HAL_ERROR) {
-            consec_err++;
-            printf("[RX] lgw_receive() error (%d/10) — retrying.\n", consec_err);
-            if (consec_err >= 10) {
+            g_consec_err++;
+            printf("[RX] lgw_receive() error (%d/10) — retrying.\n", g_consec_err);
+            if (g_consec_err >= 10) {
                 printf("[WATCHDOG] 10 consecutive HAL errors — resetting SX1302 concentrator...\n");
                 pthread_mutex_lock(&hal_mutex);
                 lgw_stop();
@@ -888,7 +1188,7 @@ static void *thread_rx_loop(void *arg) {
                 pthread_mutex_unlock(&hal_mutex);
                 if (r == LGW_HAL_SUCCESS) {
                     printf("[WATCHDOG] SX1302 concentrator recovered and resumed!\n");
-                    consec_err = 0;
+                    g_consec_err = 0;
                 } else {
                     printf("[WATCHDOG] SX1302 recovery failed — requesting full daemon restart.\n");
                     g_quit = 1;
@@ -898,7 +1198,7 @@ static void *thread_rx_loop(void *arg) {
             usleep(100000);
             continue;
         }
-        consec_err = 0;
+        g_consec_err = 0;
 
         for (int i = 0; i < nb_pkt; i++) {
             struct lgw_pkt_rx_s *p = &rxpkt[i];
@@ -948,8 +1248,12 @@ static void *thread_rx_loop(void *arg) {
                 }
             }
 
+            uint32_t uplink_seq = next_uplink_seq();
+            uint64_t uplink_ts_ms = (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)(ts.tv_nsec / 1000000L);
             int json_len = snprintf(json_buf, sizeof(json_buf),
-                "{\"rxpk\":[{"
+                "{\"v\":2,\"msg_type\":\"uplink\","
+                "\"gateway_id\":\"%016llX\",\"seq\":%u,\"boot\":%u,\"ts_ms\":%llu,"
+                "\"rxpk\":[{"
                 "\"tmst\":%u,"
                 "\"time\":\"%s.%06ldZ\","
                 "\"chan\":%u,"
@@ -967,13 +1271,17 @@ static void *thread_rx_loop(void *arg) {
                 "\"size\":%u,"
                 "\"data\":\"%s\""
                 "}]}",
+                (unsigned long long)g_gateway_eui, (unsigned)uplink_seq,
+                (unsigned)g_boot_id,
+                (unsigned long long)uplink_ts_ms,
                 p->count_us, time_str, (long)(ts.tv_nsec / 1000),
                 (unsigned)p->if_chain, (unsigned)p->rf_chain,
                 p->freq_hz / 1e6, (unsigned)p->modem_id, stat_val,
                 modu_str, datr_str, codr_str, p->rssis, p->snr, p->freq_offset,
                 p->rssic, ext_buf, (unsigned)p->size, b64);
 
-            send_uplink(json_buf, (size_t)json_len);
+            if (json_len > 0 && json_len < (int)sizeof(json_buf))
+                send_reliable(json_buf, (size_t)json_len, uplink_seq);
 
             pthread_mutex_lock(&stats_mutex);
             stat_rx_count++;
@@ -996,9 +1304,232 @@ static void *thread_rx_loop(void *arg) {
     return NULL;
 }
 
+static void link_reply(const char *text, const struct sockaddr_in *src, socklen_t slen) {
+    sendto(sock_down, text, strlen(text), 0, (const struct sockaddr *)src, slen);
+}
+
+static void send_tx_ack(const char *id, const char *status, const struct sockaddr_in *src) {
+    if (!id || !id[0]) return;
+    char m[240];
+    snprintf(m, sizeof(m), "{\"v\":%d,\"msg_type\":\"tx_ack\",\"gateway_id\":\"%016llX\",\"request_id\":\"%s\",\"status\":\"%s\"}",
+             LINK_VERSION, (unsigned long long)g_gateway_eui, id, status);
+    link_reply(m, src, sizeof(*src));
+}
+
+// Remembers recent request ids, so a repeated command runs only once.
+static bool seen_request(const char *id) {
+    static char seen[16][40];
+    static int  next = 0;
+    for (int i = 0; i < 16; i++)
+        if (strcmp(seen[i], id) == 0) return true;
+    strncpy(seen[next], id, sizeof(seen[next]) - 1);
+    seen[next][sizeof(seen[next]) - 1] = '\0';
+    next = (next + 1) % 16;
+    return false;
+}
+
+static void link_auth_required(const struct sockaddr_in *src, socklen_t slen) {
+    char m[160];
+    snprintf(m, sizeof(m), "{\"v\":%d,\"msg_type\":\"auth_required\",\"gateway_id\":\"%016llX\",\"nonce\":\"%08x\"}",
+             LINK_VERSION, (unsigned long long)g_gateway_eui, nonce_current());
+    link_reply(m, src, slen);
+}
+
+// Checks a datagram from the hub. On success *text points at its JSON.
+static bool link_accept(char **text, const struct sockaddr_in *src, socklen_t slen) {
+    char *p = *text;
+    bool  keyed = g_cfg.link_key[0] != '\0';
+    if (strncmp(p, "L2:", 3) != 0) {
+        if (keyed) {
+            stat_auth_rej++;
+            link_auth_required(src, slen);
+            return false;
+        }
+        return true;
+    }
+    if (strlen(p) < 78 || p[11] != ':' || p[76] != ':') return false;
+    if (keyed) {
+        uint8_t mac[32];
+        char    want[65];
+        sha256_ctx c;
+        uint8_t k[64] = {0}, ipad[64], opad[64], inner[32];
+        size_t  klen = strlen(g_cfg.link_key);
+        if (klen > 64) klen = 64;
+        memcpy(k, g_cfg.link_key, klen);
+        for (int i = 0; i < 64; i++) { ipad[i] = k[i] ^ 0x36; opad[i] = k[i] ^ 0x5c; }
+        sha256_init(&c);
+        sha256_update(&c, ipad, 64);
+        sha256_update(&c, (const uint8_t *)(p + 3), 9);          // "<nonce>:"
+        sha256_update(&c, (const uint8_t *)(p + 77), strlen(p + 77));
+        sha256_final(&c, inner);
+        sha256_init(&c);
+        sha256_update(&c, opad, 64);
+        sha256_update(&c, inner, 32);
+        sha256_final(&c, mac);
+        for (int i = 0; i < 32; i++) snprintf(want + i*2, 3, "%02x", mac[i]);
+        uint8_t diff = 0;
+        for (int i = 0; i < 64; i++) diff |= (uint8_t)(want[i] ^ p[12 + i]);
+        if (diff) {
+            stat_auth_rej++;
+            printf("[LINK] Rejected a command with a wrong signature.\n");
+            link_auth_required(src, slen);
+            return false;
+        }
+        char nonce_txt[9];
+        memcpy(nonce_txt, p + 3, 8);
+        nonce_txt[8] = '\0';
+        if (!nonce_known((uint32_t)strtoul(nonce_txt, NULL, 16))) {
+            link_auth_required(src, slen);   // correct key, stale nonce: the hub retries
+            return false;
+        }
+    }
+    *text = p + 77;
+    return true;
+}
+
+static bool config_write(const JSON_Value *v) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "%s.tmp", g_cfg_path);
+    if (json_serialize_to_file_pretty(v, tmp) != JSONSuccess || rename(tmp, g_cfg_path) != 0) {
+        printf("[CONFIG-IN] Atomic config write failed: %s\n", strerror(errno));
+        return false;
+    }
+    return true;
+}
+
+static void handle_get_config(JSON_Object *obj, const char *rid, const struct sockaddr_in *src, socklen_t slen) {
+    char head[640];
+    snprintf(head, sizeof(head),
+        "{\"v\":%d,\"msg_type\":\"config_resp\",\"gateway_id\":\"%016llX\",\"request_id\":\"%s\","
+        "\"rf0_freq\":%u,\"rf1_freq\":%u,\"sync_word\":\"%s\",\"tx_power\":%d,\"target_ip\":\"%s\","
+        "\"port_up\":%u,\"port_down\":%u,\"status_port\":%u,\"link\":%d,\"model\":\"%s\",\"engine\":\"%s\"",
+        LINK_VERSION, (unsigned long long)g_gateway_eui, rid ? rid : "",
+        g_rf0_freq, g_rf1_freq, (g_sync_word == 0x34) ? "public" : "private",
+        g_cfg.tx_default_power, g_cfg.target_ip,
+        g_cfg.port_up, g_cfg.port_down, g_cfg.status_port, LINK_VERSION, GATEWAY_MODEL, ENGINE_VERSION);
+
+    char *file = NULL;
+    if (json_object_get_boolean(obj, "full") == 1) {
+        JSON_Value *f = json_parse_file(g_cfg_path);
+        if (f) {
+            json_object_remove(json_value_get_object(f), "link_key");
+            file = json_serialize_to_string(f);
+            json_value_free(f);
+        }
+    }
+    size_t need = strlen(head) + (file ? strlen(file) : 0) + 16;
+    char  *msg  = malloc(need);
+    if (msg) {
+        if (file) snprintf(msg, need, "%s,\"config\":%s}", head, file);
+        else      snprintf(msg, need, "%s}", head);
+        link_reply(msg, src, slen);
+        free(msg);
+    }
+    if (file) json_free_serialized_string(file);
+}
+
+static void config_ack(const char *rid, const char *status, const char *message, const struct sockaddr_in *src, socklen_t slen) {
+    char ack[512];
+    snprintf(ack, sizeof(ack),
+        "{\"v\":%d,\"msg_type\":\"config_ack\",\"gateway_id\":\"%016llX\",\"request_id\":\"%s\",\"status\":\"%s\",\"message\":\"%s\","
+        "\"rf0_freq\":%u,\"rf1_freq\":%u,\"sync_word\":\"%s\",\"tx_power\":%d}",
+        LINK_VERSION, (unsigned long long)g_gateway_eui, rid ? rid : "", status, message,
+        g_rf0_freq, g_rf1_freq, (g_sync_word == 0x34) ? "public" : "private", g_cfg.tx_default_power);
+    link_reply(ack, src, slen);
+}
+
+// Merges the given settings into the config file and restarts the radio. If
+// the radio will not start with them, the previous settings are put back, so
+// a bad push can never strand a remote gateway.
+static void handle_set_config(JSON_Object *obj, const char *rid, const struct sockaddr_in *src, socklen_t slen) {
+    JSON_Object *in = json_object_get_object(obj, "config");
+    if (!in) return;
+    if (rid && seen_request(rid)) return;
+    JSON_Value *fval = json_parse_file(g_cfg_path);
+    if (!fval) {
+        config_ack(rid, "error", "The config file on the gateway cannot be read", src, slen);
+        return;
+    }
+    JSON_Value  *prev = json_value_deep_copy(fval);
+    JSON_Object *fobj = json_value_get_object(fval);
+    for (size_t i = 0; i < json_object_get_count(in); i++) {
+        const char *name = json_object_get_name(in, i);
+        if (strcmp(name, "link_key") == 0) continue;
+        json_object_set_value(fobj, name, json_value_deep_copy(json_object_get_value(in, name)));
+    }
+    if (!config_write(fval)) {
+        json_value_free(fval);
+        json_value_free(prev);
+        config_ack(rid, "error", "The config file on the gateway cannot be written", src, slen);
+        return;
+    }
+    json_value_free(fval);
+
+    uint16_t old_down = g_cfg.port_down, old_status = g_cfg.status_port;
+    printf("[CONFIG-IN] Remote configuration saved. Reinitializing SX1302 in-process...\n");
+    pthread_mutex_lock(&hal_mutex);
+    lgw_stop();
+    usleep(200000);
+    load_config(g_cfg_path);
+    int r = configure_and_start_sx1302();
+    bool restored = false;
+    if (r != LGW_HAL_SUCCESS && prev && config_write(prev)) {
+        printf("[CONFIG-IN] The radio rejected the new settings. Restoring the previous ones.\n");
+        lgw_stop();
+        usleep(200000);
+        load_config(g_cfg_path);
+        r = configure_and_start_sx1302();
+        restored = true;
+    }
+    pthread_mutex_unlock(&hal_mutex);
+    if (prev) json_value_free(prev);
+
+    pthread_mutex_lock(&sock_mutex);
+    resolve_dest_addr();
+    pthread_mutex_unlock(&sock_mutex);
+
+    if (restored) {
+        config_ack(rid, "error", "The radio rejected these settings. The previous settings were restored", src, slen);
+    } else if (r != LGW_HAL_SUCCESS) {
+        config_ack(rid, "error", "Failed to restart SX1302 HAL", src, slen);
+    } else {
+        config_ack(rid, "ok", "SX1302 reconfigured and restarted in-process", src, slen);
+    }
+    send_gateway_status_json();
+    if (g_cfg.port_down != old_down || g_cfg.status_port != old_status) {
+        printf("[CONFIG-IN] Network ports changed. Restarting the engine.\n");
+        g_quit = 1;
+    }
+}
+
+// Stores the key shared with the hub. An unpaired engine accepts it from the
+// hub that manages it; afterwards only a signed command can change it.
+static void handle_set_link_key(JSON_Object *obj, const char *rid, const struct sockaddr_in *src, socklen_t slen) {
+    const char *key = json_object_get_string(obj, "key");
+    size_t klen = key ? strlen(key) : 0;
+    if (klen < 16 || klen >= sizeof(g_cfg.link_key)) {
+        config_ack(rid, "error", "Invalid link key", src, slen);
+        return;
+    }
+    JSON_Value *fval = json_parse_file(g_cfg_path);
+    if (!fval) {
+        config_ack(rid, "error", "The config file on the gateway cannot be read", src, slen);
+        return;
+    }
+    json_object_set_string(json_value_get_object(fval), "link_key", key);
+    bool ok = config_write(fval);
+    json_value_free(fval);
+    if (ok) {
+        strncpy(g_cfg.link_key, key, sizeof(g_cfg.link_key) - 1);
+        printf("[LINK] Paired with the hub.\n");
+    }
+    config_ack(rid, ok ? "ok" : "error", ok ? "Paired" : "Cannot save the link key", src, slen);
+    send_gateway_status_json();
+}
+
 static void *thread_tx_recv(void *arg) {
     (void)arg;
-    char pc_buf[2048];
+    char pc_buf[8192];
     struct sockaddr_in src_addr;
     socklen_t src_len = sizeof(src_addr);
     struct lgw_pkt_tx_s txpkt;
@@ -1016,7 +1547,11 @@ static void *thread_tx_recv(void *arg) {
 
         pc_buf[n] = '\0';
 
-        JSON_Value *root_val = json_parse_string((const char *)pc_buf);
+        char *msg_text = pc_buf;
+        if (!link_accept(&msg_text, &src_addr, src_len))
+            continue;
+
+        JSON_Value *root_val = json_parse_string(msg_text);
         if (!root_val) {
             printf("[TX-RECV] Ignored non-JSON or corrupted packet.\n");
             continue;
@@ -1031,6 +1566,17 @@ static void *thread_tx_recv(void *arg) {
         memset(&txpkt, 0, sizeof(txpkt));
         JSON_Value *val;
 
+        // --- COMMANDS FROM THE HUB ---
+        const char *cmd = json_object_get_string(obj, "cmd");
+        const char *request_id = json_object_get_string(obj, "request_id");
+        if (cmd) {
+            if (strcmp(cmd, "get_config") == 0)        handle_get_config(obj, request_id, &src_addr, src_len);
+            else if (strcmp(cmd, "set_config") == 0)   handle_set_config(obj, request_id, &src_addr, src_len);
+            else if (strcmp(cmd, "set_link_key") == 0) handle_set_link_key(obj, request_id, &src_addr, src_len);
+            json_value_free(root_val);
+            continue;
+        }
+
         // Optional TX abort command: {"abort": true, "rfch": 0}
         if ((val = json_object_get_value(obj, "abort")) &&
             json_value_get_type(val) == JSONBoolean &&
@@ -1043,6 +1589,13 @@ static void *thread_tx_recv(void *arg) {
             pthread_mutex_unlock(&hal_mutex);
             pa_set(0);
             printf("[TX-RECV] Aborted TX on chain %u (res=%d).\n", rfch, r);
+            send_tx_ack(request_id, "aborted", &src_addr);
+            json_value_free(root_val);
+            continue;
+        }
+
+        if (request_id && seen_request(request_id)) {   // a retry of a packet we already have
+            send_tx_ack(request_id, "queued", &src_addr);
             json_value_free(root_val);
             continue;
         }
@@ -1144,6 +1697,7 @@ static void *thread_tx_recv(void *arg) {
                                          txpkt.payload, sizeof(txpkt.payload));
             if (decoded_len < 0) {
                 printf("[TX-RECV] Base64 decoding failed for: %s\n", b64_data);
+                send_tx_ack(request_id, "bad_payload", &src_addr);
                 json_value_free(root_val);
                 continue;
             }
@@ -1152,18 +1706,26 @@ static void *thread_tx_recv(void *arg) {
             txpkt.size = 0;
         } else {
             printf("[TX-RECV] Missing payload field 'data'\n");
+            send_tx_ack(request_id, "bad_payload", &src_addr);
             json_value_free(root_val);
             continue;
         }
 
+        tx_item_t item;
+        memset(&item, 0, sizeof(item));
+        item.pkt = txpkt;
+        item.src = src_addr;
+        if (request_id) strncpy(item.id, request_id, sizeof(item.id) - 1);
         json_value_free(root_val);
 
-        if (!txq_push(&txq, &txpkt)) {
+        if (!txq_push(&txq, &item)) {
             printf("[TX-RECV] Queue full (%d slots) — packet discarded.\n", TX_QUEUE_SIZE);
             pthread_mutex_lock(&stats_mutex);
             stat_tx_queue_drop++;
             pthread_mutex_unlock(&stats_mutex);
+            send_tx_ack(item.id, "full", &item.src);
         } else {
+            send_tx_ack(item.id, "queued", &item.src);
             printf("[TX-RECV] Queued %u bytes | SF%u | %u Hz (depth now %d).\n",
                    txpkt.size, txpkt.datarate, txpkt.freq_hz, txq_count(&txq));
         }
@@ -1175,11 +1737,12 @@ static void *thread_tx_recv(void *arg) {
 
 static void *thread_tx_dispatch(void *arg) {
     (void)arg;
-    struct lgw_pkt_tx_s txpkt;
+    tx_item_t item;
 
     printf("[TX-DISPATCH] Thread started.\n");
 
-    while (txq_pop(&txq, &txpkt)) {
+    while (txq_pop(&txq, &item)) {
+        struct lgw_pkt_tx_s txpkt = item.pkt;
         uint32_t toa_ms = (txpkt.modulation == MOD_CW) ? 0 : lgw_time_on_air(&txpkt);
 
         if (!wait_tx_free(txpkt.rf_chain, g_cfg.tx_free_timeout_ms)) {
@@ -1187,6 +1750,7 @@ static void *thread_tx_dispatch(void *arg) {
             pthread_mutex_lock(&stats_mutex);
             stat_tx_err++;
             pthread_mutex_unlock(&stats_mutex);
+            send_tx_ack(item.id, "busy", &item.src);
             continue;
         }
 
@@ -1215,6 +1779,7 @@ static void *thread_tx_dispatch(void *arg) {
                    txpkt.size, txpkt.datarate, txpkt.freq_hz, txpkt.rf_power, toa_ms);
         }
         pthread_mutex_unlock(&stats_mutex);
+        send_tx_ack(item.id, ret == LGW_HAL_SUCCESS ? "sent" : "failed", &item.src);
     }
 
     printf("[TX-DISPATCH] Thread exiting.\n");
@@ -1263,7 +1828,8 @@ static void *thread_heartbeat(void *arg) {
         hb.rf0_freq       = g_rf0_freq;
         hb.rf1_freq       = g_rf1_freq;
 
-        send_uplink(&hb, sizeof(hb));
+        nonce_rotate();
+        send_gateway_status_json();
 
         printf("[HB] uptime=%us rx=%u tx=%u crc_err=%u tx_err=%u q=%u q_drop=%u temp=%.1fC\n",
                hb.uptime_s, hb.rx_count, hb.tx_count,
@@ -1275,7 +1841,40 @@ static void *thread_heartbeat(void *arg) {
     return NULL;
 }
 
+// Physical Wiring on Bobcat 300 G285:
+// RED   = /sys/class/leds/red:status   (GPIO4_A2)
+// GREEN = /sys/class/leds/blue:status  (GPIO4_A0)
+// BLUE  = /sys/class/leds/green:status (GPIO4_A1)
+
+#define SYSFS_LED_RED   "/sys/class/leds/red:status"
+#define SYSFS_LED_GREEN "/sys/class/leds/blue:status"
+#define SYSFS_LED_BLUE  "/sys/class/leds/green:status"
+
+static void rgb_set(int r, int g, int b) {
+    int fd;
+    fd = open(SYSFS_LED_RED "/brightness", O_WRONLY);
+    if (fd >= 0) { write(fd, r ? "1" : "0", 1); close(fd); }
+    fd = open(SYSFS_LED_GREEN "/brightness", O_WRONLY);
+    if (fd >= 0) { write(fd, g ? "1" : "0", 1); close(fd); }
+    fd = open(SYSFS_LED_BLUE "/brightness", O_WRONLY);
+    if (fd >= 0) { write(fd, b ? "1" : "0", 1); close(fd); }
+}
+
+static void rgb_claim_all(void) {
+    int fd;
+    fd = open(SYSFS_LED_RED "/trigger", O_WRONLY);
+    if (fd >= 0) { write(fd, "none", 4); close(fd); }
+    fd = open(SYSFS_LED_GREEN "/trigger", O_WRONLY);
+    if (fd >= 0) { write(fd, "none", 4); close(fd); }
+    fd = open(SYSFS_LED_BLUE "/trigger", O_WRONLY);
+    if (fd >= 0) { write(fd, "none", 4); close(fd); }
+    rgb_set(0, 0, 0);
+}
+
+static bool g_rgb_leds = false;
+
 static void led_claim(const char *name) {
+    if (g_rgb_leds) { rgb_claim_all(); return; }
     if (!name || !name[0]) return;
     char path[128];
     snprintf(path, sizeof(path), "/sys/class/leds/%s/trigger", name);
@@ -1286,6 +1885,7 @@ static void led_claim(const char *name) {
 }
 
 static int led_set(const char *name, int on) {
+    if (g_rgb_leds) return 1;
     if (!name || !name[0]) return 0;
     char path[128];
     snprintf(path, sizeof(path), "/sys/class/leds/%s/brightness", name);
@@ -1298,25 +1898,87 @@ static int led_set(const char *name, int on) {
 
 static void *thread_led(void *arg) {
     (void)arg;
+    if (!g_rgb_leds) {
+        while (!g_quit) {
+            if (g_led_rx_blink) {
+                g_led_rx_blink = 0;
+                if (led_set(g_cfg.led_rx, 1)) {
+                    usleep(80000);
+                    led_set(g_cfg.led_rx, 0);
+                }
+            }
+            if (g_led_tx_blink) {
+                g_led_tx_blink = 0;
+                if (led_set(g_cfg.led_tx, 1)) {
+                    usleep(200000);
+                    led_set(g_cfg.led_tx, 0);
+                }
+            }
+            usleep(10000);
+        }
+        led_set(g_cfg.led_rx, 0);
+        led_set(g_cfg.led_tx, 0);
+        return NULL;
+    }
+    rgb_claim_all();
+
+    int rx_timer_ms = 0;
+    int tx_timer_ms = 0;
+    int hb_tick_ms  = 0;
+    const int HB_PERIOD_MS = 1200; // 1.2s per complete heartbeat cycle
+
+    printf("[LED] Industrial RGB State Machine started (Green=Heartbeat, Blue=TX, Red=RX).\n");
+
     while (!g_quit) {
+        // Trigger pulses from RX and TX threads
         if (g_led_rx_blink) {
             g_led_rx_blink = 0;
-            if (led_set(g_cfg.led_rx, 1)) {
-                usleep(80000);
-                led_set(g_cfg.led_rx, 0);
-            }
+            rx_timer_ms = 120; // RED flash for 120ms
         }
         if (g_led_tx_blink) {
             g_led_tx_blink = 0;
-            if (led_set(g_cfg.led_tx, 1)) {
-                usleep(200000);
-                led_set(g_cfg.led_tx, 0);
-            }
+            tx_timer_ms = 180; // BLUE flash for 180ms
         }
-        usleep(10000);
+
+        // Priority 1: Broken / Error States
+        if (g_consec_err > 0) {
+            // Concentrator error: Fast flashing RED (100ms on, 100ms off)
+            bool red_on = ((hb_tick_ms % 200) < 100);
+            rgb_set(red_on ? 1 : 0, 0, 0);
+        }
+        else if (!g_net_ok) {
+            // Network destination unreachable / socket fail: Flashing YELLOW (Red + Green)
+            bool yel_on = ((hb_tick_ms % 400) < 200);
+            rgb_set(yel_on ? 1 : 0, yel_on ? 1 : 0, 0);
+        }
+        // Priority 2: TX Active -> Pure BLUE
+        else if (tx_timer_ms > 0) {
+            rgb_set(0, 0, 1); // Blue on, Red off, Green off
+            tx_timer_ms -= 20;
+        }
+        // Priority 3: RX Active -> Pure RED
+        else if (rx_timer_ms > 0) {
+            rgb_set(1, 0, 0); // Red on, Green off, Blue off
+            rx_timer_ms -= 20;
+        }
+        // Priority 4: Normal Healthy Idle -> GREEN HEARTBEAT
+        else {
+            // Natural biological double-pulse heartbeat:
+            // 0..80ms: ON
+            // 80..220ms: OFF
+            // 220..300ms: ON
+            // 300..1200ms: OFF
+            int phase = hb_tick_ms % HB_PERIOD_MS;
+            bool green_on = (phase < 80) || (phase >= 220 && phase < 300);
+            rgb_set(0, green_on ? 1 : 0, 0);
+        }
+
+        usleep(20000); // 20ms resolution
+        hb_tick_ms = (hb_tick_ms + 20) % HB_PERIOD_MS;
     }
-    led_set(g_cfg.led_rx, 0);
-    led_set(g_cfg.led_tx, 0);
+
+    // On shutdown, turn off all LEDs
+    rgb_set(0, 0, 0);
     return NULL;
 }
 
@@ -1383,7 +2045,7 @@ static void *thread_status_server(void *arg) {
                                 (tx_st == TX_EMITTING)  ? "TX_EMITTING"  : "TX_OFF";
         const char *rx_st_str = (rx_st == RX_SUSPENDED) ? "RX_SUSPENDED" : "LISTENING";
 
-        char buf[768];
+        char buf[1100];
         int n = snprintf(buf, sizeof(buf),
             "{\"daemon\":\"raw_lora_app (SX1302 8-CH Concentrator)\","
             "\"eui\":\"%016llX\","
@@ -1397,6 +2059,8 @@ static void *thread_status_server(void *arg) {
             "\"inst_cnt_us\":%u,\"trig_cnt_us\":%u,"
             "\"tx_status\":\"%s\",\"rx_status\":\"%s\","
             "\"sf_mask\":%u,"
+            "\"link\":%d,\"auth\":%s,\"link_peer\":%s,\"model\":\"%s\",\"engine\":\"%s\",\"port_down\":%u,"
+            "\"link_acks\":%u,\"link_retx\":%u,\"link_lost\":%u,\"auth_rej\":%u,"
             "\"ch_detect\":[%u,%u,%u,%u,%u,%u,%u,%u]}\n",
             (unsigned long long)g_gateway_eui,
             (uint32_t)(time(NULL) - g_start_time),
@@ -1408,6 +2072,9 @@ static void *thread_status_server(void *arg) {
             inst_cnt_us, trig_cnt_us,
             tx_st_str, rx_st_str,
             (unsigned)g_cfg.sf_mask,
+            LINK_VERSION, g_cfg.link_key[0] ? "true" : "false", g_link_peer ? "true" : "false",
+            GATEWAY_MODEL, ENGINE_VERSION, (unsigned)g_cfg.port_down,
+            stat_link_acks, stat_link_retx, stat_link_lost, stat_auth_rej,
             ch_det[0], ch_det[1], ch_det[2], ch_det[3],
             ch_det[4], ch_det[5], ch_det[6], ch_det[7]);
         write(cli_fd, buf, n);
@@ -1419,9 +2086,9 @@ static void *thread_status_server(void *arg) {
     return NULL;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     struct sockaddr_in local_addr;
-    pthread_t rx_tid, tx_recv_tid, tx_dispatch_tid, hb_tid, led_tid, status_tid;
+    pthread_t rx_tid, tx_recv_tid, tx_dispatch_tid, hb_tid, led_tid, status_tid, link_tid;
 
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
@@ -1429,10 +2096,26 @@ int main(void) {
     signal(SIGINT,  sig_handler);
     signal(SIGTERM, sig_handler);
 
+    const char *cfg_path = CONFIG_PATH;
+    for (int i = 1; i < argc; i++) {
+        if ((strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0) && (i + 1 < argc)) {
+            cfg_path = argv[++i];
+        }
+    }
+
+    g_cfg_path   = cfg_path;
     g_start_time = time(NULL);
+    g_boot_id    = random_u32();
+    nonce_rotate();
     txq_init(&txq);
 
-    load_config(CONFIG_PATH);
+    load_config(cfg_path);
+
+    g_rgb_leds = access(SYSFS_LED_RED "/brightness", F_OK) == 0;
+
+    // Initial hardware claim and boot color (CYAN = initializing)
+    rgb_claim_all();
+    rgb_set(0, 1, 1);
 
     printf("SX1302 Forwarder — HAL %s\n", lgw_version_info());
     pa_gpio_init();
@@ -1461,6 +2144,7 @@ int main(void) {
 
     if (configure_and_start_sx1302() != LGW_HAL_SUCCESS) {
         printf("ERROR: lgw_start() failed.\n");
+        rgb_set(1, 0, 0);
         close(sock_up);
         close(sock_down);
         return EXIT_FAILURE;
@@ -1470,12 +2154,7 @@ int main(void) {
         printf("WARNING: Could not read gateway EUI.\n");
     printf("Gateway EUI: %016llX\n", (unsigned long long)g_gateway_eui);
 
-    struct boot_pkt boot;
-    memset(&boot, 0, sizeof(boot));
-    boot.pkt_type    = PKT_TYPE_BOOT;
-    boot.gateway_eui = g_gateway_eui;
-    strncpy(boot.hal_version, lgw_version_info(), sizeof(boot.hal_version) - 1);
-    send_uplink(&boot, sizeof(boot));
+    send_gateway_status_json();
 
     printf("Concentrator started. Launching threads...\n");
 
@@ -1490,6 +2169,7 @@ int main(void) {
     pthread_create(&hb_tid,          NULL, thread_heartbeat,     NULL);
     pthread_create(&led_tid,         NULL, thread_led,           NULL);
     pthread_create(&status_tid,      NULL, thread_status_server, NULL);
+    pthread_create(&link_tid,        NULL, thread_link,          NULL);
 
     pthread_join(rx_tid,          NULL);
     pthread_join(tx_recv_tid,     NULL);
@@ -1497,6 +2177,7 @@ int main(void) {
     pthread_join(hb_tid,          NULL);
     pthread_join(led_tid,         NULL);
     pthread_join(status_tid,      NULL);
+    pthread_join(link_tid,        NULL);
 
     printf("Received signal %d — shutting down.\n", (int)g_quit_signal);
     lgw_abort_tx(0);

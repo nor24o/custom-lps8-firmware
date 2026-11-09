@@ -17,7 +17,8 @@ mkdir -p /etc/lora /var/log /tmp
 if [ ! -f "$DB_NODES" ] || [ ! -s "$DB_NODES" ]; then
     echo "[lora_db_init] Initializing persistent database at $DB_NODES..."
     sqlite3 "$DB_NODES" <<'EOF'
-PRAGMA journal_mode = WAL;
+PRAGMA journal_mode = MEMORY;
+PRAGMA synchronous = OFF;
 
 -- Node Registry & Profiles
 CREATE TABLE IF NOT EXISTS node_settings (
@@ -33,7 +34,7 @@ CREATE TABLE IF NOT EXISTS node_settings (
     rx2_sf              INTEGER DEFAULT 9,
     ping_period_sec     INTEGER DEFAULT 32,
     default_tx_power    INTEGER DEFAULT 14,
-    ha_enabled          INTEGER DEFAULT 1,
+    ha_enabled          INTEGER DEFAULT 0,         -- 0 = Not exposed to HA until adopted & categorized, 1 = Exposed
     last_seen           DATETIME,
     last_rssi           REAL,
     last_snr            REAL,
