@@ -12,6 +12,8 @@ function index()
     entry({"admin", "lora", "decoder"}, template("lora/decoder"), _("Payload Decoders"), 22)
     entry({"admin", "lora", "pinout"}, template("lora/pinout"), _("Hardware Pinout and Map"), 25)
     entry({"admin", "lora", "log"}, template("lora/log"), _("Gateway Logs"), 30)
+    entry({"admin", "lora", "vpn"}, template("lora/vpn"), _("WireGuard VPN"), 28)
+    entry({"admin", "lora", "api_vpn"}, call("action_vpn")).leaf = true
 
     entry({"admin", "lora", "api_status"}, call("action_status")).leaf = true
     entry({"admin", "lora", "api_config"}, call("action_config")).leaf = true
@@ -1096,4 +1098,83 @@ function action_mqtt()
         http.prepare_content("application/json")
         http.write_json({ success = true, mqtt = cfg.mqtt })
     end
+end
+
+local function valid_wg_endpoint(v)
+    if v == "" then return true end
+    local host, port = v:match("^([%w%.%-]+):(%d+)$")
+    port = tonumber(port)
+    return host ~= nil and port ~= nil and port >= 1 and port <= 65535
+end
+
+function action_vpn()
+    local http = require "luci.http"
+    local sys = require "luci.sys"
+    local disp = require "luci.dispatcher"
+    local uci = require("luci.model.uci").cursor()
+    http.prepare_content("application/json")
+
+    if http.getenv("REQUEST_METHOD") == "POST" then
+        if http.formvalue("token") ~= disp.context.authtoken then
+            http.status(403, "Forbidden")
+            http.write_json({ error = "Session expired. Reload the page." })
+            return
+        end
+        local action = http.formvalue("action")
+        if action == "reconnect" then
+            sys.call("(ifdown wg0; ifup wg0) >/dev/null 2>&1 &")
+            http.write_json({ ok = true })
+        elseif action == "save" then
+            local lan = (http.formvalue("lan") or ""):gsub("%s+", "")
+            local wan = (http.formvalue("wan") or ""):gsub("%s+", "")
+            if (lan == "" and wan == "") or not valid_wg_endpoint(lan) or not valid_wg_endpoint(wan) then
+                http.status(400, "Bad Request")
+                http.write_json({ error = "Enter each address as host:port, for example 192.168.1.15:51820" })
+                return
+            end
+            for option, value in pairs({ lan_endpoint = lan, wan_endpoint = wan }) do
+                if value == "" then
+                    uci:delete("network", "bobcat", option)
+                else
+                    uci:set("network", "bobcat", option, value)
+                end
+            end
+            uci:commit("network")
+            http.write_json({ ok = true })
+        else
+            http.status(400, "Bad Request")
+            http.write_json({ error = "Unknown action" })
+        end
+        return
+    end
+
+    local st = { up = false }
+    local lines = {}
+    local pipe = io.popen("wg show wg0 dump 2>/dev/null")
+    if pipe then
+        for line in pipe:lines() do lines[#lines + 1] = line end
+        pipe:close()
+    end
+    local function fields(line)
+        local out = {}
+        for v in (line .. "\t"):gmatch("([^\t]*)\t") do out[#out + 1] = v end
+        return out
+    end
+    if lines[1] then
+        local f = fields(lines[1]) -- f[1] is the private key and is never sent
+        st.up, st.public_key = true, f[2]
+    end
+    if lines[2] then
+        local f = fields(lines[2])
+        if f[3] ~= "(none)" then st.endpoint = f[3] end
+        st.allowed_ips = f[4]
+        local at = tonumber(f[5]) or 0
+        if at > 0 then st.handshake_age = os.time() - at end
+        st.rx, st.tx = tonumber(f[6]) or 0, tonumber(f[7]) or 0
+    end
+    st.address = uci:get_list("network", "wg0", "addresses")
+    st.lan_endpoint = uci:get("network", "bobcat", "lan_endpoint")
+    st.wan_endpoint = uci:get("network", "bobcat", "wan_endpoint")
+    st.target_ip = read_config_json().target_ip
+    http.write_json(st)
 end

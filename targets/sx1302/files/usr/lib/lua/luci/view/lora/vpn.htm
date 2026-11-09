@@ -1,0 +1,131 @@
+<%+header%>
+
+<style type="text/css">
+.vpn-section { background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.vpn-hdr { padding: 12px 18px; background: #f6f8fa; border-bottom: 1px solid #e1e4e8; display: flex; justify-content: space-between; align-items: center; }
+.vpn-hdr h3 { margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; color: #0366d6; letter-spacing: 0.5px; }
+.vpn-body { padding: 16px 18px; }
+.vpn-badge { padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; background: #ffeef0; color: #b31d28; }
+.vpn-badge.on { background: #dcffe4; color: #176f2c; }
+.vpn-kv { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vpn-kv td { padding: 5px 0; vertical-align: top; }
+.vpn-kv td:first-child { width: 200px; color: #586069; }
+.vpn-kv td:last-child { font-family: monospace; word-break: break-all; }
+.vpn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; }
+.vpn-grid label { display: block; font-size: 12px; color: #586069; margin-bottom: 4px; }
+.vpn-grid input { width: 100%; box-sizing: border-box; padding: 6px 8px; font-family: monospace; }
+.vpn-help { font-size: 12px; color: #586069; margin: 4px 0 0; }
+.vpn-actions { margin-top: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.vpn-msg { font-size: 12px; color: #586069; }
+</style>
+
+<h2 name="content">WireGuard VPN</h2>
+
+<div class="vpn-section">
+    <div class="vpn-hdr"><h3>Tunnel to the Bobcat</h3><span id="vpn-badge" class="vpn-badge">Checking</span></div>
+    <div class="vpn-body">
+        <table class="vpn-kv">
+            <tr><td>This gateway</td><td id="vpn-address">-</td></tr>
+            <tr><td>Bobcat tunnel network</td><td id="vpn-allowed">-</td></tr>
+            <tr><td>Connecting to</td><td id="vpn-endpoint">-</td></tr>
+            <tr><td>Last handshake</td><td id="vpn-handshake">-</td></tr>
+            <tr><td>Received / sent</td><td id="vpn-transfer">-</td></tr>
+            <tr><td>LoRa packets go to</td><td id="vpn-target">-</td></tr>
+            <tr><td>Public key</td><td id="vpn-key">-</td></tr>
+        </table>
+        <div class="vpn-actions">
+            <button class="cbi-button" type="button" id="vpn-reconnect">Reconnect</button>
+            <span class="vpn-msg" id="vpn-reconnect-msg"></span>
+        </div>
+    </div>
+</div>
+
+<div class="vpn-section">
+    <div class="vpn-hdr"><h3>Where to find the Bobcat</h3></div>
+    <div class="vpn-body">
+        <div class="vpn-grid">
+            <div>
+                <label for="vpn-lan">On the home network</label>
+                <input id="vpn-lan" type="text" spellcheck="false" placeholder="192.168.1.15:51820" />
+                <p class="vpn-help">Used when this gateway is at home.</p>
+            </div>
+            <div>
+                <label for="vpn-wan">From the internet</label>
+                <input id="vpn-wan" type="text" spellcheck="false" placeholder="your.address.example:51820" />
+                <p class="vpn-help">Your home internet address or dynamic DNS name, with UDP 51820 forwarded to the Bobcat on the router.</p>
+            </div>
+        </div>
+        <div class="vpn-actions">
+            <button class="cbi-button cbi-button-save" type="button" id="vpn-save">Save</button>
+            <span class="vpn-msg" id="vpn-save-msg"></span>
+        </div>
+        <p class="vpn-help">When the tunnel is down, this gateway tries each address in turn, one per minute.</p>
+    </div>
+</div>
+
+<div class="vpn-section">
+    <div class="vpn-hdr"><h3>Tailscale</h3></div>
+    <div class="vpn-body">
+        <p class="vpn-help" style="margin:0">This gateway is too small to run Tailscale. It is set up on the Bobcat, in the LoRaHub console under WireGuard &amp; Tailscale, and your Tailscale devices reach this gateway at 10.77.0.2 through it.</p>
+    </div>
+</div>
+
+<script type="text/javascript">//<![CDATA[
+(function() {
+    var api = '<%=luci.dispatcher.build_url("admin", "lora", "api_vpn")%>';
+    var token = '<%=token%>';
+    var formFilled = false;
+    function el(id) { return document.getElementById(id); }
+    function text(id, v) { el(id).textContent = (v === undefined || v === null || v === '') ? '-' : v; }
+    function size(n) {
+        if (!n) return '0 B';
+        var u = ['B', 'KB', 'MB', 'GB'], i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), 3);
+        return (n / Math.pow(1024, i)).toFixed(i ? 1 : 0) + ' ' + u[i];
+    }
+    function ago(s) {
+        if (s < 60) return s + ' s ago';
+        if (s < 3600) return Math.floor(s / 60) + ' min ago';
+        return Math.floor(s / 3600) + ' h ago';
+    }
+    function render(st) {
+        var on = st.up && st.handshake_age !== undefined && st.handshake_age < 180;
+        var badge = el('vpn-badge');
+        badge.className = 'vpn-badge' + (on ? ' on' : '');
+        badge.textContent = on ? 'Connected' : (st.up ? 'Not connected' : 'Stopped');
+        text('vpn-address', (st.address || []).join(', '));
+        text('vpn-allowed', st.allowed_ips);
+        text('vpn-endpoint', st.endpoint);
+        text('vpn-handshake', st.handshake_age !== undefined ? ago(st.handshake_age) : 'never');
+        text('vpn-transfer', st.up ? size(st.rx) + ' / ' + size(st.tx) : '');
+        text('vpn-target', st.target_ip);
+        text('vpn-key', st.public_key);
+        if (!formFilled) {
+            el('vpn-lan').value = st.lan_endpoint || '';
+            el('vpn-wan').value = st.wan_endpoint || '';
+            formFilled = true;
+        }
+    }
+    function refresh() {
+        fetch(api, { credentials: 'same-origin' }).then(function(r) { return r.json(); }).then(render).catch(function() {});
+    }
+    function post(data, msgId) {
+        var body = new URLSearchParams(data);
+        body.append('token', token);
+        el(msgId).textContent = 'Working...';
+        return fetch(api, { method: 'POST', credentials: 'same-origin', body: body })
+            .then(function(r) { return r.json(); })
+            .then(function(res) { el(msgId).textContent = res.error || 'Done'; })
+            .catch(function() { el(msgId).textContent = 'Could not reach the gateway'; });
+    }
+    el('vpn-reconnect').onclick = function() {
+        post({ action: 'reconnect' }, 'vpn-reconnect-msg');
+    };
+    el('vpn-save').onclick = function() {
+        post({ action: 'save', lan: el('vpn-lan').value, wan: el('vpn-wan').value }, 'vpn-save-msg');
+    };
+    refresh();
+    setInterval(refresh, 5000);
+})();
+//]]></script>
+
+<%+footer%>
