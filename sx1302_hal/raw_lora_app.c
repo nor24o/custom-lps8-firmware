@@ -38,7 +38,7 @@ void qsort_r(void *base, size_t nmemb, size_t size,
 // --------------------------------------
 
 // === BUILD IDENTITY ===
-#define ENGINE_VERSION "2.0"
+#define ENGINE_VERSION "2.2"
 #define LINK_VERSION   2
 #if defined(__mips__)
 #define GATEWAY_MODEL  "dragino-lps8"
@@ -48,6 +48,7 @@ void qsort_r(void *base, size_t nmemb, size_t size,
 
 // === FIXED CONSTANTS (not user-configurable) ===
 #define CONFIG_PATH   "/etc/lora/config.json"
+#define LED_MODE_PATH "/etc/lora/led_mode"  // "<mode> [idle=<colour>] [rx=<colour>] [tx=<colour>]", read once a second
 #define TX_QUEUE_SIZE  32
 // ================================================
 
@@ -1873,6 +1874,85 @@ static void rgb_claim_all(void) {
 
 static bool g_rgb_leds = false;
 
+// LED modes, read from LED_MODE_PATH once a second:
+//   normal  heartbeat in the idle colour, a flash for each packet
+//   steady  idle colour lit all the time, a flash for each packet
+//   quiet   heartbeat, no packet flashes
+//   solid   idle colour lit all the time, no packet flashes
+//   errors  dark unless something is wrong
+//   off     always dark
+// Words after the mode set colours: idle=<c> rx=<c> tx=<c>, where <c> is off,
+// red, green, blue, yellow, cyan, magenta or white. The error signals keep their
+// own colours: fast red for a radio error, yellow blinking for no network.
+enum { LED_NORMAL = 0, LED_QUIET = 1, LED_ERRORS = 2, LED_OFF = 3, LED_STEADY = 4, LED_SOLID = 5 };
+enum { C_R = 1, C_G = 2, C_B = 4 };
+static volatile int g_led_mode = LED_NORMAL;
+static volatile int g_led_idle = C_G, g_led_rx = C_R, g_led_tx = C_B;
+
+static const char *led_mode_name(int m) {
+    switch (m) {
+    case LED_QUIET:  return "quiet";
+    case LED_ERRORS: return "errors";
+    case LED_OFF:    return "off";
+    case LED_STEADY: return "steady";
+    case LED_SOLID:  return "solid";
+    default:         return "normal";
+    }
+}
+
+static const struct { const char *name; int rgb; } led_colors[] = {
+    {"off", 0}, {"red", C_R}, {"green", C_G}, {"blue", C_B}, {"yellow", C_R | C_G},
+    {"cyan", C_G | C_B}, {"magenta", C_R | C_B}, {"white", C_R | C_G | C_B},
+};
+
+static const char *led_color_name(int rgb) {
+    for (size_t i = 0; i < sizeof(led_colors) / sizeof(led_colors[0]); i++)
+        if (led_colors[i].rgb == rgb) return led_colors[i].name;
+    return "off";
+}
+
+static int led_color_parse(const char *s, int fallback) {
+    for (size_t i = 0; i < sizeof(led_colors) / sizeof(led_colors[0]); i++)
+        if (strcmp(s, led_colors[i].name) == 0) return led_colors[i].rgb;
+    return fallback;
+}
+
+static bool led_flashes(int mode) { return mode == LED_NORMAL || mode == LED_STEADY; }
+
+static void rgb_color(int rgb) { rgb_set(rgb & C_R, rgb & C_G, rgb & C_B); }
+
+static void led_mode_read(void) {
+    char buf[128] = {0};
+    int mode = LED_NORMAL, idle = C_G, rx = C_R, tx = C_B;
+    int fd = open(LED_MODE_PATH, O_RDONLY);
+    if (fd >= 0) {
+        ssize_t n = read(fd, buf, sizeof(buf) - 1);
+        close(fd);
+        if (n > 0) {
+            buf[n] = '\0';
+            char *save = NULL;
+            char *tok = strtok_r(buf, " \t\r\n", &save);
+            if (tok) {
+                if (strcmp(tok, "quiet") == 0)       mode = LED_QUIET;
+                else if (strcmp(tok, "errors") == 0) mode = LED_ERRORS;
+                else if (strcmp(tok, "off") == 0)    mode = LED_OFF;
+                else if (strcmp(tok, "steady") == 0) mode = LED_STEADY;
+                else if (strcmp(tok, "solid") == 0)  mode = LED_SOLID;
+            }
+            while ((tok = strtok_r(NULL, " \t\r\n", &save)) != NULL) {
+                if (strncmp(tok, "idle=", 5) == 0)    idle = led_color_parse(tok + 5, idle);
+                else if (strncmp(tok, "rx=", 3) == 0) rx = led_color_parse(tok + 3, rx);
+                else if (strncmp(tok, "tx=", 3) == 0) tx = led_color_parse(tok + 3, tx);
+            }
+        }
+    }
+    if (mode != g_led_mode || idle != g_led_idle || rx != g_led_rx || tx != g_led_tx) {
+        printf("[LED] Mode: %s (idle %s, received %s, sent %s).\n", led_mode_name(mode),
+               led_color_name(idle), led_color_name(rx), led_color_name(tx));
+        g_led_mode = mode; g_led_idle = idle; g_led_rx = rx; g_led_tx = tx;
+    }
+}
+
 static void led_claim(const char *name) {
     if (g_rgb_leds) { rgb_claim_all(); return; }
     if (!name || !name[0]) return;
@@ -1899,7 +1979,11 @@ static int led_set(const char *name, int on) {
 static void *thread_led(void *arg) {
     (void)arg;
     if (!g_rgb_leds) {
+        int tick = 0;
+        led_mode_read();
         while (!g_quit) {
+            if (++tick >= 100) { tick = 0; led_mode_read(); }
+            if (!led_flashes(g_led_mode)) { g_led_rx_blink = 0; g_led_tx_blink = 0; }
             if (g_led_rx_blink) {
                 g_led_rx_blink = 0;
                 if (led_set(g_cfg.led_rx, 1)) {
@@ -1927,9 +2011,14 @@ static void *thread_led(void *arg) {
     int hb_tick_ms  = 0;
     const int HB_PERIOD_MS = 1200; // 1.2s per complete heartbeat cycle
 
-    printf("[LED] Industrial RGB State Machine started (Green=Heartbeat, Blue=TX, Red=RX).\n");
+    printf("[LED] RGB state machine started (colours from %s).\n", LED_MODE_PATH);
+    led_mode_read();
+    int mode_tick = 0;
 
     while (!g_quit) {
+        if (++mode_tick >= 50) { mode_tick = 0; led_mode_read(); }
+        const int mode = g_led_mode;
+        if (!led_flashes(mode)) { g_led_rx_blink = 0; g_led_tx_blink = 0; rx_timer_ms = 0; tx_timer_ms = 0; }
         // Trigger pulses from RX and TX threads
         if (g_led_rx_blink) {
             g_led_rx_blink = 0;
@@ -1940,8 +2029,12 @@ static void *thread_led(void *arg) {
             tx_timer_ms = 180; // BLUE flash for 180ms
         }
 
+        // Off: always dark.
+        if (mode == LED_OFF) {
+            rgb_set(0, 0, 0);
+        }
         // Priority 1: Broken / Error States
-        if (g_consec_err > 0) {
+        else if (g_consec_err > 0) {
             // Concentrator error: Fast flashing RED (100ms on, 100ms off)
             bool red_on = ((hb_tick_ms % 200) < 100);
             rgb_set(red_on ? 1 : 0, 0, 0);
@@ -1951,15 +2044,23 @@ static void *thread_led(void *arg) {
             bool yel_on = ((hb_tick_ms % 400) < 200);
             rgb_set(yel_on ? 1 : 0, yel_on ? 1 : 0, 0);
         }
-        // Priority 2: TX Active -> Pure BLUE
+        // Priority 2: packet sent (blue unless set otherwise)
         else if (tx_timer_ms > 0) {
-            rgb_set(0, 0, 1); // Blue on, Red off, Green off
+            rgb_color(g_led_tx);
             tx_timer_ms -= 20;
         }
-        // Priority 3: RX Active -> Pure RED
+        // Priority 3: packet received (red unless set otherwise)
         else if (rx_timer_ms > 0) {
-            rgb_set(1, 0, 0); // Red on, Green off, Blue off
+            rgb_color(g_led_rx);
             rx_timer_ms -= 20;
+        }
+        // Errors only: dark while all is well.
+        else if (mode == LED_ERRORS) {
+            rgb_set(0, 0, 0);
+        }
+        // Steady and solid: the idle colour lit all the time.
+        else if (mode == LED_STEADY || mode == LED_SOLID) {
+            rgb_color(g_led_idle);
         }
         // Priority 4: Normal Healthy Idle -> GREEN HEARTBEAT
         else {
@@ -1969,8 +2070,8 @@ static void *thread_led(void *arg) {
             // 220..300ms: ON
             // 300..1200ms: OFF
             int phase = hb_tick_ms % HB_PERIOD_MS;
-            bool green_on = (phase < 80) || (phase >= 220 && phase < 300);
-            rgb_set(0, green_on ? 1 : 0, 0);
+            bool beat_on = (phase < 80) || (phase >= 220 && phase < 300);
+            rgb_color(beat_on ? g_led_idle : 0);
         }
 
         usleep(20000); // 20ms resolution
@@ -2055,7 +2156,7 @@ static void *thread_status_server(void *arg) {
             "\"q_depth\":%u,\"q_drop\":%u,"
             "\"rf0_mhz\":%.6f,\"rf1_mhz\":%.6f,"
             "\"sync\":\"%s\","
-            "\"temp_c\":%.1f,\"temp_ok\":%s,"
+            "\"temp_c\":%.1f,\"temp_ok\":%s,\"led_mode\":\"%s\",\"led_idle\":\"%s\",\"led_rx\":\"%s\",\"led_tx\":\"%s\","
             "\"inst_cnt_us\":%u,\"trig_cnt_us\":%u,"
             "\"tx_status\":\"%s\",\"rx_status\":\"%s\","
             "\"sf_mask\":%u,"
@@ -2068,7 +2169,8 @@ static void *thread_status_server(void *arg) {
             (uint32_t)txq_count(&txq), qdrop,
             g_rf0_freq / 1e6, g_rf1_freq / 1e6,
             g_sync_word == 0x34 ? "public" : "private",
-            g_temperature_c, g_temp_valid ? "true" : "false",
+            g_temperature_c, g_temp_valid ? "true" : "false", led_mode_name(g_led_mode),
+            led_color_name(g_led_idle), led_color_name(g_led_rx), led_color_name(g_led_tx),
             inst_cnt_us, trig_cnt_us,
             tx_st_str, rx_st_str,
             (unsigned)g_cfg.sf_mask,
