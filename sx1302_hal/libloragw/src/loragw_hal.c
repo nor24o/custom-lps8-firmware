@@ -721,6 +721,13 @@ int lgw_demod_setconf(struct lgw_conf_demod_s * conf) {
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
+int lgw_fsk_framing(bool crc_ibm, bool whitening, uint8_t fixed_length) {
+    sx1302_fsk_framing(crc_ibm, whitening, fixed_length);
+    return LGW_HAL_SUCCESS;
+}
+
+/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
 int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
     int i;
 

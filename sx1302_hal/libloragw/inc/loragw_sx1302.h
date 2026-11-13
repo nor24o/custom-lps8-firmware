@@ -233,6 +233,11 @@ int sx1302_lora_service_modem_configure(struct lgw_conf_rxif_s * cfg, uint32_t r
 int sx1302_fsk_configure(struct lgw_conf_rxif_s * cfg);
 
 /**
+@brief Set the FSK framing used by sx1302_fsk_configure and sx1302_send
+*/
+void sx1302_fsk_framing(bool crc_ibm, bool whitening, uint8_t fixed_length);
+
+/**
 @brief Enable the modems
 @param N/A
 @return LGW_REG_SUCCESS if success, LGW_REG_ERROR otherwise
