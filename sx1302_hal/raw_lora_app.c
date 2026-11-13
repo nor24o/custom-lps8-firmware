@@ -38,7 +38,7 @@ void qsort_r(void *base, size_t nmemb, size_t size,
 // --------------------------------------
 
 // === BUILD IDENTITY ===
-#define ENGINE_VERSION "2.2"
+#define ENGINE_VERSION "2.3"
 #define LINK_VERSION   2
 #if defined(__mips__)
 #define GATEWAY_MODEL  "dragino-lps8"
@@ -121,6 +121,9 @@ typedef struct {
     char     chan_lora_std_implicit_cr[8];// implicit coderate on channel 8 ("4/5".."4/8")
     uint8_t  chan_fsk_sync_size;          // FSK sync word size in bytes (1..8, default 3)
     uint64_t chan_fsk_sync_word;          // FSK sync word (default 0xC194C1)
+    char     chan_fsk_crc[8];             // FSK CRC-16: "ccitt" (LoRaWAN, default) or "ibm" (0x8005, e.g. TI CC1121)
+    bool     chan_fsk_whitening;          // FSK data whitening (LoRaWAN, default true)
+    uint8_t  chan_fsk_length;             // FSK: 0 = length byte after the sync word (default), 1-255 = fixed length
 } app_config_t;
 
 static app_config_t g_cfg;
@@ -214,6 +217,9 @@ static void load_config(const char *path) {
     strncpy(g_cfg.chan_lora_std_implicit_cr, "4/5", sizeof(g_cfg.chan_lora_std_implicit_cr) - 1);
     g_cfg.chan_fsk_sync_size         = 3;
     g_cfg.chan_fsk_sync_word         = 0xC194C1ULL;
+    strncpy(g_cfg.chan_fsk_crc, "ccitt", sizeof(g_cfg.chan_fsk_crc) - 1);
+    g_cfg.chan_fsk_whitening         = true;
+    g_cfg.chan_fsk_length            = 0;
 
     JSON_Value *root = json_parse_file(path);
     if (!root) {
@@ -363,6 +369,9 @@ static void load_config(const char *path) {
     CFG_U8   ("chan_fsk_sync_size",         g_cfg.chan_fsk_sync_size)
     if ((val = json_object_get_value(obj, "chan_fsk_sync_word")) && json_value_get_type(val) == JSONNumber)
         g_cfg.chan_fsk_sync_word = (uint64_t)json_value_get_number(val);
+    CFG_STR  ("chan_fsk_crc",               g_cfg.chan_fsk_crc)
+    CFG_BOOL ("chan_fsk_whitening",         g_cfg.chan_fsk_whitening)
+    CFG_U8   ("chan_fsk_length",            g_cfg.chan_fsk_length)
 
 #undef CFG_STR
 #undef CFG_U32
@@ -913,6 +922,16 @@ static void send_gateway_status_json(void) {
     uint32_t q_drop = stat_tx_queue_drop;
     pthread_mutex_unlock(&stats_mutex);
 
+    char fsk_json[200] = "null";
+    if (g_cfg.chan_fsk_enable) {
+        uint32_t centre = g_cfg.chan_fsk_radio == 1 ? g_rf1_freq : g_rf0_freq;
+        snprintf(fsk_json, sizeof(fsk_json),
+            "{\"freq\":%u,\"datarate\":%u,\"sync_word\":\"%0*llX\",\"crc\":\"%s\",\"whitening\":%s,\"length\":%u}",
+            (unsigned)((int64_t)centre + g_cfg.chan_fsk_if), (unsigned)g_cfg.chan_fsk_datarate,
+            2 * g_cfg.chan_fsk_sync_size, (unsigned long long)g_cfg.chan_fsk_sync_word,
+            strcmp(g_cfg.chan_fsk_crc, "ibm") == 0 ? "ibm" : "ccitt", g_cfg.chan_fsk_whitening ? "true" : "false",
+            (unsigned)g_cfg.chan_fsk_length);
+    }
     int len = snprintf(json_status, sizeof(json_status),
         "{\"v\":%d,\"msg_type\":\"gateway_status\","
         "\"gateway_id\":\"%016llX\",\"seq\":%u,\"boot\":%u,\"ts_ms\":%llu,"
@@ -933,7 +952,7 @@ static void send_gateway_status_json(void) {
         "\"port_down\":%u,"
         "\"status_port\":%u,"
         "\"link\":%d,\"auth\":%s,\"nonce\":\"%08x\","
-        "\"model\":\"%s\",\"engine\":\"%s\","
+        "\"model\":\"%s\",\"engine\":\"%s\",\"fsk\":%s,"
         "\"link_retx\":%u,\"link_lost\":%u,\"auth_rej\":%u"
         "}}",
         LINK_VERSION,
@@ -956,7 +975,7 @@ static void send_gateway_status_json(void) {
         (unsigned)g_cfg.port_down,
         (unsigned)g_cfg.status_port,
         LINK_VERSION, g_cfg.link_key[0] ? "true" : "false", nonce_current(),
-        GATEWAY_MODEL, ENGINE_VERSION,
+        GATEWAY_MODEL, ENGINE_VERSION, fsk_json,
         stat_link_retx, stat_link_lost, stat_auth_rej);
 
     if (len > 0 && len < (int)sizeof(json_status)) {
@@ -1057,6 +1076,14 @@ static int configure_and_start_sx1302(void) {
         ftimeconf.mode   = LGW_FTIME_MODE_ALL_SF;
         lgw_ftime_setconf(&ftimeconf);
     }
+
+    /* FSK framing: LoRaWAN's unless the config asks otherwise (2.3). */
+    lgw_fsk_framing(strcmp(g_cfg.chan_fsk_crc, "ibm") == 0, g_cfg.chan_fsk_whitening, g_cfg.chan_fsk_length);
+    if (g_cfg.chan_fsk_enable)
+        printf("[FSK] channel on, %u bit/s, sync word %0*llX, CRC %s, whitening %s, %s\n",
+               (unsigned)g_cfg.chan_fsk_datarate, 2 * g_cfg.chan_fsk_sync_size, (unsigned long long)g_cfg.chan_fsk_sync_word,
+               strcmp(g_cfg.chan_fsk_crc, "ibm") == 0 ? "IBM" : "CCITT", g_cfg.chan_fsk_whitening ? "on" : "off",
+               g_cfg.chan_fsk_length ? "fixed length" : "length byte");
 
     return lgw_start();
 }
@@ -1703,6 +1730,13 @@ static void *thread_tx_recv(void *arg) {
                 continue;
             }
             txpkt.size = (uint16_t)decoded_len;
+            if (txpkt.modulation == MOD_FSK && g_cfg.chan_fsk_length && txpkt.size != g_cfg.chan_fsk_length) {
+                printf("[TX-RECV] FSK packet of %u bytes; the channel is set to a fixed %u\n",
+                       (unsigned)txpkt.size, (unsigned)g_cfg.chan_fsk_length);
+                send_tx_ack(request_id, "bad_payload", &src_addr);
+                json_value_free(root_val);
+                continue;
+            }
         } else if (txpkt.modulation == MOD_CW) {
             txpkt.size = 0;
         } else {

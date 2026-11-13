@@ -427,6 +427,15 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf);
 int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf);
 
 /**
+@brief Set the FSK packet framing, for receiving and sending (call before lgw_start)
+@param crc_ibm true: CRC-16 IBM (0x8005, init 0xFFFF); false: CCITT, as LoRaWAN
+@param whitening true: data whitening, as LoRaWAN; false: none
+@param fixed_length 0: variable length (a length byte after the sync word); 1-255: every packet has that many bytes
+@return LGW_HAL_SUCCESS
+*/
+int lgw_fsk_framing(bool crc_ibm, bool whitening, uint8_t fixed_length);
+
+/**
 @brief Configure LoRa/FSK demodulators
 @param conf structure containing the configuration parameters
 @return LGW_HAL_ERROR id the operation failed, LGW_HAL_SUCCESS else
